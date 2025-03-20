@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/layout/Navbar';
@@ -296,18 +295,7 @@ const BookNow = () => {
                       
                       <div className="mt-4 flex justify-end">
                         <AnimatedButton
-                          variant="outline"
-                          size="sm"
-                          className="mr-2"
-                          onClick={() => {
-                            setDistance([5]);
-                            setSalonType("all");
-                          }}
-                        >
-                          Reset
-                        </AnimatedButton>
-                        <AnimatedButton
-                          variant="primary"
+                          variant="default"
                           size="sm"
                           onClick={handleSearch}
                         >

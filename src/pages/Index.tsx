@@ -18,7 +18,8 @@ import {
   MapPin, 
   StarIcon, 
   Scissors, 
-  ArrowRight 
+  ArrowRight,
+  Check
 } from 'lucide-react';
 
 const fadeInVariants = {
