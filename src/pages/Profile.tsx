@@ -21,8 +21,12 @@ const Profile = () => {
   }, [user, navigate]);
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
+    try {
+      await signOut();
+      navigate('/auth');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   if (!user || !userProfile) {

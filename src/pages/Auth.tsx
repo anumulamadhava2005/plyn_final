@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -46,7 +45,6 @@ const merchantSchema = z.object({
   businessAddress: z.string().min(3, 'Address must be at least 3 characters'),
   businessPhone: z.string().min(5, 'Phone number must be at least 5 characters'),
   businessEmail: z.string().email('Please enter a valid email address'),
-  serviceCategory: z.string().min(1, 'Please select a service category'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
@@ -92,7 +90,6 @@ const Auth = () => {
       businessAddress: '',
       businessPhone: '',
       businessEmail: '',
-      serviceCategory: '',
       password: '',
     },
   });
@@ -106,10 +103,8 @@ const Auth = () => {
   const onLoginSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
     try {
-      // Regular sign in process
       await signIn(values.email, values.password);
       
-      // If user selected merchant login, verify they're actually a merchant
       if (values.isMerchant) {
         const { data: profileData } = await supabase
           .from('profiles')
@@ -118,7 +113,6 @@ const Auth = () => {
           .single();
           
         if (!profileData?.is_merchant) {
-          // Not a merchant, sign them out
           await supabase.auth.signOut();
           toast({
             title: "Access denied",
@@ -128,10 +122,22 @@ const Auth = () => {
           setIsLoading(false);
           return;
         }
+        
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('*')
+          .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+          .single();
+          
+        if (merchantError || !merchantData) {
+          navigate('/merchant-signup');
+          return;
+        }
+        
+        navigate('/merchant-dashboard');
+      } else {
+        navigate('/');
       }
-      
-      // Navigate to home on successful login
-      navigate('/');
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -157,13 +163,17 @@ const Auth = () => {
         values.isMerchant
       );
       
-      // If merchant signup, we'll need to collect more info after authentication
       if (values.isMerchant) {
         toast({
           title: "Merchant Account Created",
           description: "Please complete your merchant profile",
         });
-        navigate('/merchant-signup');
+        
+        setTimeout(() => {
+          navigate('/merchant-signup');
+        }, 1000);
+      } else {
+        navigate('/');
       }
     } catch (error: any) {
       toast({
@@ -180,10 +190,9 @@ const Auth = () => {
   const onMerchantLoginSubmit = async (values: MerchantLoginFormValues) => {
     setIsLoading(true);
     try {
-      // Check if merchant exists in database
       const { data: merchants, error: merchantError } = await supabase
         .from('merchants')
-        .select('id, business_email')
+        .select('*, profiles(email)')
         .eq('business_name', values.businessName)
         .eq('business_email', values.businessEmail)
         .eq('business_phone', values.businessPhone);
@@ -198,31 +207,20 @@ const Auth = () => {
         return;
       }
       
-      // Merchant found, try to sign in
       const merchant = merchants[0];
-      await signIn(merchant.business_email, values.password);
+      const userEmail = merchant.business_email;
       
-      // Check if the user is actually a merchant
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('is_merchant')
-        .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
-        .single();
+      try {
+        await signIn(userEmail, values.password);
         
-      if (!profileData?.is_merchant) {
-        // Not a merchant, sign them out
-        await supabase.auth.signOut();
+        navigate('/merchant-dashboard');
+      } catch (signInError) {
         toast({
-          title: "Access denied",
-          description: "This account is not registered as a merchant.",
+          title: "Authentication failed",
+          description: "Invalid credentials. Please check your password.",
           variant: "destructive",
         });
-        setIsLoading(false);
-        return;
       }
-      
-      // Navigate to home on successful login
-      navigate('/');
     } catch (error: any) {
       toast({
         title: "Merchant login failed",

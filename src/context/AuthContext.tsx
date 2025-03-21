@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,7 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         setSession(currentSession);
@@ -65,7 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
@@ -105,7 +102,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setIsMerchant(data.is_merchant || false);
       
-      // If user is a merchant, check if they have merchant profile data
       if (data.is_merchant) {
         const { data: merchantData, error: merchantError } = await supabase
           .from('merchants')
@@ -184,6 +180,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      setUser(null);
+      setSession(null);
+      setUserProfile(null);
+      setIsMerchant(false);
     } catch (error: any) {
       toast({
         title: "Sign out failed",

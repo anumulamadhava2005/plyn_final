@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,7 @@ import { LogOut, User } from 'lucide-react';
 
 const AuthNav = () => {
   const { user, signOut, userProfile } = useAuth();
+  const navigate = useNavigate();
 
   // Get first letter of username for avatar fallback
   const getInitial = () => {
@@ -23,6 +24,15 @@ const AuthNav = () => {
       return userProfile.username.charAt(0).toUpperCase();
     }
     return user?.email?.charAt(0).toUpperCase() || '?';
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/auth');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   if (!user) {
@@ -56,7 +66,7 @@ const AuthNav = () => {
             <span>Profile</span>
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive focus:text-destructive">
+        <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive focus:text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sign out</span>
         </DropdownMenuItem>

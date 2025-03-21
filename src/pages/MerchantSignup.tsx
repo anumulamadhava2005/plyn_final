@@ -31,17 +31,28 @@ const MerchantSignup = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && userProfile) {
-      if (!userProfile.isMerchant) {
-        toast({
-          title: "Access Restricted",
-          description: "You need to sign up as a merchant to access this page.",
-          variant: "destructive",
-        });
-        navigate('/auth');
-      } else {
-        checkMerchantProfile();
-      }
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to access merchant signup.",
+        variant: "destructive",
+      });
+      navigate('/auth');
+      return;
+    }
+    
+    if (userProfile && !userProfile.isMerchant) {
+      toast({
+        title: "Access Restricted",
+        description: "You need to sign up as a merchant to access this page.",
+        variant: "destructive",
+      });
+      navigate('/auth');
+      return;
+    }
+    
+    if (user && userProfile?.isMerchant) {
+      checkMerchantProfile();
     }
   }, [user, userProfile, navigate]);
 
@@ -60,7 +71,7 @@ const MerchantSignup = () => {
           title: "Profile Already Complete",
           description: "Your merchant profile is already set up.",
         });
-        navigate('/');
+        navigate('/merchant-dashboard');
       }
     } catch (error) {
       console.error("Error checking merchant profile:", error);
@@ -115,7 +126,7 @@ const MerchantSignup = () => {
           business_name: formData.businessName,
           business_address: formData.address,
           business_phone: formData.phone,
-          business_email: formData.email,
+          business_email: formData.email || user.email,
           service_category: formData.salonType
         });
         
