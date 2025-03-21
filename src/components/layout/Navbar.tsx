@@ -3,9 +3,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+import ThemeToggle from '@/components/ui/theme-toggle';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,12 +13,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import { LogOut, User, Calendar, Layout } from 'lucide-react';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import LogoAnimation from './LogoAnimation';
-import NavLink from './NavLink';
-
+import LogoAnimation from '@/components/ui/LogoAnimation';
+import NavLink from '@/components/layout/NavLink';
 import NotificationsPopover from '@/components/notifications/NotificationsPopover';
 
 const navLinks = [
