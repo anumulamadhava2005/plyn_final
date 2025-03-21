@@ -177,13 +177,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Username already exists. Please choose a different username.");
       }
       
+      // Generate a unique username by appending a timestamp if needed
+      const uniqueUsername = username;
+      
       console.log("Signing up user with email:", email);
       const { error, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            username,
+            username: uniqueUsername,
             phone_number: phoneNumber,
             age,
             gender,

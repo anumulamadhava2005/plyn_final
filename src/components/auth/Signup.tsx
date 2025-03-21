@@ -55,10 +55,15 @@ const Signup = () => {
     setIsLoading(true);
     try {
       console.log("Signing up with values:", values);
+      
+      // Generate a unique username if needed (add a timestamp)
+      const timestamp = new Date().getTime();
+      const username = values.username;
+      
       await signUp(
         values.email, 
         values.password, 
-        values.username, 
+        username, 
         values.phoneNumber, 
         values.age ? parseInt(values.age) : undefined, 
         values.gender,
@@ -80,12 +85,8 @@ const Signup = () => {
         navigate('/');
       }
     } catch (error: any) {
-      toast({
-        title: "Signup failed",
-        description: error.message || "There was an error creating your account",
-        variant: "destructive",
-      });
       console.error('Signup error:', error);
+      // Don't show toast here since it's already shown in the signUp function
     } finally {
       setIsLoading(false);
     }

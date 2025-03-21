@@ -34,6 +34,7 @@ const MerchantSignup = () => {
 
   useEffect(() => {
     if (!user) {
+      console.log("No authenticated user, redirecting to auth page");
       toast({
         title: "Authentication Required",
         description: "Please sign in to access merchant signup.",
@@ -43,7 +44,11 @@ const MerchantSignup = () => {
       return;
     }
     
+    console.log("User profile:", userProfile);
+    
+    // If the user is not registered as a merchant, redirect them to auth page
     if (userProfile && !userProfile.isMerchant) {
+      console.log("User is not registered as a merchant, redirecting to auth page");
       toast({
         title: "Access Restricted",
         description: "You need to sign up as a merchant to access this page.",
@@ -53,7 +58,9 @@ const MerchantSignup = () => {
       return;
     }
     
+    // Only check merchant profile if user is authenticated and registered as a merchant
     if (user && userProfile?.isMerchant) {
+      console.log("Checking merchant profile");
       checkMerchantProfile();
     }
   }, [user, userProfile, navigate, checkMerchantProfile, toast]);

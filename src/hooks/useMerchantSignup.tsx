@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
@@ -62,11 +62,14 @@ export const useMerchantSignup = () => {
     if (!user) return;
 
     try {
+      console.log("Checking if merchant profile exists for user:", user.id);
       const { data, error } = await supabase
         .from('merchants')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
+
+      console.log("Merchant profile check result:", { data, error });
 
       if (!error && data) {
         toast({
@@ -79,6 +82,13 @@ export const useMerchantSignup = () => {
       console.error("Error checking merchant profile:", error);
     }
   };
+
+  // Check profile on mount
+  useEffect(() => {
+    if (user && userProfile?.isMerchant) {
+      checkMerchantProfile();
+    }
+  }, [user, userProfile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,24 +115,56 @@ export const useMerchantSignup = () => {
         service_category: formData.salonType
       });
       
-      const { data, error } = await supabase
+      // First, check if a merchant entry already exists
+      const { data: existingMerchant, error: checkError } = await supabase
         .from('merchants')
-        .insert({
-          id: user.id,
-          business_name: formData.businessName,
-          business_address: formData.address,
-          business_phone: formData.phone,
-          business_email: formData.email || user.email,
-          service_category: formData.salonType
-        })
-        .select();
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
         
-      if (error) {
-        console.error("Error during merchant profile creation:", error);
-        throw error;
+      if (checkError) {
+        console.error("Error checking existing merchant:", checkError);
+        throw checkError;
       }
       
-      console.log("Merchant profile created successfully:", data);
+      let result;
+      
+      if (existingMerchant) {
+        console.log("Merchant exists, updating profile:", existingMerchant);
+        // Update existing merchant
+        result = await supabase
+          .from('merchants')
+          .update({
+            business_name: formData.businessName,
+            business_address: formData.address,
+            business_phone: formData.phone,
+            business_email: formData.email || user.email,
+            service_category: formData.salonType
+          })
+          .eq('id', user.id)
+          .select();
+      } else {
+        console.log("Creating new merchant profile");
+        // Insert new merchant
+        result = await supabase
+          .from('merchants')
+          .insert({
+            id: user.id,
+            business_name: formData.businessName,
+            business_address: formData.address,
+            business_phone: formData.phone,
+            business_email: formData.email || user.email,
+            service_category: formData.salonType
+          })
+          .select();
+      }
+      
+      if (result.error) {
+        console.error("Error during merchant profile creation/update:", result.error);
+        throw result.error;
+      }
+      
+      console.log("Merchant profile created/updated successfully:", result.data);
       
       // Update the user's profile to ensure isMerchant is true
       const { error: profileError } = await supabase
