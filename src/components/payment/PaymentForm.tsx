@@ -275,26 +275,26 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
               />
             </div>
           </TabsContent>
-          
-          <div className="pt-2">
-            <AnimatedButton
-              type="submit"
-              variant="default"
-              className="w-full"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>Pay ${totalPrice}</>
-              )}
-            </AnimatedButton>
-          </div>
-        </form>
-      </Tabs>
+        </Tabs>
+        
+        <div className="pt-2">
+          <AnimatedButton
+            type="submit"
+            variant="default"
+            className="w-full"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>Pay ${totalPrice}</>
+            )}
+          </AnimatedButton>
+        </div>
+      </form>
     </Form>
   );
 };
