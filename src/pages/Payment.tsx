@@ -141,14 +141,14 @@ const Payment = () => {
         notes: values.notes
       });
       
-      // Process payment
+      // Process payment (in development, this will always succeed)
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
         amount: bookingData.totalPrice,
         paymentMethod: values.paymentMethod,
-        paymentStatus: "completed",
-        transactionId: `TX-${Math.floor(Math.random() * 1000000)}`
+        paymentStatus: "completed", // Always completed for development
+        transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`
       });
       
       // Mark the slot as booked

@@ -39,6 +39,7 @@ export const createBooking = async (bookingData: any) => {
 // Function to create a payment record
 export const createPayment = async (paymentData: any) => {
   try {
+    // For development purposes, always create a successful payment
     const { data: newPayment, error: paymentError } = await supabase
       .from("payments")
       .insert({
@@ -46,8 +47,8 @@ export const createPayment = async (paymentData: any) => {
         user_id: paymentData.userId,
         amount: paymentData.amount,
         payment_method: paymentData.paymentMethod,
-        payment_status: paymentData.paymentStatus || "completed",
-        transaction_id: paymentData.transactionId
+        payment_status: "completed", // Always completed for development
+        transaction_id: `DEV-${Math.floor(Math.random() * 1000000)}`
       })
       .select()
       .single();
