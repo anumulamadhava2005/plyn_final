@@ -1,16 +1,16 @@
 
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { UserCircle, Mail, Phone, Calendar, Users, LogOut } from 'lucide-react';
+import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight } from 'lucide-react';
 
 const Profile = () => {
-  const { user, userProfile, signOut } = useAuth();
+  const { user, userProfile, signOut, isMerchant } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,11 +46,27 @@ const Profile = () => {
                   </div>
                   <CardTitle className="text-xl">{userProfile.username}</CardTitle>
                   <CardDescription>{user.email}</CardDescription>
+                  {isMerchant && (
+                    <span className="inline-block px-3 py-1 mt-2 text-xs font-medium rounded-full bg-salon-women/10 text-salon-women dark:bg-salon-women-light/10 dark:text-salon-women-light">
+                      Merchant Account
+                    </span>
+                  )}
                 </CardHeader>
                 <CardContent className="flex flex-col items-center">
+                  {isMerchant && (
+                    <Link to="/merchant-dashboard" className="w-full">
+                      <AnimatedButton 
+                        variant="default" 
+                        className="w-full mb-4"
+                        icon={<Briefcase className="w-4 h-4" />}
+                      >
+                        Merchant Dashboard
+                      </AnimatedButton>
+                    </Link>
+                  )}
                   <AnimatedButton 
                     variant="destructive" 
-                    className="w-full mt-4"
+                    className="w-full"
                     icon={<LogOut className="w-4 h-4" />}
                     onClick={handleSignOut}
                   >
@@ -113,6 +129,20 @@ const Profile = () => {
                     </div>
                   )}
                 </CardContent>
+                
+                {!isMerchant && (
+                  <CardFooter className="flex justify-end">
+                    <Link to="/merchant-signup">
+                      <AnimatedButton 
+                        variant="outline" 
+                        size="sm"
+                        icon={<ArrowUpRight className="w-4 h-4" />}
+                      >
+                        Become a Merchant
+                      </AnimatedButton>
+                    </Link>
+                  </CardFooter>
+                )}
               </Card>
             </div>
           </div>

@@ -9,9 +9,16 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string, phoneNumber?: string, age?: number, gender?: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, phoneNumber?: string, age?: number, gender?: string, isMerchant?: boolean) => Promise<void>;
   signOut: () => Promise<void>;
-  userProfile: { username: string; phoneNumber?: string; age?: number; gender?: string } | null;
+  userProfile: { 
+    username: string; 
+    phoneNumber?: string; 
+    age?: number; 
+    gender?: string;
+    isMerchant?: boolean;
+  } | null;
+  isMerchant: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,7 +27,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<{ username: string; phoneNumber?: string; age?: number; gender?: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ 
+    username: string; 
+    phoneNumber?: string; 
+    age?: number; 
+    gender?: string;
+    isMerchant?: boolean;
+  } | null>(null);
+  const [isMerchant, setIsMerchant] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -34,6 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await fetchUserProfile(currentSession.user.id);
         } else {
           setUserProfile(null);
+          setIsMerchant(false);
         }
 
         if (event === 'SIGNED_IN') {
@@ -71,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('username, phone_number, age, gender')
+        .select('username, phone_number, age, gender, is_merchant')
         .eq('id', userId)
         .single();
 
@@ -84,8 +99,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username: data.username,
         phoneNumber: data.phone_number,
         age: data.age,
-        gender: data.gender
+        gender: data.gender,
+        isMerchant: data.is_merchant
       });
+      
+      setIsMerchant(data.is_merchant || false);
+      
+      // If user is a merchant, check if they have merchant profile data
+      if (data.is_merchant) {
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (!merchantError && merchantData) {
+          console.log('Merchant data found:', merchantData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching user profile:', error);
     }
@@ -109,7 +140,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, username: string, phoneNumber?: string, age?: number, gender?: string) => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    username: string, 
+    phoneNumber?: string, 
+    age?: number, 
+    gender?: string,
+    isMerchant: boolean = false
+  ) => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -120,6 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             phone_number: phoneNumber,
             age,
             gender,
+            is_merchant: isMerchant,
           },
         },
       });
@@ -155,7 +195,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, signIn, signUp, signOut, userProfile }}>
+    <AuthContext.Provider value={{ 
+      session, 
+      user, 
+      loading, 
+      signIn, 
+      signUp, 
+      signOut, 
+      userProfile, 
+      isMerchant 
+    }}>
       {children}
     </AuthContext.Provider>
   );

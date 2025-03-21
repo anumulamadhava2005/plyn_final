@@ -11,6 +11,7 @@ import { AuthProvider } from "./context/AuthContext";
 import Index from "./pages/Index";
 import BookNow from "./pages/BookNow";
 import MerchantSignup from "./pages/MerchantSignup";
+import MerchantDashboard from "./pages/MerchantDashboard";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/book-now" element={<BookNow />} />
               <Route path="/merchant-signup" element={<MerchantSignup />} />
+              <Route path="/merchant-dashboard" element={<MerchantDashboard />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/profile" element={<Profile />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

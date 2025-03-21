@@ -1,6 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
@@ -10,6 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Check, Clock, CreditCard, BarChart3, Bell, Scissors } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const MerchantSignup = () => {
   const [step, setStep] = useState(1);
@@ -22,6 +25,47 @@ const MerchantSignup = () => {
     salonType: 'men',
     description: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  const { user, userProfile } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user && userProfile) {
+      if (!userProfile.isMerchant) {
+        toast({
+          title: "Access Restricted",
+          description: "You need to sign up as a merchant to access this page.",
+          variant: "destructive",
+        });
+        navigate('/auth');
+      } else {
+        checkMerchantProfile();
+      }
+    }
+  }, [user, userProfile, navigate]);
+
+  const checkMerchantProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('merchants')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (!error && data) {
+        toast({
+          title: "Profile Already Complete",
+          description: "Your merchant profile is already set up.",
+        });
+        navigate('/');
+      }
+    } catch (error) {
+      console.error("Error checking merchant profile:", error);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -48,12 +92,54 @@ const MerchantSignup = () => {
     window.scrollTo(0, 0);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real implementation, this would submit the form data to the backend
-    // For now, we'll just move to the success step
-    setStep(4);
-    window.scrollTo(0, 0);
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to complete your merchant profile.",
+        variant: "destructive",
+      });
+      navigate('/auth');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      const { error } = await supabase
+        .from('merchants')
+        .insert({
+          id: user.id,
+          business_name: formData.businessName,
+          business_address: formData.address,
+          business_phone: formData.phone,
+          business_email: formData.email,
+          service_category: formData.salonType
+        });
+        
+      if (error) {
+        throw error;
+      }
+      
+      setStep(4);
+      window.scrollTo(0, 0);
+      
+      toast({
+        title: "Merchant Profile Created",
+        description: "Your merchant profile has been successfully created!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Submission Failed",
+        description: error.message || "There was an error creating your merchant profile.",
+        variant: "destructive",
+      });
+      console.error('Merchant profile creation error:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const benefits = [
@@ -346,8 +432,9 @@ const MerchantSignup = () => {
                 variant="gradient"
                 className="flex-1"
                 type="submit"
+                disabled={isSubmitting}
               >
-                Submit Application
+                {isSubmitting ? "Submitting..." : "Submit Application"}
               </AnimatedButton>
             </div>
           </motion.form>
@@ -367,16 +454,16 @@ const MerchantSignup = () => {
             
             <h2 className="text-2xl font-bold">Application Submitted!</h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Thank you for applying to join PLYN as a merchant. Our team will review your application and contact you within 24-48 hours.
+              Thank you for applying to join PLYN as a merchant. You can now access your merchant dashboard.
             </p>
             
             <div className="pt-4">
               <AnimatedButton
-                variant="outline"
-                onClick={() => window.location.href = '/'}
+                variant="gradient"
+                onClick={() => navigate('/merchant-dashboard')}
                 className="px-8"
               >
-                Return to Home
+                Go to Merchant Dashboard
               </AnimatedButton>
             </div>
           </motion.div>
@@ -443,7 +530,7 @@ const MerchantSignup = () => {
                   >
                     {step < 4 && (
                       <div className="mb-8">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between relative">
                           {[1, 2, 3].map((stepNumber) => (
                             <div key={stepNumber} className="flex flex-col items-center">
                               <div 

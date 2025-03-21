@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -5,20 +6,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Checkbox } from '@/components/ui/checkbox';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useAuth } from '@/context/AuthContext';
-import { Mail, Lock, User, Phone, Calendar, Users } from 'lucide-react';
+import { Mail, Lock, User, Phone, Calendar, Users, Store } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
+  isMerchant: z.boolean().default(false),
 });
 
 const signupSchema = z.object({
@@ -31,17 +35,29 @@ const signupSchema = z.object({
     message: 'Age must be between 18 and 100',
   }).optional(),
   gender: z.string().optional(),
+  isMerchant: z.boolean().default(false),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
 
+const merchantSchema = z.object({
+  businessName: z.string().min(3, 'Business name must be at least 3 characters'),
+  businessAddress: z.string().min(3, 'Address must be at least 3 characters'),
+  businessPhone: z.string().min(5, 'Phone number must be at least 5 characters'),
+  businessEmail: z.string().email('Please enter a valid email address'),
+  serviceCategory: z.string().min(1, 'Please select a service category'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
 type LoginFormValues = z.infer<typeof loginSchema>;
 type SignupFormValues = z.infer<typeof signupSchema>;
+type MerchantLoginFormValues = z.infer<typeof merchantSchema>;
 
 const Auth = () => {
   const [activeTab, setActiveTab] = useState('login');
   const [isLoading, setIsLoading] = useState(false);
+  const [showMerchantFields, setShowMerchantFields] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -51,6 +67,7 @@ const Auth = () => {
     defaultValues: {
       email: '',
       password: '',
+      isMerchant: false,
     },
   });
 
@@ -64,6 +81,19 @@ const Auth = () => {
       phoneNumber: '',
       age: '',
       gender: '',
+      isMerchant: false,
+    },
+  });
+  
+  const merchantLoginForm = useForm<MerchantLoginFormValues>({
+    resolver: zodResolver(merchantSchema),
+    defaultValues: {
+      businessName: '',
+      businessAddress: '',
+      businessPhone: '',
+      businessEmail: '',
+      serviceCategory: '',
+      password: '',
     },
   });
 
@@ -76,7 +106,32 @@ const Auth = () => {
   const onLoginSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
     try {
+      // Regular sign in process
       await signIn(values.email, values.password);
+      
+      // If user selected merchant login, verify they're actually a merchant
+      if (values.isMerchant) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('is_merchant')
+          .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+          .single();
+          
+        if (!profileData?.is_merchant) {
+          // Not a merchant, sign them out
+          await supabase.auth.signOut();
+          toast({
+            title: "Access denied",
+            description: "This account is not registered as a merchant.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      // Navigate to home on successful login
+      navigate('/');
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -98,8 +153,18 @@ const Auth = () => {
         values.username, 
         values.phoneNumber, 
         values.age ? parseInt(values.age) : undefined, 
-        values.gender
+        values.gender,
+        values.isMerchant
       );
+      
+      // If merchant signup, we'll need to collect more info after authentication
+      if (values.isMerchant) {
+        toast({
+          title: "Merchant Account Created",
+          description: "Please complete your merchant profile",
+        });
+        navigate('/merchant-signup');
+      }
     } catch (error: any) {
       toast({
         title: "Signup failed",
@@ -107,6 +172,64 @@ const Auth = () => {
         variant: "destructive",
       });
       console.error('Signup error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const onMerchantLoginSubmit = async (values: MerchantLoginFormValues) => {
+    setIsLoading(true);
+    try {
+      // Check if merchant exists in database
+      const { data: merchants, error: merchantError } = await supabase
+        .from('merchants')
+        .select('id, business_email')
+        .eq('business_name', values.businessName)
+        .eq('business_email', values.businessEmail)
+        .eq('business_phone', values.businessPhone);
+        
+      if (merchantError || !merchants || merchants.length === 0) {
+        toast({
+          title: "Merchant login failed",
+          description: "No matching merchant account found. Please check your business details.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Merchant found, try to sign in
+      const merchant = merchants[0];
+      await signIn(merchant.business_email, values.password);
+      
+      // Check if the user is actually a merchant
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('is_merchant')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+        .single();
+        
+      if (!profileData?.is_merchant) {
+        // Not a merchant, sign them out
+        await supabase.auth.signOut();
+        toast({
+          title: "Access denied",
+          description: "This account is not registered as a merchant.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Navigate to home on successful login
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: "Merchant login failed",
+        description: error.message || "Invalid credentials",
+        variant: "destructive",
+      });
+      console.error('Merchant login error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -128,11 +251,15 @@ const Auth = () => {
               >
                 <div className="mb-6 text-center">
                   <h1 className="text-2xl md:text-3xl font-bold gradient-heading">
-                    {activeTab === 'login' ? 'Welcome Back' : 'Create Account'}
+                    {activeTab === 'login' 
+                      ? (showMerchantFields ? 'Merchant Login' : 'Welcome Back') 
+                      : 'Create Account'}
                   </h1>
                   <p className="text-muted-foreground mt-2">
                     {activeTab === 'login' 
-                      ? 'Sign in to access your account and bookings' 
+                      ? (showMerchantFields 
+                          ? 'Sign in to your merchant account' 
+                          : 'Sign in to access your account and bookings')
                       : 'Join PLYN to start booking appointments'}
                   </p>
                 </div>
@@ -144,61 +271,201 @@ const Auth = () => {
                   </TabsList>
                   
                   <TabsContent value="login">
-                    <Form {...loginForm}>
-                      <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
-                        <FormField
-                          control={loginForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email</FormLabel>
-                              <div className="relative">
+                    {!showMerchantFields ? (
+                      <Form {...loginForm}>
+                        <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                          <FormField
+                            control={loginForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <div className="relative">
+                                  <FormControl>
+                                    <Input
+                                      placeholder="your@email.com"
+                                      {...field}
+                                      className="pl-10"
+                                    />
+                                  </FormControl>
+                                  <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={loginForm.control}
+                            name="password"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Password</FormLabel>
+                                <div className="relative">
+                                  <FormControl>
+                                    <Input
+                                      type="password"
+                                      placeholder="••••••••"
+                                      {...field}
+                                      className="pl-10"
+                                    />
+                                  </FormControl>
+                                  <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={loginForm.control}
+                            name="isMerchant"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md p-4 shadow">
                                 <FormControl>
-                                  <Input
-                                    placeholder="your@email.com"
-                                    {...field}
-                                    className="pl-10"
+                                  <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
                                   />
                                 </FormControl>
-                                <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <FormField
-                          control={loginForm.control}
-                          name="password"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Password</FormLabel>
-                              <div className="relative">
-                                <FormControl>
-                                  <Input
-                                    type="password"
-                                    placeholder="••••••••"
-                                    {...field}
-                                    className="pl-10"
-                                  />
-                                </FormControl>
-                                <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <AnimatedButton
-                          variant="gradient"
-                          type="submit"
-                          className="w-full mt-6"
-                          disabled={isLoading}
-                        >
-                          {isLoading ? 'Signing in...' : 'Sign In'}
-                        </AnimatedButton>
-                      </form>
-                    </Form>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel>
+                                    Sign in as a merchant
+                                  </FormLabel>
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <div className="flex flex-col space-y-3 mt-6">
+                            <AnimatedButton
+                              variant="gradient"
+                              type="submit"
+                              className="w-full"
+                              disabled={isLoading}
+                            >
+                              {isLoading ? 'Signing in...' : 'Sign In'}
+                            </AnimatedButton>
+                            
+                            <button
+                              type="button"
+                              onClick={() => setShowMerchantFields(true)}
+                              className="text-sm text-primary underline text-center"
+                            >
+                              Sign in with business details instead
+                            </button>
+                          </div>
+                        </form>
+                      </Form>
+                    ) : (
+                      <Form {...merchantLoginForm}>
+                        <form onSubmit={merchantLoginForm.handleSubmit(onMerchantLoginSubmit)} className="space-y-4">
+                          <FormField
+                            control={merchantLoginForm.control}
+                            name="businessName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Business Name</FormLabel>
+                                <div className="relative">
+                                  <FormControl>
+                                    <Input
+                                      placeholder="Your business name"
+                                      {...field}
+                                      className="pl-10"
+                                    />
+                                  </FormControl>
+                                  <Store className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={merchantLoginForm.control}
+                            name="businessEmail"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Business Email</FormLabel>
+                                <div className="relative">
+                                  <FormControl>
+                                    <Input
+                                      placeholder="business@example.com"
+                                      {...field}
+                                      className="pl-10"
+                                    />
+                                  </FormControl>
+                                  <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={merchantLoginForm.control}
+                            name="businessPhone"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Business Phone</FormLabel>
+                                <div className="relative">
+                                  <FormControl>
+                                    <Input
+                                      placeholder="(123) 456-7890"
+                                      {...field}
+                                      className="pl-10"
+                                    />
+                                  </FormControl>
+                                  <Phone className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={merchantLoginForm.control}
+                            name="password"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Password</FormLabel>
+                                <div className="relative">
+                                  <FormControl>
+                                    <Input
+                                      type="password"
+                                      placeholder="••••••••"
+                                      {...field}
+                                      className="pl-10"
+                                    />
+                                  </FormControl>
+                                  <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <div className="flex flex-col space-y-3 mt-6">
+                            <AnimatedButton
+                              variant="gradient"
+                              type="submit"
+                              className="w-full"
+                              disabled={isLoading}
+                            >
+                              {isLoading ? 'Signing in...' : 'Sign In as Merchant'}
+                            </AnimatedButton>
+                            
+                            <button
+                              type="button"
+                              onClick={() => setShowMerchantFields(false)}
+                              className="text-sm text-primary underline text-center"
+                            >
+                              Go back to regular login
+                            </button>
+                          </div>
+                        </form>
+                      </Form>
+                    )}
                   </TabsContent>
                   
                   <TabsContent value="signup">
@@ -360,6 +627,29 @@ const Auth = () => {
                                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
                               </div>
                               <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={signupForm.control}
+                          name="isMerchant"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md p-4 shadow">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel>
+                                  Sign up as a merchant
+                                </FormLabel>
+                                <p className="text-sm text-muted-foreground">
+                                  You'll need to provide business details after signup
+                                </p>
+                              </div>
                             </FormItem>
                           )}
                         />

@@ -9,12 +9,94 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          created_at: string
+          id: string
+          merchant_id: string
+          service_name: string
+          slot_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          merchant_id: string
+          service_name: string
+          slot_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          merchant_id?: string
+          service_name?: string
+          slot_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "slots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchants: {
+        Row: {
+          business_address: string
+          business_email: string
+          business_name: string
+          business_phone: string
+          created_at: string
+          id: string
+          service_category: string
+          updated_at: string
+        }
+        Insert: {
+          business_address: string
+          business_email: string
+          business_name: string
+          business_phone: string
+          created_at?: string
+          id: string
+          service_category: string
+          updated_at?: string
+        }
+        Update: {
+          business_address?: string
+          business_email?: string
+          business_name?: string
+          business_phone?: string
+          created_at?: string
+          id?: string
+          service_category?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           age: number | null
           created_at: string
           gender: string | null
           id: string
+          is_merchant: boolean | null
           phone_number: string | null
           updated_at: string
           username: string
@@ -24,6 +106,7 @@ export type Database = {
           created_at?: string
           gender?: string | null
           id: string
+          is_merchant?: boolean | null
           phone_number?: string | null
           updated_at?: string
           username: string
@@ -33,11 +116,53 @@ export type Database = {
           created_at?: string
           gender?: string | null
           id?: string
+          is_merchant?: boolean | null
           phone_number?: string | null
           updated_at?: string
           username?: string
         }
         Relationships: []
+      }
+      slots: {
+        Row: {
+          created_at: string
+          date: string
+          end_time: string
+          id: string
+          is_booked: boolean
+          merchant_id: string
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          end_time: string
+          id?: string
+          is_booked?: boolean
+          merchant_id: string
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          end_time?: string
+          id?: string
+          is_booked?: boolean
+          merchant_id?: string
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slots_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
