@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
@@ -79,11 +80,11 @@ export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () =>
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await logout();
+    await signOut();
     navigate('/auth');
   };
 
@@ -113,13 +114,13 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <AnimatedButton variant="gradient" size="sm" onClick={() => navigate('/auth')}>
+                <Button variant="default" size="sm" onClick={() => navigate('/auth')}>
                   Sign In
-                </AnimatedButton>
+                </Button>
                 <div className="hidden md:block">
-                  <AnimatedButton variant="outline" size="sm" onClick={() => navigate('/merchant-signup')}>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/merchant-signup')}>
                     For Merchants
-                  </AnimatedButton>
+                  </Button>
                 </div>
               </>
             )}
@@ -164,7 +165,7 @@ const Navbar = () => {
             </>
           ) : (
             <>
-              <Button variant="gradient" size="sm" className="w-full" onClick={() => navigate('/auth')}>
+              <Button variant="default" size="sm" className="w-full" onClick={() => navigate('/auth')}>
                 Sign In
               </Button>
               <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => navigate('/merchant-signup')}>
