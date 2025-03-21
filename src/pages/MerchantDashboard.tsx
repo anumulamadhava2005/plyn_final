@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -55,7 +54,7 @@ type BookingData = {
   user_profile?: {
     username: string;
     phone_number?: string;
-  };
+  } | null;
   slot?: {
     date: string;
     start_time: string;
@@ -137,21 +136,42 @@ const MerchantDashboard = () => {
         
         setSlots(slotsData || []);
         
-        // Fetch bookings with user info
+        // Fetch bookings first
         const { data: bookingsData, error: bookingsError } = await supabase
           .from('bookings')
-          .select(`
-            *,
-            user_profile:profiles(username, phone_number),
-            slot:slots(date, start_time, end_time)
-          `)
+          .select('*')
           .eq('merchant_id', user.id);
           
         if (bookingsError) {
           throw bookingsError;
         }
         
-        setBookings(bookingsData || []);
+        // Process bookings to add user profile and slot info
+        const enhancedBookings: BookingData[] = [];
+        
+        for (const booking of bookingsData || []) {
+          // Fetch user profile separately
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('username, phone_number')
+            .eq('id', booking.user_id)
+            .single();
+            
+          // Fetch slot info separately
+          const { data: slotData } = await supabase
+            .from('slots')
+            .select('date, start_time, end_time')
+            .eq('id', booking.slot_id)
+            .single();
+            
+          enhancedBookings.push({
+            ...booking,
+            user_profile: profileData || { username: 'Unknown User' },
+            slot: slotData || undefined
+          });
+        }
+        
+        setBookings(enhancedBookings);
       } else {
         // Merchant profile not found, redirect to merchant signup
         toast({
