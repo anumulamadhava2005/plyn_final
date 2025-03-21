@@ -9,9 +9,9 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, phoneNumber?: string, age?: number, gender?: string) => Promise<void>;
   signOut: () => Promise<void>;
-  userProfile: { username: string } | null;
+  userProfile: { username: string; phoneNumber?: string; age?: number; gender?: string } | null;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,7 +20,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<{ username: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ username: string; phoneNumber?: string; age?: number; gender?: string } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('username')
+        .select('username, phone_number, age, gender')
         .eq('id', userId)
         .single();
 
@@ -80,7 +80,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      setUserProfile(data);
+      setUserProfile({
+        username: data.username,
+        phoneNumber: data.phone_number,
+        age: data.age,
+        gender: data.gender
+      });
     } catch (error) {
       console.error('Error fetching user profile:', error);
     }
@@ -104,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, username: string) => {
+  const signUp = async (email: string, password: string, username: string, phoneNumber?: string, age?: number, gender?: string) => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -112,6 +117,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           data: {
             username,
+            phone_number: phoneNumber,
+            age,
+            gender,
           },
         },
       });

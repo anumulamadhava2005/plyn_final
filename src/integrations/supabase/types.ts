@@ -11,20 +11,29 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          age: number | null
           created_at: string
+          gender: string | null
           id: string
+          phone_number: string | null
           updated_at: string
           username: string
         }
         Insert: {
+          age?: number | null
           created_at?: string
+          gender?: string | null
           id: string
+          phone_number?: string | null
           updated_at?: string
           username: string
         }
         Update: {
+          age?: number | null
           created_at?: string
+          gender?: string | null
           id?: string
+          phone_number?: string | null
           updated_at?: string
           username?: string
         }
