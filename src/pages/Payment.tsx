@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -30,8 +30,9 @@ import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
 import { useAuth } from '@/context/AuthContext';
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
-import { createBooking, createPayment, checkSlotAvailability, bookSlot } from '@/utils/bookingUtils';
+import { createBooking, createPayment, checkSlotAvailability, bookSlot, initializeDatabase } from '@/utils/bookingUtils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 
 const paymentSchema = z.object({
   cardName: z.string().min(3, "Cardholder name is required"),
@@ -58,6 +59,23 @@ const Payment = () => {
   
   // Get booking data from location state
   const bookingData = location.state;
+  
+  // Initialize the database with default data on component mount
+  useEffect(() => {
+    const initDb = async () => {
+      // Only seed data if we're in development mode
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          const result = await initializeDatabase();
+          console.log('Database initialization result:', result);
+        } catch (error) {
+          console.error('Failed to initialize database:', error);
+        }
+      }
+    };
+    
+    initDb();
+  }, []);
   
   // If no booking data, redirect to book now page
   if (!bookingData) {
@@ -140,6 +158,13 @@ const Payment = () => {
       toast({
         title: "Payment Successful",
         description: "Your appointment has been booked!",
+      });
+      
+      // Show booking success notification
+      showBookingSuccessNotification({
+        ...bookingData,
+        date: new Date(bookingData.date),
+        timeSlot: bookingData.timeSlot
       });
       
       // Navigate to confirmation page

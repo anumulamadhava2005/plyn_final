@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: any) => {
@@ -145,5 +146,16 @@ export const bookSlot = async (slotId: string) => {
   } catch (error) {
     console.error("Error booking slot:", error);
     throw error;
+  }
+};
+
+// Initialize the database with default data for development
+export const initializeDatabase = async () => {
+  try {
+    const { seedDefaultData } = await import('./slotUtils');
+    return await seedDefaultData();
+  } catch (error) {
+    console.error("Error initializing database:", error);
+    return { success: false, message: "Error initializing database", error };
   }
 };
