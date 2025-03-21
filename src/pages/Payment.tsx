@@ -72,7 +72,7 @@ const Payment = () => {
       cardNumber: "",
       expiryDate: "",
       cvv: "",
-      phone: userProfile?.phone_number || "",
+      phone: userProfile?.phoneNumber || "",
       email: user?.email || "",
       paymentMethod: "credit_card",
       notes: "",
