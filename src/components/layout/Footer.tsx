@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import LogoAnimation from '@/components/ui/LogoAnimation';
@@ -15,7 +14,7 @@ const Footer: React.FC<FooterProps> = ({ className }) => {
       <div className="container mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-1">
-            <LogoAnimation size="small" />
+            <LogoAnimation size="sm" />
             <p className="mt-4 text-sm text-muted-foreground">
               Making salon booking simple and accessible for everyone.
             </p>
