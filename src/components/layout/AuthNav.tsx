@@ -13,10 +13,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { LogOut, User } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 const AuthNav = () => {
   const { user, signOut, userProfile } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Get first letter of username for avatar fallback
   const getInitial = () => {
@@ -30,9 +32,14 @@ const AuthNav = () => {
     try {
       await signOut();
       // Force navigate to auth page after signout
-      navigate('/auth');
+      navigate('/auth', { replace: true });
     } catch (error) {
       console.error('Error signing out:', error);
+      toast({
+        title: "Sign out failed",
+        description: "There was an error signing you out. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

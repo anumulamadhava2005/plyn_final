@@ -7,11 +7,13 @@ import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight } from 'lucide-react';
+import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight, Store } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 const Profile = () => {
   const { user, userProfile, signOut, isMerchant } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     // Redirect to auth page if not logged in
@@ -27,6 +29,11 @@ const Profile = () => {
       navigate('/auth', { replace: true });
     } catch (error) {
       console.error('Error signing out:', error);
+      toast({
+        title: "Sign out failed",
+        description: "There was an error signing you out. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -136,16 +143,26 @@ const Profile = () => {
                 </CardContent>
                 
                 {!isMerchant && (
-                  <CardFooter className="flex justify-end">
-                    <Link to="/merchant-signup">
-                      <AnimatedButton 
-                        variant="outline" 
-                        size="sm"
-                        icon={<ArrowUpRight className="w-4 h-4" />}
-                      >
+                  <CardFooter className="flex flex-col items-stretch space-y-4">
+                    <div className="bg-gradient-to-r from-salon-men/10 to-salon-women/10 p-4 rounded-lg">
+                      <h3 className="font-medium text-lg mb-2 flex items-center">
+                        <Store className="w-5 h-5 mr-2 text-salon-women" />
                         Become a Merchant
-                      </AnimatedButton>
-                    </Link>
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        As a merchant, you can list your services, manage bookings, and grow your business on our platform.
+                      </p>
+                      <Link to="/merchant-signup">
+                        <AnimatedButton 
+                          variant="gradient" 
+                          size="sm"
+                          className="w-full"
+                          icon={<ArrowUpRight className="w-4 h-4" />}
+                        >
+                          Register as a Merchant
+                        </AnimatedButton>
+                      </Link>
+                    </div>
                   </CardFooter>
                 )}
               </Card>

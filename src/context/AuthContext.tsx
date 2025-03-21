@@ -148,6 +148,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isMerchant: boolean = false
   ) => {
     try {
+      // Check if username already exists
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username);
+        
+      if (checkError) throw checkError;
+      
+      if (existingUsers && existingUsers.length > 0) {
+        throw new Error("Username already exists. Please choose a different username.");
+      }
+      
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -181,6 +193,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       console.log("Attempting to sign out...");
+      
+      // First clear the state so UI updates immediately
+      setUser(null);
+      setSession(null);
+      setUserProfile(null);
+      setIsMerchant(false);
+      
+      // Then perform actual signout
       const { error } = await supabase.auth.signOut();
       
       if (error) {
@@ -189,11 +209,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       console.log("Sign out successful");
-      // Reset all auth state
-      setUser(null);
-      setSession(null);
-      setUserProfile(null);
-      setIsMerchant(false);
       
       toast({
         title: "Signed out",
