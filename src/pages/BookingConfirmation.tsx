@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -17,6 +16,8 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
+import { useEffect } from 'react';
+import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 
 const BookingConfirmation = () => {
   const location = useLocation();
@@ -24,6 +25,13 @@ const BookingConfirmation = () => {
   
   // Get booking data from location state
   const bookingData = location.state;
+  
+  useEffect(() => {
+    // Show success notification when component mounts
+    if (bookingData) {
+      showBookingSuccessNotification(bookingData);
+    }
+  }, [bookingData]);
   
   // If no booking data, redirect to book now page
   if (!bookingData) {

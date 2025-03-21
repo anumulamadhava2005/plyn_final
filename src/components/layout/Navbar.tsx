@@ -1,138 +1,179 @@
-
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { LogOut, User, Calendar, Layout } from 'lucide-react';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import ThemeToggle from '@/components/ui/ThemeToggle';
-import LogoAnimation from '@/components/ui/LogoAnimation';
-import { Menu, X, UserCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import AuthNav from './AuthNav';
+import LogoAnimation from './LogoAnimation';
+import NavLink from './NavLink';
+
+import NotificationsPopover from '@/components/notifications/NotificationsPopover';
 
 const navLinks = [
-  { name: 'Home', path: '/' },
-  { name: 'Find Salons', path: '/book-now' },
-  { name: 'About', path: '/about' },
-  { name: 'For Merchants', path: '/merchant-signup' }
+  { label: 'About', path: '/about' },
+  { label: 'Book Now', path: '/book-now' },
 ];
 
+export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () => void }) => {
+  const navigate = useNavigate();
+  
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center rounded-full border border-border p-1 text-sm font-medium hover:bg-accent/50">
+          <Avatar className="h-8 w-8">
+            <AvatarImage 
+              src={user.avatar_url || ''}
+              alt={user.email || 'User'} 
+            />
+            <AvatarFallback>
+              {(user.email?.charAt(0) || 'U').toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[200px]">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">{user.email || 'User'}</p>
+            <p className="text-xs leading-none text-muted-foreground">
+              {user.role || 'Customer'}
+            </p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate('/profile')}>
+          <User className="mr-2 h-4 w-4" />
+          <span>Profile</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/my-bookings')}>
+          <Calendar className="mr-2 h-4 w-4" />
+          <span>My Bookings</span>
+        </DropdownMenuItem>
+        {user.is_merchant && (
+          <DropdownMenuItem onClick={() => navigate('/merchant-dashboard')}>
+            <Layout className="mr-2 h-4 w-4" />
+            <span>Merchant Dashboard</span>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onLogout}>
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Log out</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-  const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 20) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Close menu when route changes
-  useEffect(() => {
-    setIsOpen(false);
-  }, [location.pathname]);
-
-  const isActive = (path: string) => {
-    return location.pathname === path;
+  const handleLogout = async () => {
+    await logout();
+    navigate('/auth');
   };
 
   return (
-    <header
-      className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${
-        isScrolled ? 'glass-nav py-2' : 'py-4'
-      }`}
-    >
-      <div className="container mx-auto px-4 flex justify-between items-center">
-        <LogoAnimation />
+    <header className="fixed w-full top-0 bg-background/80 backdrop-blur-md z-50 border-b border-border">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex items-center">
+            <Link to="/" className="flex items-center">
+              <LogoAnimation size="sm" />
+            </Link>
+          </div>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center space-x-8">
-          <ul className="flex space-x-6 items-center">
+          <nav className="hidden md:flex items-center space-x-1">
             {navLinks.map((link) => (
-              <li key={link.name}>
-                <Link
-                  to={link.path}
-                  className={`link-hover py-2 text-sm font-medium transition-colors ${
-                    isActive(link.path)
-                      ? 'text-primary dark:text-primary'
-                      : 'text-foreground/80 hover:text-foreground'
-                  }`}
-                >
-                  {link.name}
-                </Link>
-              </li>
+              <NavLink key={link.path} to={link.path} className="nav-link">
+                {link.label}
+              </NavLink>
             ))}
-          </ul>
+          </nav>
 
           <div className="flex items-center space-x-2">
+            {user ? (
+              <>
+                <NotificationsPopover />
+                <ProfileDropdown user={user} onLogout={handleLogout} />
+              </>
+            ) : (
+              <>
+                <AnimatedButton variant="gradient" size="sm" onClick={() => navigate('/auth')}>
+                  Sign In
+                </AnimatedButton>
+                <div className="hidden md:block">
+                  <AnimatedButton variant="outline" size="sm" onClick={() => navigate('/merchant-signup')}>
+                    For Merchants
+                  </AnimatedButton>
+                </div>
+              </>
+            )}
             <ThemeToggle />
-            <AuthNav />
+            <button 
+              className="md:hidden" 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X /> : <Menu />}
+            </button>
           </div>
-        </nav>
-
-        {/* Mobile Navigation Trigger */}
-        <div className="flex items-center md:hidden space-x-2">
-          <ThemeToggle />
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="p-2 rounded-full hover:bg-accent/10 transition-colors"
-            aria-label="Toggle menu"
-          >
-            {isOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
         </div>
       </div>
 
-      {/* Mobile Navigation Menu */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="md:hidden bg-background/95 dark:bg-dark-bg/95 backdrop-blur-lg border-b border-border"
-          >
-            <div className="container mx-auto px-4 py-4">
-              <ul className="space-y-3">
-                {navLinks.map((link) => (
-                  <motion.li
-                    key={link.name}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Link
-                      to={link.path}
-                      className={`block py-2 text-base font-medium ${
-                        isActive(link.path)
-                          ? 'text-primary dark:text-primary'
-                          : 'text-foreground/80'
-                      }`}
-                    >
-                      {link.name}
-                    </Link>
-                  </motion.li>
-                ))}
-                <motion.li
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2, delay: 0.3 }}
-                  className="pt-2"
-                >
-                  <AuthNav />
-                </motion.li>
-              </ul>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Mobile menu */}
+      <div className={`md:hidden fixed left-0 top-16 w-full bg-background border-b border-border z-50 transition-all duration-300 ${mobileMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}>
+        <nav className="flex flex-col p-4 space-y-2">
+          {navLinks.map((link) => (
+            <NavLink
+              key={link.path}
+              to={link.path}
+              className="block py-2 px-4 rounded-md hover:bg-accent hover:text-accent-foreground"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              {link.label}
+            </NavLink>
+          ))}
+          {user ? (
+            <>
+              <Link
+                to="/profile"
+                className="block py-2 px-4 rounded-md hover:bg-accent hover:text-accent-foreground"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Profile
+              </Link>
+              <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Log out
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="gradient" size="sm" className="w-full" onClick={() => navigate('/auth')}>
+                Sign In
+              </Button>
+              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => navigate('/merchant-signup')}>
+                For Merchants
+              </Button>
+            </>
+          )}
+        </nav>
+      </div>
     </header>
   );
 };

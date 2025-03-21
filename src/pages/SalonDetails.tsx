@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -16,7 +15,6 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 
-// Mock data
 const mockSalonData = {
   "1": {
     id: "1",
@@ -77,10 +75,69 @@ const mockSalonData = {
     openingTime: "10:00 AM",
     closingTime: "9:00 PM",
     type: "men"
+  },
+  "4": {
+    id: "4",
+    name: "Beauty & Beyond",
+    rating: 4.7,
+    reviewCount: 156,
+    address: "321 Madison Ave, New York, NY",
+    distance: "1.5 mi",
+    image: "https://images.unsplash.com/photo-1562322140-8baeececf3df?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
+    description: "Beauty & Beyond is a luxury salon specializing in women's beauty services. From premium haircuts to manicures and facials, our expert staff provides a comprehensive range of treatments.",
+    services: [
+      { id: "s16", name: "Women's Cut & Style", price: 60, duration: 50, description: "Expert cut and professional styling" },
+      { id: "s17", name: "Manicure", price: 35, duration: 30, description: "Classic manicure with polish" },
+      { id: "s18", name: "Pedicure", price: 45, duration: 40, description: "Relaxing pedicure with polish" },
+      { id: "s19", name: "Facial", price: 75, duration: 60, description: "Rejuvenating facial treatment" },
+      { id: "s20", name: "Hair Treatment", price: 55, duration: 45, description: "Nourishing hair treatment" }
+    ],
+    openingTime: "9:00 AM",
+    closingTime: "7:00 PM",
+    type: "women"
+  },
+  "5": {
+    id: "5",
+    name: "Unisex Style Studio",
+    rating: 4.5,
+    reviewCount: 124,
+    address: "555 Lexington Ave, New York, NY",
+    distance: "0.9 mi",
+    image: "https://images.unsplash.com/photo-1493256338651-d82f7acb2b38?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
+    description: "Unisex Style Studio welcomes all clients seeking quality hair services. Our versatile stylists are skilled in a wide range of cutting and styling techniques for all hair types and preferences.",
+    services: [
+      { id: "s21", name: "Men's Haircut", price: 40, duration: 35, description: "Professional men's haircut" },
+      { id: "s22", name: "Women's Haircut", price: 55, duration: 45, description: "Professional women's haircut" },
+      { id: "s23", name: "Styling", price: 35, duration: 30, description: "Hair styling without cut" },
+      { id: "s24", name: "Color Treatment", price: 85, duration: 90, description: "Professional color service" },
+      { id: "s25", name: "Children's Cut", price: 30, duration: 25, description: "Haircuts for children under 12" }
+    ],
+    openingTime: "8:30 AM",
+    closingTime: "8:30 PM",
+    type: "unisex"
+  },
+  "6": {
+    id: "6",
+    name: "The Hair Lounge",
+    rating: 4.4,
+    reviewCount: 98,
+    address: "888 Park Ave, New York, NY",
+    distance: "2.1 mi",
+    image: "https://images.unsplash.com/photo-1500840216050-6ffa99d75160?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
+    description: "The Hair Lounge offers a premium salon experience with a focus on cutting-edge styles and techniques. Our talented team specializes in hair transformations that boost confidence and enhance your natural beauty.",
+    services: [
+      { id: "s26", name: "Premium Cut", price: 50, duration: 45, description: "High-end cutting service" },
+      { id: "s27", name: "Hair Treatment", price: 70, duration: 60, description: "Specialized treatment for damaged hair" },
+      { id: "s28", name: "Bridal Styling", price: 120, duration: 120, description: "Complete bridal hair service" },
+      { id: "s29", name: "Extensions", price: 200, duration: 180, description: "Professional hair extension service" },
+      { id: "s30", name: "Balayage", price: 150, duration: 150, description: "Custom balayage coloring technique" }
+    ],
+    openingTime: "10:00 AM",
+    closingTime: "6:00 PM",
+    type: "unisex"
   }
 };
 
-// Mock time slots
 const generateTimeSlots = () => {
   const slots = [];
   const startHour = 9;
@@ -91,7 +148,7 @@ const generateTimeSlots = () => {
       slots.push({
         id: `slot-${hour}-${minute}`,
         time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-        available: Math.random() > 0.3 // 70% chance of being available
+        available: Math.random() > 0.3
       });
     }
   }
@@ -115,8 +172,6 @@ const SalonDetails = () => {
   
   useEffect(() => {
     if (id) {
-      // In a real app, this would fetch from the Supabase database
-      // For now, we'll use our mock data
       const salonData = mockSalonData[id as keyof typeof mockSalonData];
       if (salonData) {
         setSalon(salonData);
@@ -135,7 +190,6 @@ const SalonDetails = () => {
   useEffect(() => {
     if (selectedDate) {
       setFetchingSlots(true);
-      // Simulate API call to get time slots for the selected date
       setTimeout(() => {
         setTimeSlots(generateTimeSlots());
         setFetchingSlots(false);
@@ -194,8 +248,6 @@ const SalonDetails = () => {
       return;
     }
 
-    // For now, we'll just navigate to a mock payment page
-    // In a real app, this would create a booking record in Supabase
     navigate(`/payment`, { 
       state: { 
         salonId: id,
@@ -251,7 +303,6 @@ const SalonDetails = () => {
         <Navbar />
         
         <main className="flex-grow pt-20">
-          {/* Hero Section */}
           <section className="relative h-64 md:h-80 lg:h-96 overflow-hidden">
             <div className="absolute inset-0">
               <img 
@@ -282,11 +333,9 @@ const SalonDetails = () => {
             </div>
           </section>
           
-          {/* Main Content */}
           <section className="py-8">
             <div className="container mx-auto px-4">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column: Salon Info */}
                 <div className="lg:col-span-1">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -364,7 +413,6 @@ const SalonDetails = () => {
                   </motion.div>
                 </div>
                 
-                {/* Right Column: Booking Interface */}
                 <div className="lg:col-span-2">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
