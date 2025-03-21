@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -119,7 +120,16 @@ const MerchantSignup = () => {
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase
+      console.log("Submitting merchant profile with data:", {
+        id: user.id,
+        business_name: formData.businessName,
+        business_address: formData.address,
+        business_phone: formData.phone,
+        business_email: formData.email || user.email,
+        service_category: formData.salonType
+      });
+      
+      const { data, error } = await supabase
         .from('merchants')
         .insert({
           id: user.id,
@@ -128,10 +138,24 @@ const MerchantSignup = () => {
           business_phone: formData.phone,
           business_email: formData.email || user.email,
           service_category: formData.salonType
-        });
+        })
+        .select();
         
       if (error) {
+        console.error("Error during merchant profile creation:", error);
         throw error;
+      }
+      
+      console.log("Merchant profile created successfully:", data);
+      
+      // Update the user's profile to ensure isMerchant is true
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ is_merchant: true })
+        .eq('id', user.id);
+        
+      if (profileError) {
+        console.error("Error updating profile merchant status:", profileError);
       }
       
       setStep(4);

@@ -30,7 +30,9 @@ const AuthNav = () => {
 
   const handleSignOut = async () => {
     try {
+      console.log("Sign out initiated from AuthNav");
       await signOut();
+      console.log("Sign out successful, navigating to auth page");
       // Force navigate to auth page after signout
       navigate('/auth', { replace: true });
     } catch (error) {

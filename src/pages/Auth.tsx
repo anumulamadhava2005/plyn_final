@@ -106,11 +106,22 @@ const Auth = () => {
       await signIn(values.email, values.password);
       
       if (values.isMerchant) {
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('is_merchant')
           .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
           .single();
+          
+        if (profileError) {
+          console.error("Error fetching profile data:", profileError);
+          toast({
+            title: "Error",
+            description: "Could not verify merchant status. Please try again.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
           
         if (!profileData?.is_merchant) {
           await supabase.auth.signOut();
@@ -123,18 +134,25 @@ const Auth = () => {
           return;
         }
         
-        const { data: merchantData, error: merchantError } = await supabase
-          .from('merchants')
-          .select('*')
-          .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
-          .single();
+        try {
+          const { data: merchantData, error: merchantError } = await supabase
+            .from('merchants')
+            .select('*')
+            .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+            .single();
+            
+          if (merchantError) {
+            console.log("Merchant profile not found, redirecting to setup:", merchantError);
+            navigate('/merchant-signup');
+            return;
+          }
           
-        if (merchantError || !merchantData) {
+          console.log("Merchant data found, redirecting to dashboard:", merchantData);
+          navigate('/merchant-dashboard');
+        } catch (error) {
+          console.error("Error checking merchant data:", error);
           navigate('/merchant-signup');
-          return;
         }
-        
-        navigate('/merchant-dashboard');
       } else {
         navigate('/');
       }
@@ -153,6 +171,7 @@ const Auth = () => {
   const onSignupSubmit = async (values: SignupFormValues) => {
     setIsLoading(true);
     try {
+      console.log("Signing up with values:", values);
       await signUp(
         values.email, 
         values.password, 
@@ -163,15 +182,17 @@ const Auth = () => {
         values.isMerchant
       );
       
+      toast({
+        title: "Account Created",
+        description: values.isMerchant 
+          ? "Your merchant account has been created. You'll now be redirected to complete your profile." 
+          : "Your account has been created successfully!",
+      });
+      
       if (values.isMerchant) {
-        toast({
-          title: "Merchant Account Created",
-          description: "Please complete your merchant profile",
-        });
-        
         setTimeout(() => {
           navigate('/merchant-signup');
-        }, 1000);
+        }, 1500);
       } else {
         navigate('/');
       }
@@ -190,6 +211,8 @@ const Auth = () => {
   const onMerchantLoginSubmit = async (values: MerchantLoginFormValues) => {
     setIsLoading(true);
     try {
+      console.log("Attempting merchant login with:", values);
+      
       const { data: merchants, error: merchantError } = await supabase
         .from('merchants')
         .select('*, profiles(email)')
@@ -197,7 +220,12 @@ const Auth = () => {
         .eq('business_email', values.businessEmail)
         .eq('business_phone', values.businessPhone);
         
-      if (merchantError || !merchants || merchants.length === 0) {
+      if (merchantError) {
+        console.error("Error fetching merchant data:", merchantError);
+        throw new Error("Error verifying merchant details");
+      }
+      
+      if (!merchants || merchants.length === 0) {
         toast({
           title: "Merchant login failed",
           description: "No matching merchant account found. Please check your business details.",
@@ -208,13 +236,16 @@ const Auth = () => {
       }
       
       const merchant = merchants[0];
+      console.log("Merchant found:", merchant);
       const userEmail = merchant.business_email;
       
       try {
         await signIn(userEmail, values.password);
         
+        console.log("Sign in successful, redirecting to merchant dashboard");
         navigate('/merchant-dashboard');
-      } catch (signInError) {
+      } catch (signInError: any) {
+        console.error("Sign in error:", signInError);
         toast({
           title: "Authentication failed",
           description: "Invalid credentials. Please check your password.",
@@ -222,12 +253,12 @@ const Auth = () => {
         });
       }
     } catch (error: any) {
+      console.error("Merchant login error:", error);
       toast({
         title: "Merchant login failed",
         description: error.message || "Invalid credentials",
         variant: "destructive",
       });
-      console.error('Merchant login error:', error);
     } finally {
       setIsLoading(false);
     }

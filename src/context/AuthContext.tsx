@@ -66,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      console.log("Initial session check:", currentSession ? "Session found" : "No session");
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       
@@ -83,6 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log("Fetching user profile for ID:", userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('username, phone_number, age, gender, is_merchant')
@@ -94,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
+      console.log("User profile data:", data);
       setUserProfile({
         username: data.username,
         phoneNumber: data.phone_number,
@@ -113,6 +116,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (!merchantError && merchantData) {
           console.log('Merchant data found:', merchantData);
+        } else {
+          console.log('No merchant data found or error:', merchantError);
         }
       }
     } catch (error) {
@@ -122,13 +127,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Attempting sign in for:", email);
+      const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Sign in error:", error);
+        throw error;
+      }
+      
+      console.log("Sign in successful:", data.user?.id);
     } catch (error: any) {
+      console.error("Sign in error details:", error);
       toast({
         title: "Sign in failed",
         description: error.message || "An error occurred during sign in.",
@@ -148,19 +160,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isMerchant: boolean = false
   ) => {
     try {
+      console.log("Checking if username exists:", username);
       // Check if username already exists
       const { data: existingUsers, error: checkError } = await supabase
         .from('profiles')
         .select('username')
         .eq('username', username);
         
-      if (checkError) throw checkError;
+      if (checkError) {
+        console.error("Error checking username:", checkError);
+        throw checkError;
+      }
       
       if (existingUsers && existingUsers.length > 0) {
+        console.error("Username already exists");
         throw new Error("Username already exists. Please choose a different username.");
       }
       
-      const { error } = await supabase.auth.signUp({
+      console.log("Signing up user with email:", email);
+      const { error, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -174,13 +192,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Sign up error:", error);
+        throw error;
+      }
+      
+      console.log("Sign up successful:", data);
       
       toast({
         title: "Account created",
         description: "Your account has been created successfully!",
       });
     } catch (error: any) {
+      console.error("Sign up error details:", error);
       toast({
         title: "Sign up failed",
         description: error.message || "An error occurred during sign up.",
