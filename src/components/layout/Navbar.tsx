@@ -21,8 +21,11 @@ import NavLink from '@/components/layout/NavLink';
 import NotificationsPopover from '@/components/notifications/NotificationsPopover';
 
 const navLinks = [
+  { label: 'Home', path: '/' },
   { label: 'About', path: '/about' },
-  { label: 'Book Now', path: '/book-now' },
+  { label: 'Find Salons', path: '/book-now' },
+  { label: 'My Bookings', path: '/my-bookings' },
+  { label: 'For Merchants', path: '/merchant-signup' },
 ];
 
 export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () => void }) => {
