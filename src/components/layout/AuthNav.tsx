@@ -29,6 +29,7 @@ const AuthNav = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
+      // Force navigate to auth page after signout
       navigate('/auth');
     } catch (error) {
       console.error('Error signing out:', error);

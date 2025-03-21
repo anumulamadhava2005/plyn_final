@@ -23,7 +23,8 @@ const Profile = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
-      navigate('/auth');
+      // Force navigate to auth page after signout
+      navigate('/auth', { replace: true });
     } catch (error) {
       console.error('Error signing out:', error);
     }

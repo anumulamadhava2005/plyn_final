@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
+        console.log("Auth state changed:", event);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
@@ -178,14 +180,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      console.log("Attempting to sign out...");
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
       
+      if (error) {
+        console.error("Supabase sign out error:", error);
+        throw error;
+      }
+      
+      console.log("Sign out successful");
+      // Reset all auth state
       setUser(null);
       setSession(null);
       setUserProfile(null);
       setIsMerchant(false);
+      
+      toast({
+        title: "Signed out",
+        description: "You've been signed out successfully.",
+      });
     } catch (error: any) {
+      console.error("Sign out error:", error);
       toast({
         title: "Sign out failed",
         description: error.message || "An error occurred during sign out.",
