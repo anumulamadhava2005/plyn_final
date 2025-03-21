@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -15,6 +14,7 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/components/ui/use-toast';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -44,6 +44,7 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -67,7 +68,6 @@ const Auth = () => {
   });
 
   useEffect(() => {
-    // Redirect if already authenticated
     if (user) {
       navigate('/');
     }
@@ -77,8 +77,12 @@ const Auth = () => {
     setIsLoading(true);
     try {
       await signIn(values.email, values.password);
-      // Navigation handled by useEffect when user state changes
-    } catch (error) {
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid email or password",
+        variant: "destructive",
+      });
       console.error('Login error:', error);
     } finally {
       setIsLoading(false);
@@ -96,8 +100,12 @@ const Auth = () => {
         values.age ? parseInt(values.age) : undefined, 
         values.gender
       );
-      // Navigation handled by useEffect when user state changes
-    } catch (error) {
+    } catch (error: any) {
+      toast({
+        title: "Signup failed",
+        description: error.message || "There was an error creating your account",
+        variant: "destructive",
+      });
       console.error('Signup error:', error);
     } finally {
       setIsLoading(false);

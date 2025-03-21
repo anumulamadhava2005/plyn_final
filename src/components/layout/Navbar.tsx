@@ -6,6 +6,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle';
 import LogoAnimation from '@/components/ui/LogoAnimation';
 import { Menu, X, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import AuthNav from './AuthNav';
 
 const navLinks = [
   { name: 'Home', path: '/' },
@@ -71,13 +72,7 @@ const Navbar = () => {
 
           <div className="flex items-center space-x-2">
             <ThemeToggle />
-            <AnimatedButton
-              variant="gradient"
-              size="sm"
-              icon={<UserCircle className="w-4 h-4" />}
-            >
-              Sign In
-            </AnimatedButton>
+            <AuthNav />
           </div>
         </nav>
 
@@ -131,13 +126,7 @@ const Navbar = () => {
                   transition={{ duration: 0.2, delay: 0.3 }}
                   className="pt-2"
                 >
-                  <AnimatedButton
-                    variant="gradient"
-                    className="w-full"
-                    icon={<UserCircle className="w-4 h-4" />}
-                  >
-                    Sign In
-                  </AnimatedButton>
+                  <AuthNav />
                 </motion.li>
               </ul>
             </div>

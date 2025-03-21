@@ -1,7 +1,7 @@
-
 import React, { useEffect } from 'react';
 import { motion, useAnimation } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
+import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
@@ -9,7 +9,7 @@ import FeatureCard from '@/components/ui/FeatureCard';
 import TestimonialCard from '@/components/ui/TestimonialCard';
 import FaqAccordion from '@/components/ui/FaqAccordion';
 import PageTransition from '@/components/transitions/PageTransition';
-import { Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { 
   Calendar, 
   Clock, 
@@ -19,7 +19,8 @@ import {
   StarIcon, 
   Scissors, 
   ArrowRight,
-  Check
+  Check,
+  UserCircle
 } from 'lucide-react';
 
 const fadeInVariants = {
@@ -45,21 +46,21 @@ const staggerVariants = {
 };
 
 const Index = () => {
-  // Feature section intersection observer
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  
   const [featureRef, featureInView] = useInView({
     triggerOnce: true,
     threshold: 0.1
   });
   const featureControls = useAnimation();
 
-  // How it works section intersection observer
   const [howItWorksRef, howItWorksInView] = useInView({
     triggerOnce: true,
     threshold: 0.1
   });
   const howItWorksControls = useAnimation();
 
-  // Testimonial section intersection observer
   const [testimonialRef, testimonialInView] = useInView({
     triggerOnce: true,
     threshold: 0.1
@@ -169,7 +170,6 @@ const Index = () => {
       <div className="min-h-screen flex flex-col">
         <Navbar />
         
-        {/* Hero Section */}
         <section className="relative min-h-screen flex items-center pt-16">
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-bl from-salon-men/5 to-transparent dark:from-salon-men-light/5 z-0" />
@@ -229,13 +229,13 @@ const Index = () => {
                       Book Now
                     </AnimatedButton>
                   </Link>
-                  <Link to="/merchant-signup">
+                  <Link to={user ? '/profile' : '/auth'}>
                     <AnimatedButton 
                       variant="outline" 
                       size="lg"
-                      icon={<Scissors className="w-5 h-5" />}
+                      icon={<UserCircle className="w-5 h-5" />}
                     >
-                      Join as Merchant
+                      {user ? 'My Profile' : 'Sign In'}
                     </AnimatedButton>
                   </Link>
                 </motion.div>
@@ -286,7 +286,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* Features Section */}
         <section ref={featureRef} className="section-padding bg-secondary/30 dark:bg-dark-bg">
           <div className="container mx-auto">
             <motion.div 
@@ -325,7 +324,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* How It Works Section */}
         <section ref={howItWorksRef} className="section-padding">
           <div className="container mx-auto">
             <motion.div 
@@ -451,7 +449,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* For Merchants Section */}
         <section className="section-padding bg-gradient-to-br from-salon-men/5 to-salon-women/5 dark:from-salon-men-light/5 dark:to-salon-women-light/5">
           <div className="container mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -542,7 +539,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* Testimonials Section */}
         <section ref={testimonialRef} className="section-padding">
           <div className="container mx-auto">
             <motion.div 
@@ -581,7 +577,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* FAQ Section */}
         <section className="section-padding bg-secondary/30 dark:bg-dark-bg">
           <div className="container mx-auto">
             <motion.div 
@@ -612,7 +607,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* CTA Section */}
         <section className="section-padding">
           <div className="container mx-auto">
             <motion.div
@@ -639,12 +633,13 @@ const Index = () => {
                       Book Your Appointment
                     </AnimatedButton>
                   </Link>
-                  <Link to="/merchant-signup">
+                  <Link to={user ? '/profile' : '/auth'}>
                     <AnimatedButton 
                       variant="outline" 
                       size="lg"
+                      icon={<UserCircle className="w-5 h-5" />}
                     >
-                      Join as Merchant
+                      {user ? 'My Profile' : 'Sign In'}
                     </AnimatedButton>
                   </Link>
                 </div>
@@ -660,3 +655,4 @@ const Index = () => {
 };
 
 export default Index;
+
