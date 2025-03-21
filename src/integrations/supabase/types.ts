@@ -11,32 +11,62 @@ export type Database = {
     Tables: {
       bookings: {
         Row: {
+          additional_notes: string | null
+          booking_date: string | null
           created_at: string
+          customer_email: string | null
+          customer_phone: string | null
           id: string
           merchant_id: string
+          payment_id: string | null
+          salon_id: string | null
+          salon_name: string | null
+          service_duration: number | null
           service_name: string
+          service_price: number | null
           slot_id: string
           status: string
+          time_slot: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          additional_notes?: string | null
+          booking_date?: string | null
           created_at?: string
+          customer_email?: string | null
+          customer_phone?: string | null
           id?: string
           merchant_id: string
+          payment_id?: string | null
+          salon_id?: string | null
+          salon_name?: string | null
+          service_duration?: number | null
           service_name: string
+          service_price?: number | null
           slot_id: string
           status?: string
+          time_slot?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          additional_notes?: string | null
+          booking_date?: string | null
           created_at?: string
+          customer_email?: string | null
+          customer_phone?: string | null
           id?: string
           merchant_id?: string
+          payment_id?: string | null
+          salon_id?: string | null
+          salon_name?: string | null
+          service_duration?: number | null
           service_name?: string
+          service_price?: number | null
           slot_id?: string
           status?: string
+          time_slot?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -44,6 +74,20 @@ export type Database = {
           {
             foreignKeyName: "bookings_merchant_id_fkey"
             columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_salon_id_fkey"
+            columns: ["salon_id"]
             isOneToOne: false
             referencedRelation: "merchants"
             referencedColumns: ["id"]
@@ -90,6 +134,50 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          created_at: string | null
+          id: string
+          payment_method: string
+          payment_status: string
+          transaction_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          created_at?: string | null
+          id?: string
+          payment_method: string
+          payment_status?: string
+          transaction_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          created_at?: string | null
+          id?: string
+          payment_method?: string
+          payment_status?: string
+          transaction_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           age: number | null
@@ -131,6 +219,11 @@ export type Database = {
           id: string
           is_booked: boolean
           merchant_id: string
+          salon_id: string | null
+          service_duration: number | null
+          service_id: string | null
+          service_name: string | null
+          service_price: number | null
           start_time: string
           updated_at: string
         }
@@ -141,6 +234,11 @@ export type Database = {
           id?: string
           is_booked?: boolean
           merchant_id: string
+          salon_id?: string | null
+          service_duration?: number | null
+          service_id?: string | null
+          service_name?: string | null
+          service_price?: number | null
           start_time: string
           updated_at?: string
         }
@@ -151,6 +249,11 @@ export type Database = {
           id?: string
           is_booked?: boolean
           merchant_id?: string
+          salon_id?: string | null
+          service_duration?: number | null
+          service_id?: string | null
+          service_name?: string | null
+          service_price?: number | null
           start_time?: string
           updated_at?: string
         }
@@ -158,6 +261,13 @@ export type Database = {
           {
             foreignKeyName: "slots_merchant_id_fkey"
             columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slots_salon_id_fkey"
+            columns: ["salon_id"]
             isOneToOne: false
             referencedRelation: "merchants"
             referencedColumns: ["id"]

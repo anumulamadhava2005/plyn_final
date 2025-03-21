@@ -11,7 +11,8 @@ import {
   User, 
   Phone, 
   Mail,
-  Loader2
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
@@ -19,6 +20,7 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,6 +29,9 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
 import { useAuth } from '@/context/AuthContext';
+import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
+import { createBooking, createPayment, checkSlotAvailability, bookSlot } from '@/utils/bookingUtils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const paymentSchema = z.object({
   cardName: z.string().min(3, "Cardholder name is required"),
@@ -35,6 +40,8 @@ const paymentSchema = z.object({
   cvv: z.string().regex(/^\d{3,4}$/, "CVV must be 3 or 4 digits"),
   phone: z.string().min(5, "Phone number is required"),
   email: z.string().email("Valid email is required"),
+  paymentMethod: z.string().min(1, "Please select a payment method"),
+  notes: z.string().optional(),
 });
 
 type PaymentFormValues = z.infer<typeof paymentSchema>;
@@ -45,6 +52,9 @@ const Payment = () => {
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('credit_card');
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   
   // Get booking data from location state
   const bookingData = location.state;
@@ -62,19 +72,69 @@ const Payment = () => {
       cardNumber: "",
       expiryDate: "",
       cvv: "",
-      phone: userProfile?.phoneNumber || "",
+      phone: userProfile?.phone_number || "",
       email: user?.email || "",
+      paymentMethod: "credit_card",
+      notes: "",
     },
   });
   
   const handlePayment = async (values: PaymentFormValues) => {
-    setIsSubmitting(true);
-    
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      setIsSubmitting(true);
+      setPaymentError(null);
       
-      // In a real app, this would process payment and create booking in Supabase
+      if (!user) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to book an appointment.",
+          variant: "destructive",
+        });
+        navigate('/auth', { state: { redirectTo: `/payment` } });
+        return;
+      }
+      
+      // Check if slot is still available
+      const slotCheck = await checkSlotAvailability(
+        bookingData.salonId,
+        new Date(bookingData.date).toISOString().split('T')[0],
+        bookingData.timeSlot
+      );
+      
+      if (!slotCheck.available) {
+        setPaymentError("Sorry, this time slot is no longer available. Please select another time.");
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Create a booking record in the database
+      const newBooking = await createBooking({
+        userId: user.id,
+        salonId: bookingData.salonId,
+        salonName: bookingData.salonName,
+        serviceName: bookingData.services.map((s: any) => s.name).join(", "),
+        date: new Date(bookingData.date).toISOString().split('T')[0],
+        timeSlot: bookingData.timeSlot,
+        email: values.email,
+        phone: values.phone,
+        totalPrice: bookingData.totalPrice,
+        totalDuration: bookingData.totalDuration,
+        slotId: slotCheck.slotId,
+        notes: values.notes
+      });
+      
+      // Process payment
+      const payment = await createPayment({
+        bookingId: newBooking.id,
+        userId: user.id,
+        amount: bookingData.totalPrice,
+        paymentMethod: values.paymentMethod,
+        paymentStatus: "completed",
+        transactionId: `TX-${Math.floor(Math.random() * 1000000)}`
+      });
+      
+      // Mark the slot as booked
+      await bookSlot(slotCheck.slotId);
       
       // Show success toast
       toast({
@@ -86,16 +146,18 @@ const Payment = () => {
       navigate('/booking-confirmation', { 
         state: {
           ...bookingData,
-          bookingId: `BK-${Math.floor(Math.random() * 10000)}`, // Mock booking ID
+          bookingId: newBooking.id,
           paymentDetails: {
             cardName: values.cardName,
             cardNumber: values.cardNumber.slice(-4).padStart(16, '*'),
-            expiryDate: values.expiryDate
+            expiryDate: values.expiryDate,
+            paymentMethod: values.paymentMethod
           }
         }
       });
     } catch (error) {
       console.error("Payment error:", error);
+      setPaymentError("There was an error processing your payment. Please try again.");
       toast({
         title: "Payment Failed",
         description: "There was an error processing your payment. Please try again.",
@@ -133,6 +195,14 @@ const Payment = () => {
               >
                 Complete Your Booking
               </motion.h1>
+              
+              {paymentError && (
+                <Alert variant="destructive" className="mb-6">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{paymentError}</AlertDescription>
+                </Alert>
+              )}
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Booking Summary */}
@@ -224,174 +294,239 @@ const Payment = () => {
                   transition={{ duration: 0.5 }}
                 >
                   <div className="glass-card p-6 rounded-lg">
-                    <h2 className="text-xl font-semibold mb-4">Payment Details</h2>
+                    <Tabs defaultValue="payment" className="w-full">
+                      <TabsList className="w-full grid grid-cols-2 mb-4">
+                        <TabsTrigger value="payment">Payment Method</TabsTrigger>
+                        <TabsTrigger value="details">Contact Details</TabsTrigger>
+                      </TabsList>
                     
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(handlePayment)} className="space-y-4">
-                        <div className="grid grid-cols-1 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="cardName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Cardholder Name</FormLabel>
-                                <div className="relative">
-                                  <FormControl>
-                                    <Input
-                                      placeholder="John Doe"
-                                      {...field}
-                                      className="pl-10"
-                                    />
-                                  </FormControl>
-                                  <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                </div>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          
-                          <FormField
-                            control={form.control}
-                            name="cardNumber"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Card Number</FormLabel>
-                                <div className="relative">
-                                  <FormControl>
-                                    <Input
-                                      placeholder="1234 5678 9012 3456"
-                                      {...field}
-                                      value={formatCardNumber(field.value)}
-                                      onChange={(e) => field.onChange(formatCardNumber(e.target.value))}
-                                      className="pl-10"
-                                    />
-                                  </FormControl>
-                                  <CreditCard className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                </div>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          
-                          <div className="grid grid-cols-2 gap-4">
+                      <Form {...form}>
+                        <form onSubmit={form.handleSubmit(handlePayment)} className="space-y-4">
+                          <TabsContent value="payment" className="space-y-4">
                             <FormField
                               control={form.control}
-                              name="expiryDate"
+                              name="paymentMethod"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Expiry Date</FormLabel>
-                                  <div className="relative">
-                                    <FormControl>
-                                      <Input
-                                        placeholder="MM/YY"
-                                        {...field}
-                                        value={formatExpiryDate(field.value)}
-                                        onChange={(e) => field.onChange(formatExpiryDate(e.target.value))}
-                                        className="pl-10"
-                                      />
-                                    </FormControl>
-                                    <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                  </div>
+                                  <FormLabel>Select Payment Method</FormLabel>
+                                  <FormControl>
+                                    <PaymentMethodSelector
+                                      selectedMethod={field.value}
+                                      onMethodChange={(value) => {
+                                        field.onChange(value);
+                                        setPaymentMethod(value);
+                                        if (value === 'qr_code') {
+                                          setShowQRCode(true);
+                                        } else {
+                                          setShowQRCode(false);
+                                        }
+                                      }}
+                                    />
+                                  </FormControl>
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
                             
-                            <FormField
-                              control={form.control}
-                              name="cvv"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>CVV</FormLabel>
-                                  <div className="relative">
+                            {showQRCode && (
+                              <div className="flex flex-col items-center py-4">
+                                <div className="border-4 border-primary/20 rounded-lg p-2 mb-4">
+                                  <img 
+                                    src="https://placekitten.com/200/200" 
+                                    alt="Payment QR Code" 
+                                    className="h-48 w-48"
+                                  />
+                                </div>
+                                <p className="text-sm text-center text-muted-foreground">
+                                  Scan this QR code with your UPI app to pay ${bookingData.totalPrice}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {paymentMethod === 'credit_card' && (
+                              <div className="grid grid-cols-1 gap-4">
+                                <FormField
+                                  control={form.control}
+                                  name="cardName"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Cardholder Name</FormLabel>
+                                      <div className="relative">
+                                        <FormControl>
+                                          <Input
+                                            placeholder="John Doe"
+                                            {...field}
+                                            className="pl-10"
+                                          />
+                                        </FormControl>
+                                        <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                      </div>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <FormField
+                                  control={form.control}
+                                  name="cardNumber"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Card Number</FormLabel>
+                                      <div className="relative">
+                                        <FormControl>
+                                          <Input
+                                            placeholder="1234 5678 9012 3456"
+                                            {...field}
+                                            value={formatCardNumber(field.value)}
+                                            onChange={(e) => field.onChange(formatCardNumber(e.target.value))}
+                                            className="pl-10"
+                                          />
+                                        </FormControl>
+                                        <CreditCard className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                      </div>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                  <FormField
+                                    control={form.control}
+                                    name="expiryDate"
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>Expiry Date</FormLabel>
+                                        <div className="relative">
+                                          <FormControl>
+                                            <Input
+                                              placeholder="MM/YY"
+                                              {...field}
+                                              value={formatExpiryDate(field.value)}
+                                              onChange={(e) => field.onChange(formatExpiryDate(e.target.value))}
+                                              className="pl-10"
+                                            />
+                                          </FormControl>
+                                          <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                        </div>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                  
+                                  <FormField
+                                    control={form.control}
+                                    name="cvv"
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>CVV</FormLabel>
+                                        <div className="relative">
+                                          <FormControl>
+                                            <Input
+                                              type="password"
+                                              placeholder="123"
+                                              {...field}
+                                              onChange={(e) => {
+                                                const value = e.target.value.replace(/\D/g, '');
+                                                field.onChange(value.slice(0, 4));
+                                              }}
+                                              className="pl-10"
+                                            />
+                                          </FormControl>
+                                          <DollarSign className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                        </div>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </TabsContent>
+                          
+                          <TabsContent value="details">
+                            <div className="grid grid-cols-1 gap-4">
+                              <FormField
+                                control={form.control}
+                                name="email"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Email</FormLabel>
+                                    <div className="relative">
+                                      <FormControl>
+                                        <Input
+                                          placeholder="your@email.com"
+                                          {...field}
+                                          className="pl-10"
+                                        />
+                                      </FormControl>
+                                      <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                    </div>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <FormField
+                                control={form.control}
+                                name="phone"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Phone Number</FormLabel>
+                                    <div className="relative">
+                                      <FormControl>
+                                        <Input
+                                          placeholder="+1 (123) 456-7890"
+                                          {...field}
+                                          className="pl-10"
+                                        />
+                                      </FormControl>
+                                      <Phone className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                                    </div>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <FormField
+                                control={form.control}
+                                name="notes"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Special Instructions (Optional)</FormLabel>
                                     <FormControl>
-                                      <Input
-                                        type="password"
-                                        placeholder="123"
+                                      <textarea
+                                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Any special requests or information for the salon"
                                         {...field}
-                                        onChange={(e) => {
-                                          const value = e.target.value.replace(/\D/g, '');
-                                          field.onChange(value.slice(0, 4));
-                                        }}
-                                        className="pl-10"
                                       />
                                     </FormControl>
-                                    <DollarSign className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                  </div>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </div>
-                        
-                        <Separator className="my-4" />
-                        
-                        <h3 className="font-medium mb-2">Contact Information</h3>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="phone"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Phone Number</FormLabel>
-                                <div className="relative">
-                                  <FormControl>
-                                    <Input
-                                      placeholder="+1 (123) 456-7890"
-                                      {...field}
-                                      className="pl-10"
-                                    />
-                                  </FormControl>
-                                  <Phone className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                </div>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </TabsContent>
                           
-                          <FormField
-                            control={form.control}
-                            name="email"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Email</FormLabel>
-                                <div className="relative">
-                                  <FormControl>
-                                    <Input
-                                      placeholder="your@email.com"
-                                      {...field}
-                                      className="pl-10"
-                                    />
-                                  </FormControl>
-                                  <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                </div>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        
-                        <div className="pt-2">
-                          <AnimatedButton
-                            type="submit"
-                            variant="gradient"
-                            className="w-full"
-                            disabled={isSubmitting}
-                          >
-                            {isSubmitting ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Processing...
-                              </>
-                            ) : (
-                              <>Pay ${bookingData.totalPrice}</>
-                            )}
-                          </AnimatedButton>
-                        </div>
-                      </form>
-                    </Form>
+                          <div className="pt-2">
+                            <AnimatedButton
+                              type="submit"
+                              variant="default"
+                              className="w-full"
+                              disabled={isSubmitting}
+                            >
+                              {isSubmitting ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>Pay ${bookingData.totalPrice}</>
+                              )}
+                            </AnimatedButton>
+                          </div>
+                        </form>
+                      </Form>
+                    </Tabs>
                   </div>
                 </motion.div>
               </div>

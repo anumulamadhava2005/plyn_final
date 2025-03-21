@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -173,7 +174,10 @@ const BookingConfirmation = () => {
                     <div>
                       <h3 className="font-medium">Payment</h3>
                       <p className="text-sm text-muted-foreground">
-                        Card ending in {bookingData.paymentDetails?.cardNumber.slice(-4)}
+                        {bookingData.paymentDetails?.paymentMethod 
+                          ? `Paid with ${bookingData.paymentDetails.paymentMethod.replace('_', ' ')}`
+                          : `Card ending in ${bookingData.paymentDetails?.cardNumber.slice(-4)}`
+                        }
                       </p>
                     </div>
                     <div className="text-xl font-bold">${bookingData.totalPrice}</div>

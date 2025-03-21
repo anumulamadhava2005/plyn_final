@@ -9,55 +9,10 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchUserBookings, updateBookingStatus } from '@/utils/bookingUtils';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
-
-// Mock data for bookings (to be replaced with actual Supabase data)
-const mockBookings = [
-  {
-    id: "1",
-    salonName: "Modern Cuts",
-    salonId: "1",
-    services: [{ name: "Men's Haircut", price: 35, duration: 30 }],
-    date: new Date().toISOString(),
-    timeSlot: "14:00",
-    totalPrice: 35,
-    totalDuration: 30,
-    status: "upcoming",
-    bookingId: "BOOK-1234",
-    salonAddress: "123 Broadway St, New York, NY"
-  },
-  {
-    id: "2",
-    salonName: "Elegance Hair Studio",
-    salonId: "2",
-    services: [
-      { name: "Women's Haircut", price: 55, duration: 45 },
-      { name: "Blow Dry & Style", price: 40, duration: 30 }
-    ],
-    date: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString(),
-    timeSlot: "11:30",
-    totalPrice: 95,
-    totalDuration: 75,
-    status: "upcoming",
-    bookingId: "BOOK-5678",
-    salonAddress: "456 5th Avenue, New York, NY"
-  },
-  {
-    id: "3",
-    salonName: "The Barber Room",
-    salonId: "3",
-    services: [{ name: "Premium Haircut", price: 45, duration: 40 }],
-    date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString(),
-    timeSlot: "10:00",
-    totalPrice: 45,
-    totalDuration: 40,
-    status: "completed",
-    bookingId: "BOOK-9012",
-    salonAddress: "789 Washington St, New York, NY"
-  }
-];
 
 const MyBookings = () => {
   const navigate = useNavigate();
@@ -85,19 +40,18 @@ const MyBookings = () => {
     setLoading(true);
     
     try {
-      // In a real app, this would fetch from Supabase
-      // const { data, error } = await supabase
-      //   .from('bookings')
-      //   .select('*')
-      //   .eq('user_id', user.id);
+      if (!user) return;
       
-      // if (error) throw error;
+      const bookingsData = await fetchUserBookings(user.id);
       
-      // For now, we'll use our mock data
-      setTimeout(() => {
-        setBookings(mockBookings);
-        setLoading(false);
-      }, 800);
+      // If no bookings yet, show some sample ones for demo purposes
+      if (bookingsData && bookingsData.length > 0) {
+        setBookings(bookingsData);
+      } else {
+        // Fallback to mock data if no bookings exist
+        setBookings(getMockBookings());
+      }
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching bookings:", error);
       toast({
@@ -109,17 +63,58 @@ const MyBookings = () => {
     }
   };
   
+  const getMockBookings = () => {
+    return [
+      {
+        id: "1",
+        salon_name: "Modern Cuts",
+        salon_id: "1",
+        service_name: "Men's Haircut",
+        service_price: 35,
+        service_duration: 30,
+        booking_date: new Date().toISOString(),
+        time_slot: "14:00",
+        status: "upcoming",
+        customer_email: user?.email,
+        customer_phone: "",
+        merchant_id: "1"
+      },
+      {
+        id: "2",
+        salon_name: "Elegance Hair Studio",
+        salon_id: "2",
+        service_name: "Women's Haircut, Blow Dry & Style",
+        service_price: 95,
+        service_duration: 75,
+        booking_date: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString(),
+        time_slot: "11:30",
+        status: "upcoming",
+        customer_email: user?.email,
+        customer_phone: "",
+        merchant_id: "2"
+      },
+      {
+        id: "3",
+        salon_name: "The Barber Room",
+        salon_id: "3",
+        service_name: "Premium Haircut",
+        service_price: 45,
+        service_duration: 40,
+        booking_date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString(),
+        time_slot: "10:00",
+        status: "completed",
+        customer_email: user?.email,
+        customer_phone: "",
+        merchant_id: "3"
+      }
+    ];
+  };
+  
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      // In a real app, this would update the booking status in Supabase
-      // const { error } = await supabase
-      //   .from('bookings')
-      //   .update({ status: 'cancelled' })
-      //   .eq('id', bookingId);
+      await updateBookingStatus(bookingId, "cancelled");
       
-      // if (error) throw error;
-      
-      // For now, we'll just update our local state
+      // Update local state
       setBookings(bookings.map(booking => 
         booking.id === bookingId 
           ? { ...booking, status: "cancelled" } 
@@ -143,7 +138,7 @@ const MyBookings = () => {
   const handleRescheduleBooking = (bookingId: string) => {
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
-      navigate(`/book/${booking.salonId}`, { 
+      navigate(`/book/${booking.salon_id || booking.merchant_id}`, { 
         state: { 
           reschedule: true, 
           bookingId: bookingId 
@@ -164,7 +159,7 @@ const MyBookings = () => {
   });
   
   const renderBookingCard = (booking: any) => {
-    const isPast = new Date(booking.date) < new Date();
+    const isPast = new Date(booking.booking_date) < new Date();
     const isCancelled = booking.status === "cancelled";
     
     return (
@@ -183,8 +178,8 @@ const MyBookings = () => {
       >
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="font-semibold text-lg">{booking.salonName}</h3>
-            <p className="text-sm text-muted-foreground">Ref: {booking.bookingId}</p>
+            <h3 className="font-semibold text-lg">{booking.salon_name}</h3>
+            <p className="text-sm text-muted-foreground">Ref: {booking.id.substring(0, 8)}</p>
           </div>
           <div className={`px-2 py-1 rounded-md text-xs font-medium ${
             isCancelled
@@ -206,7 +201,7 @@ const MyBookings = () => {
             <Calendar className="w-4 h-4 mt-1 mr-2 text-muted-foreground" />
             <div>
               <p className="text-sm font-medium">
-                {format(new Date(booking.date), "EEEE, MMMM d, yyyy")}
+                {format(new Date(booking.booking_date), "EEEE, MMMM d, yyyy")}
               </p>
               <p className="text-xs text-muted-foreground">Date</p>
             </div>
@@ -215,9 +210,9 @@ const MyBookings = () => {
           <div className="flex items-start">
             <Clock className="w-4 h-4 mt-1 mr-2 text-muted-foreground" />
             <div>
-              <p className="text-sm font-medium">{booking.timeSlot}</p>
+              <p className="text-sm font-medium">{booking.time_slot}</p>
               <p className="text-xs text-muted-foreground">
-                Duration: {booking.totalDuration} min
+                Duration: {booking.service_duration} min
               </p>
             </div>
           </div>
@@ -225,25 +220,23 @@ const MyBookings = () => {
           <div className="flex items-start">
             <MapPin className="w-4 h-4 mt-1 mr-2 text-muted-foreground" />
             <div>
-              <p className="text-sm font-medium">{booking.salonAddress}</p>
-              <p className="text-xs text-muted-foreground">Location</p>
+              <p className="text-sm font-medium">Salon Location</p>
+              <p className="text-xs text-muted-foreground">Address information</p>
             </div>
           </div>
         </div>
         
         <div className="border-t border-border pt-3">
-          <h4 className="font-medium text-sm mb-2">Services:</h4>
-          <ul className="space-y-1 mb-3">
-            {booking.services.map((service: any, index: number) => (
-              <li key={index} className="flex justify-between text-sm">
-                <span>{service.name}</span>
-                <span className="font-medium">${service.price}</span>
-              </li>
-            ))}
-          </ul>
+          <h4 className="font-medium text-sm mb-2">Service(s):</h4>
+          <div className="space-y-1 mb-3">
+            <div className="flex justify-between text-sm">
+              <span>{booking.service_name}</span>
+              <span className="font-medium">${booking.service_price}</span>
+            </div>
+          </div>
           <div className="flex justify-between font-medium text-sm">
             <span>Total:</span>
-            <span>${booking.totalPrice}</span>
+            <span>${booking.service_price}</span>
           </div>
         </div>
         
@@ -274,7 +267,7 @@ const MyBookings = () => {
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={() => navigate(`/book/${booking.salonId}`)}
+              onClick={() => navigate(`/book/${booking.salon_id || booking.merchant_id}`)}
             >
               Book Again
             </AnimatedButton>
