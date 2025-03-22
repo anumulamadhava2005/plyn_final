@@ -49,8 +49,8 @@ interface BookingRPCResponse {
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
-  // Call the RPC method with type assertion
-  const { data, error } = await supabase.rpc(
+  // Call the RPC function without specifying a type parameter, using a more general approach
+  const result = await supabase.rpc(
     'create_booking_transaction',
     {
       p_user_id: bookingData.userId,
@@ -67,31 +67,35 @@ export const createBooking = async (bookingData: BookingData): Promise<BookingRe
       p_slot_id: bookingData.slotId,
       p_additional_notes: bookingData.notes || ""
     }
-  ) as { data: any; error: any };
+  );
 
-  if (error) {
-    console.error("Error in create_booking_transaction:", error);
-    throw error;
+  if (result.error) {
+    console.error("Error in create_booking_transaction:", result.error);
+    throw result.error;
   }
 
   // Check if the response data is valid and has the expected shape
-  if (data && typeof data === 'object' && 'success' in data && data.success && 'id' in data) {
-    // Cast the data to our expected response type
-    const rpcResponse = data as BookingRPCResponse;
+  if (result.data && typeof result.data === 'object') {
+    const responseData = result.data as any;
     
-    // Fetch the booking record to return the full booking object
-    const { data: bookingData, error: bookingError } = await supabase
-      .from("bookings")
-      .select("*")
-      .eq("id", rpcResponse.id)
-      .single();
+    if ('success' in responseData && responseData.success && 'id' in responseData) {
+      // Cast the data to our expected response type
+      const rpcResponse = responseData as BookingRPCResponse;
       
-    if (bookingError) {
-      console.error("Error fetching booking after creation:", bookingError);
-      throw bookingError;
+      // Fetch the booking record to return the full booking object
+      const { data: bookingData, error: bookingError } = await supabase
+        .from("bookings")
+        .select("*")
+        .eq("id", rpcResponse.id)
+        .single();
+        
+      if (bookingError) {
+        console.error("Error fetching booking after creation:", bookingError);
+        throw bookingError;
+      }
+      
+      return bookingData;
     }
-    
-    return bookingData;
   }
   
   return null;
