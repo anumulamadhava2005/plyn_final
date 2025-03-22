@@ -174,7 +174,7 @@ async function generateSlotsForMerchants(merchants: any[]) {
   const today = new Date();
   
   for (const merchant of merchants) {
-    // Generate slots for the previous 3 days (some will be in the past)
+    // Generate slots for the previous 3 days (some will be in the past) and the next 14 days
     for (let i = -3; i < 14; i++) {
       const date = addDays(today, i);
       await generateSalonTimeSlots(merchant.id, date);
@@ -266,13 +266,13 @@ async function createTestBookings(merchants: any[]) {
 // New function to support real-time updates
 export const enableRealtimeForSlots = async () => {
   try {
-    // Enable realtime for slots table
-    const { data, error } = await supabase.rpc(
+    // Enable realtime for slots table; casting supabase.rpc as any to bypass type checks
+    const { data, error } = await (supabase.rpc as any)(
       'supabase_realtime',
       {
         table_name: 'slots',
         action: 'enable'
-      } as any
+      }
     );
     
     if (error) throw error;
