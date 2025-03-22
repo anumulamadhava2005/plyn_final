@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -21,7 +20,6 @@ const Profile = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Redirect to auth page if not logged in
     if (!user) {
       navigate('/auth');
     }
@@ -30,7 +28,6 @@ const Profile = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
-      // Force navigate to auth page after signout
       navigate('/auth', { replace: true });
     } catch (error) {
       console.error('Error signing out:', error);
@@ -58,7 +55,6 @@ const Profile = () => {
     try {
       console.log("Updating profile for user ID:", user.id);
       
-      // Update the user's profile to set is_merchant to true
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ is_merchant: true })
@@ -74,7 +70,6 @@ const Profile = () => {
         description: "Your account has been upgraded to merchant status. You will now be redirected to complete your merchant profile.",
       });
       
-      // Wait for a moment before redirecting to ensure the toast is seen
       setTimeout(() => {
         window.location.href = '/merchant-signup';
       }, 1500);
@@ -92,7 +87,7 @@ const Profile = () => {
   };
 
   if (!user || !userProfile) {
-    return null; // Will redirect via useEffect
+    return null;
   }
 
   return (
@@ -170,12 +165,12 @@ const Profile = () => {
                     </div>
                   </div>
                   
-                  {userProfile.phone_number && (
+                  {userProfile.phoneNumber && (
                     <div className="flex items-start gap-3">
                       <Phone className="w-5 h-5 mt-0.5 text-muted-foreground" />
                       <div>
                         <p className="text-sm font-medium">Phone Number</p>
-                        <p className="text-muted-foreground">{userProfile.phone_number}</p>
+                        <p className="text-muted-foreground">{userProfile.phoneNumber}</p>
                       </div>
                     </div>
                   )}
