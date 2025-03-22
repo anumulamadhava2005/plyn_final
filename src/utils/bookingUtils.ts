@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 
@@ -49,8 +48,7 @@ interface BookingRPCResponse {
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
-  // Skip type parameters completely and let TypeScript infer them
-  // This avoids the never type constraint issues
+  // Use explicit any type for the supabase call to bypass TypeScript's type constraints
   const { data, error } = await supabase.rpc(
     'create_booking_transaction',
     {
@@ -67,8 +65,8 @@ export const createBooking = async (bookingData: BookingData): Promise<BookingRe
       p_service_duration: bookingData.totalDuration,
       p_slot_id: bookingData.slotId,
       p_additional_notes: bookingData.notes || ""
-    }
-  );
+    } as any
+  ) as any;
 
   if (error) {
     console.error("Error in create_booking_transaction:", error);
