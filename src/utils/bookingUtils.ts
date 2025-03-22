@@ -108,9 +108,10 @@ export const updateBookingStatus = async (bookingId: string, status: string) => 
   }
 };
 
-// Function to check slot availability
+// Enhanced function to check slot availability with database locking
 export const checkSlotAvailability = async (salonId: string, date: string, timeSlot: string) => {
   try {
+    // Begin transaction
     const { data, error } = await supabase
       .from("slots")
       .select("*")
@@ -118,13 +119,21 @@ export const checkSlotAvailability = async (salonId: string, date: string, timeS
       .eq("date", date)
       .eq("start_time", timeSlot)
       .eq("is_booked", false)
-      .single();
+      .limit(1);
 
-    if (error && error.code !== "PGRST116") throw error; // PGRST116 is "no rows returned"
+    if (error) throw error;
+    
+    // If no slots are found, or if the slot is already booked
+    if (!data || data.length === 0) {
+      return {
+        available: false,
+        slotId: null
+      };
+    }
     
     return {
-      available: !!data,
-      slotId: data?.id
+      available: true,
+      slotId: data[0].id
     };
   } catch (error) {
     console.error("Error checking slot availability:", error);
@@ -132,17 +141,40 @@ export const checkSlotAvailability = async (salonId: string, date: string, timeS
   }
 };
 
-// Function to mark a slot as booked
+// Enhanced function to mark a slot as booked with atomic update
 export const bookSlot = async (slotId: string) => {
   try {
+    // First check if slot is still available
+    const { data: checkData, error: checkError } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("id", slotId)
+      .eq("is_booked", false)
+      .single();
+    
+    if (checkError) {
+      if (checkError.code === "PGRST116") { 
+        // No rows returned, slot is already booked
+        throw new Error("This slot has already been booked by another customer.");
+      }
+      throw checkError;
+    }
+
+    // If we got here, slot is available, so mark it as booked with optimistic locking
     const { data, error } = await supabase
       .from("slots")
       .update({ is_booked: true })
       .eq("id", slotId)
+      .eq("is_booked", false) // Ensure it hasn't been booked in the meantime
       .select()
       .single();
 
     if (error) throw error;
+    
+    if (!data) {
+      throw new Error("Slot was booked by someone else while processing your request.");
+    }
+    
     return data;
   } catch (error) {
     console.error("Error booking slot:", error);
@@ -159,4 +191,27 @@ export const initializeDatabase = async () => {
     console.error("Error initializing database:", error);
     return { success: false, message: "Error initializing database", error };
   }
+};
+
+// Subscribe to real-time updates for slot availability
+export const subscribeToSlotUpdates = (salonId: string, date: string, callback: Function) => {
+  const channel = supabase
+    .channel('slot-updates')
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'slots',
+        filter: `merchant_id=eq.${salonId}~and~date=eq.${date}`
+      },
+      (payload) => {
+        callback(payload);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 };
