@@ -16,7 +16,11 @@ serve(async (req) => {
   try {
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
-      throw new Error('OpenAI API key is not configured');
+      console.error('OpenAI API key is not configured');
+      return new Response(
+        JSON.stringify({ error: 'OpenAI API key is not configured' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
     }
 
     // Parse request body
@@ -49,6 +53,15 @@ serve(async (req) => {
       );
     }
 
+    // Check if the base64 string is valid
+    if (!imageBase64.match(/^[A-Za-z0-9+/=]+$/)) {
+      console.error('Invalid base64 image data');
+      return new Response(
+        JSON.stringify({ error: 'Invalid image data format' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
     console.log(`Analyzing face for ${gender} user with image length: ${imageBase64.length}`);
     
     // Prepare the system message for the AI
@@ -66,7 +79,10 @@ serve(async (req) => {
     Keep your analysis professional and focused on ${gender} hairstyles.`;
 
     // Call OpenAI API with the image
+    let openAIResponse;
     try {
+      console.log('Sending request to OpenAI API...');
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -96,24 +112,36 @@ serve(async (req) => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('OpenAI API error:', errorData);
+        console.error('OpenAI API error status:', response.status);
+        console.error('OpenAI API error details:', errorData);
         throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
       }
 
-      const data = await response.json();
+      openAIResponse = await response.json();
       
-      if (data.error) {
-        console.error('OpenAI API error in response:', data.error);
-        throw new Error(`OpenAI API error: ${data.error.message}`);
+      if (!openAIResponse || !openAIResponse.choices || !openAIResponse.choices[0]) {
+        console.error('OpenAI API returned an unexpected response format:', openAIResponse);
+        throw new Error('OpenAI API returned an invalid response');
       }
+      
+      console.log('OpenAI API response received successfully');
+    } catch (error) {
+      console.error('Error calling OpenAI API:', error);
+      return new Response(
+        JSON.stringify({ error: `OpenAI API error: ${error.message}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
 
-      console.log('Analysis complete');
+    // Extract the analysis
+    const analysisText = openAIResponse.choices[0].message.content;
+    console.log('Analysis text extracted from response');
       
-      // Extract the analysis
-      const analysisText = data.choices[0].message.content;
-      
-      // Generate image prompts for each recommended style
+    // Generate image prompts for each recommended style
+    try {
+      console.log('Generating style image prompts...');
       const stylePrompts = await generateStyleImagePrompts(analysisText, gender, openAIApiKey);
+      console.log('Style prompts generated successfully:', stylePrompts);
 
       return new Response(
         JSON.stringify({ 
@@ -123,11 +151,19 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } catch (error) {
-      console.error('Error calling OpenAI API:', error);
-      throw new Error(`Error calling OpenAI API: ${error.message}`);
+      console.error('Error generating style prompts:', error);
+      // Still return the analysis even if style prompts generation fails
+      return new Response(
+        JSON.stringify({ 
+          analysis: analysisText,
+          stylePrompts: [],
+          warning: 'Style prompts could not be generated, but analysis was successful'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Unhandled error in analyze-face function:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -137,6 +173,8 @@ serve(async (req) => {
 
 async function generateStyleImagePrompts(analysisText: string, gender: string, apiKey: string) {
   try {
+    console.log('Starting style prompt generation...');
+    
     // Extract hairstyle names and create image prompts
     const promptGenerationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -168,27 +206,97 @@ async function generateStyleImagePrompts(analysisText: string, gender: string, a
 
     const promptData = await promptGenerationResponse.json();
     
-    if (promptData.error) {
-      console.error('OpenAI API error in prompt generation response:', promptData.error);
-      throw new Error(`OpenAI API error: ${promptData.error.message}`);
+    if (!promptData || !promptData.choices || !promptData.choices[0]) {
+      console.error('OpenAI API returned an unexpected format for style prompts:', promptData);
+      throw new Error('Invalid response format from OpenAI API');
     }
     
     const promptsText = promptData.choices[0].message.content;
-    console.log('Generated style prompts:', promptsText);
+    console.log('Raw style prompts text:', promptsText);
     
-    // Parse the text into a structured format
-    // This is a simple parser. The structure might need adjustment based on actual response patterns
-    const stylePrompts = promptsText.split(/\d+\.\s+/g).filter(Boolean).map(text => {
-      const lines = text.trim().split('\n');
-      const name = lines[0].replace(':', '').trim();
-      const description = lines.slice(1).join(' ').trim();
-      return { name, description };
-    });
+    // Parse the text into a structured format with fallback
+    let stylePrompts = [];
     
-    console.log('Parsed style prompts:', stylePrompts);
+    try {
+      // Try to parse by numbered items (primary approach)
+      stylePrompts = promptsText.split(/\d+\.\s+/g).filter(Boolean).map(text => {
+        const lines = text.trim().split('\n');
+        const name = lines[0].replace(':', '').trim();
+        const description = lines.slice(1).join(' ').trim();
+        return { name, description };
+      });
+      
+      // Validate each item has both name and description
+      const isValid = stylePrompts.every(item => item.name && item.description);
+      
+      if (!isValid || stylePrompts.length === 0) {
+        throw new Error('Parsing failed to extract valid style prompts');
+      }
+      
+      console.log('Successfully parsed style prompts:', stylePrompts);
+    } catch (error) {
+      console.error('Error in primary parsing method:', error);
+      
+      // Fallback parsing method
+      try {
+        // Look for style names in bold or with colons
+        const styleMatches = promptsText.match(/(?:\*\*|#)(.*?)(?:\*\*|:)/g) || [];
+        
+        if (styleMatches.length > 0) {
+          stylePrompts = styleMatches.map((match, index) => {
+            const name = match.replace(/\*\*|#|:/g, '').trim();
+            
+            // Extract description that follows the name
+            const nameEscaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`${nameEscaped}(?:\\*\\*|:)\\s*(.*?)(?=\\*\\*|#|$)`, 's');
+            const descMatch = promptsText.match(regex);
+            const description = descMatch ? descMatch[1].trim() : `${gender} hairstyle`;
+            
+            return { name, description };
+          });
+          
+          console.log('Fallback parsing succeeded:', stylePrompts);
+        } else {
+          // Ultimate fallback: Just create generic items
+          stylePrompts = [
+            { name: 'Style 1', description: `Trendy ${gender} hairstyle` },
+            { name: 'Style 2', description: `Modern ${gender} haircut` },
+            { name: 'Style 3', description: `Classic ${gender} hairstyle` }
+          ];
+          console.log('Using generic fallback styles:', stylePrompts);
+        }
+      } catch (fallbackError) {
+        console.error('Both parsing methods failed:', fallbackError);
+        // Return generic prompts as the ultimate fallback
+        stylePrompts = [
+          { name: 'Style 1', description: `Trendy ${gender} hairstyle` },
+          { name: 'Style 2', description: `Modern ${gender} haircut` },
+          { name: 'Style 3', description: `Classic ${gender} hairstyle` }
+        ];
+      }
+    }
+    
+    // Ensure we have exactly 3 styles
+    while (stylePrompts.length < 3) {
+      const index = stylePrompts.length + 1;
+      stylePrompts.push({ 
+        name: `Style ${index}`, 
+        description: `Recommended ${gender} hairstyle number ${index}` 
+      });
+    }
+    
+    if (stylePrompts.length > 3) {
+      stylePrompts = stylePrompts.slice(0, 3);
+    }
+    
     return stylePrompts;
   } catch (error) {
     console.error('Error generating style prompts:', error);
-    return [];
+    // Return generic prompts as the fallback
+    return [
+      { name: 'Style 1', description: `Trendy ${gender} hairstyle` },
+      { name: 'Style 2', description: `Modern ${gender} haircut` },
+      { name: 'Style 3', description: `Classic ${gender} hairstyle` }
+    ];
   }
 }

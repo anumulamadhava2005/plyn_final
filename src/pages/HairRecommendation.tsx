@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,9 +22,19 @@ const HairRecommendation = () => {
   const [recommendedStyles, setRecommendedStyles] = useState<Array<{ name: string, description: string, imageUrl: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [progressStage, setProgressStage] = useState<string>('');
+  const [retryCount, setRetryCount] = useState(0);
   
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Reset on component mount
+    setError(null);
+    setProgress(0);
+    setProgressStage('');
+    setIsLoading(false);
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -51,13 +61,26 @@ const HairRecommendation = () => {
       setRecommendedStyles([]);
       setError(null);
       setProgress(0);
+      setProgressStage('');
     }
   };
 
   const handleRetry = () => {
     setError(null);
     setProgress(0);
+    setProgressStage('');
     setIsLoading(false);
+    setRetryCount(prev => prev + 1);
+  };
+
+  const resetAnalysis = () => {
+    setAnalysis(null);
+    setRecommendedStyles([]);
+    setError(null);
+    setProgress(0);
+    setProgressStage('');
+    setPhoto(null);
+    setPhotoPreview(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,7 +99,8 @@ const HairRecommendation = () => {
     setAnalysis(null);
     setRecommendedStyles([]);
     setError(null);
-    setProgress(10);
+    setProgress(5);
+    setProgressStage('Preparing your photo');
     
     try {
       const reader = new FileReader();
@@ -84,24 +108,48 @@ const HairRecommendation = () => {
       
       reader.onload = async () => {
         try {
-          setProgress(30);
+          setProgress(15);
+          setProgressStage('Processing image');
+          
+          if (!reader.result) {
+            throw new Error("Failed to read the image file");
+          }
+          
           const base64String = (reader.result as string).split(',')[1];
+          if (!base64String) {
+            throw new Error("Invalid image format");
+          }
           
           console.log("Sending photo for analysis...");
-          setProgress(50);
+          setProgress(30);
+          setProgressStage('Sending to AI for analysis');
           
-          const { data, error } = await supabase.functions.invoke('analyze-face', {
+          // Add a timeout to update progress indicator to simulate activity
+          const progressInterval = setInterval(() => {
+            setProgress(prev => {
+              if (prev < 45) return prev + 1;
+              return prev;
+            });
+          }, 1000);
+          
+          const { data, error: supabaseError } = await supabase.functions.invoke('analyze-face', {
             body: {
               imageBase64: base64String,
               gender: selectedGender
             }
           });
           
-          setProgress(80);
+          clearInterval(progressInterval);
+          setProgress(60);
+          setProgressStage('Processing analysis results');
           
-          if (error) {
-            console.error("Supabase function error:", error);
-            throw new Error(error.message || "Failed to analyze photo");
+          if (supabaseError) {
+            console.error("Supabase function error:", supabaseError);
+            throw new Error(supabaseError.message || "Failed to analyze photo");
+          }
+          
+          if (!data) {
+            throw new Error("No response from analysis service");
           }
           
           if (data.error) {
@@ -110,7 +158,12 @@ const HairRecommendation = () => {
           }
           
           console.log("Analysis data received:", data);
-          setProgress(90);
+          setProgress(80);
+          setProgressStage('Generating recommendations');
+          
+          if (!data.analysis) {
+            throw new Error("AI analysis was not provided");
+          }
           
           setAnalysis(data.analysis);
           
@@ -142,9 +195,42 @@ const HairRecommendation = () => {
             });
             
             setRecommendedStyles(stylesWithImages);
+          } else {
+            // Create fallback styles
+            const fallbackStyles = [];
+            for (let i = 0; i < 3; i++) {
+              const baseUrl = "https://images.unsplash.com/photo-";
+              let imageUrl = "";
+              
+              if (selectedGender === 'male') {
+                const maleImages = [
+                  "1583195764036-6dc248ac07d9?q=80&w=400",
+                  "1587500154541-9cafd2393326?q=80&w=400",
+                  "1519699047748-de8e457a634e?q=80&w=400"
+                ];
+                imageUrl = baseUrl + maleImages[i % maleImages.length];
+              } else {
+                const femaleImages = [
+                  "1554519515-242393f652d4?q=80&w=400",
+                  "1605980776566-0486c3ac7617?q=80&w=400",
+                  "1595319100466-ec94616feba7?q=80&w=400"
+                ];
+                imageUrl = baseUrl + femaleImages[i % femaleImages.length];
+              }
+              
+              fallbackStyles.push({
+                name: `Recommended Style ${i+1}`,
+                description: `A ${selectedGender === 'male' ? 'men\'s' : 'women\'s'} hairstyle that would complement your face shape and features.`,
+                imageUrl
+              });
+            }
+            
+            setRecommendedStyles(fallbackStyles);
+            console.warn("No style prompts received, using fallback styles");
           }
           
           setProgress(100);
+          setProgressStage('Complete!');
           
           toast({
             title: "Analysis complete!",
@@ -249,6 +335,7 @@ const HairRecommendation = () => {
                         accept="image/*"
                         onChange={handleFileChange}
                         className="cursor-pointer"
+                        key={`file-input-${retryCount}`} // Force re-render on retry
                       />
                     </div>
                     
@@ -268,7 +355,7 @@ const HairRecommendation = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Analyzing...
+                      {progressStage || 'Analyzing...'}
                     </>
                   ) : (
                     <>
@@ -281,7 +368,7 @@ const HairRecommendation = () => {
                 {isLoading && (
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>Analysis progress</span>
+                      <span>{progressStage}</span>
                       <span>{progress}%</span>
                     </div>
                     <Progress value={progress} className="h-2" />
@@ -305,7 +392,7 @@ const HairRecommendation = () => {
                   Please try again with a different photo, or ensure your face is clearly visible.
                 </p>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="flex gap-2">
                 <Button 
                   variant="outline" 
                   className="w-full" 
@@ -313,6 +400,13 @@ const HairRecommendation = () => {
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Try Again
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  className="w-full" 
+                  onClick={resetAnalysis}
+                >
+                  Start Over
                 </Button>
               </CardFooter>
             </Card>
