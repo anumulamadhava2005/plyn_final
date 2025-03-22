@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
 
   // Function to check user role and redirect accordingly
-  const checkAndRedirectUserByRole = () => {
+  const checkAndRedirectUserByRole = useCallback(() => {
     if (!user) return;
     
     const currentPath = window.location.pathname;
@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         window.location.href = '/';
       }
     }
-  };
+  }, [user, isMerchant, isAdmin]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -70,6 +71,7 @@ const Profile = () => {
         description: "Your account has been upgraded to merchant status. You will now be redirected to complete your merchant profile.",
       });
       
+      // Force refresh the auth context to update the merchant status
       setTimeout(() => {
         window.location.href = '/merchant-signup';
       }, 1500);

@@ -2,7 +2,9 @@
 export type UserProfile = {
   username: string | null;
   phone_number?: string | null;
+  phoneNumber?: string | null;
   is_merchant?: boolean;
+  isMerchant?: boolean;
   age?: number;
   gender?: string;
 };

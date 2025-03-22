@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/AuthContext';
@@ -10,26 +10,34 @@ import PageTransition from '@/components/transitions/PageTransition';
 import Login from '@/components/auth/Login';
 import Signup from '@/components/auth/Signup';
 import AuthHeader from '@/components/auth/AuthHeader';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
 
 const Auth = () => {
   const [activeTab, setActiveTab] = useState('login');
   const [showMerchantFields, setShowMerchantFields] = useState(false);
   const { user, isMerchant, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get redirectUrl from location state or default to homepage
+  const from = location.state?.from?.pathname || '/';
 
   useEffect(() => {
     if (user) {
       if (isMerchant) {
-        navigate('/merchant-dashboard');
+        navigate('/merchant-dashboard', { replace: true });
       } else if (isAdmin) {
-        navigate('/admin-dashboard');
+        navigate('/admin-dashboard', { replace: true });
       } else {
-        navigate('/');
+        // Use the from path if it's not a protected route
+        const isProtectedRoute = 
+          from.includes('/merchant') || 
+          from.includes('/admin') ||
+          from === '/auth';
+        
+        navigate(isProtectedRoute ? '/' : from, { replace: true });
       }
     }
-  }, [user, isMerchant, isAdmin, navigate]);
+  }, [user, isMerchant, isAdmin, navigate, from]);
 
   return (
     <PageTransition>

@@ -59,14 +59,12 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const CustomerRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isMerchant, isAdmin, loading } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
   
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   
   if (!user) return <Navigate to="/auth" replace state={{ from: location }} />;
-  if (isMerchant) return <Navigate to="/merchant-dashboard" replace />;
-  if (isAdmin) return <Navigate to="/admin-dashboard" replace />;
   
   return <>{children}</>;
 };
