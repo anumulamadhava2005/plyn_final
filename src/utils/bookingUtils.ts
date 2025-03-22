@@ -49,34 +49,39 @@ interface BookingRPCResponse {
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
-  const { data, error } = await supabase.rpc<BookingRPCResponse, any>('create_booking_transaction', {
-    p_user_id: bookingData.userId,
-    p_merchant_id: bookingData.salonId,
-    p_salon_id: bookingData.salonId,
-    p_salon_name: bookingData.salonName,
-    p_service_name: bookingData.serviceName,
-    p_booking_date: bookingData.date,
-    p_time_slot: bookingData.timeSlot,
-    p_customer_email: bookingData.email,
-    p_customer_phone: bookingData.phone,
-    p_service_price: bookingData.totalPrice,
-    p_service_duration: bookingData.totalDuration,
-    p_slot_id: bookingData.slotId,
-    p_additional_notes: bookingData.notes || ""
-  });
+  // Use correct generic type parameters for the rpc method
+  const { data, error } = await supabase
+    .rpc('create_booking_transaction', {
+      p_user_id: bookingData.userId,
+      p_merchant_id: bookingData.salonId,
+      p_salon_id: bookingData.salonId,
+      p_salon_name: bookingData.salonName,
+      p_service_name: bookingData.serviceName,
+      p_booking_date: bookingData.date,
+      p_time_slot: bookingData.timeSlot,
+      p_customer_email: bookingData.email,
+      p_customer_phone: bookingData.phone,
+      p_service_price: bookingData.totalPrice,
+      p_service_duration: bookingData.totalDuration,
+      p_slot_id: bookingData.slotId,
+      p_additional_notes: bookingData.notes || ""
+    });
 
   if (error) {
     console.error("Error in create_booking_transaction:", error);
     throw error;
   }
 
-  // If the booking was created successfully, the RPC returns a JSONB object with success, message, and id
-  if (data && data.success) {
+  // Check if the response data is valid and has the expected shape
+  if (data && typeof data === 'object' && 'success' in data && data.success && 'id' in data) {
+    // Cast the data to our expected response type
+    const rpcResponse = data as BookingRPCResponse;
+    
     // Fetch the booking record to return the full booking object
     const { data: bookingData, error: bookingError } = await supabase
       .from("bookings")
       .select("*")
-      .eq("id", data.id)
+      .eq("id", rpcResponse.id)
       .single();
       
     if (bookingError) {
