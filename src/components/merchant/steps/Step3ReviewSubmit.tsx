@@ -147,7 +147,7 @@ const Step3ReviewSubmit: React.FC<Step3Props> = ({
           variant="gradient"
           className="flex-1"
           type="submit"
-          disabled={isLoading}
+          disabled={isSubmitting}
         >
           {isSubmitting ? "Submitting..." : "Submit Application"}
         </AnimatedButton>

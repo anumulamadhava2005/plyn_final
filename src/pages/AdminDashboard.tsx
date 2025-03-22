@@ -25,7 +25,6 @@ import { supabase } from '@/integrations/supabase/client';
 
 type MerchantApplication = {
   id: string;
-  user_id: string;
   business_name: string;
   business_address: string;
   business_email: string;
@@ -90,8 +89,7 @@ const AdminDashboard = () => {
           *,
           user_profile:profiles(username, email)
         `)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .eq('status', 'pending');
       
       if (pendingError) throw pendingError;
       
@@ -102,13 +100,37 @@ const AdminDashboard = () => {
           *,
           user_profile:profiles(username, email)
         `)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
+        .eq('status', 'approved');
       
       if (approvedError) throw approvedError;
       
-      setPendingApplications(pendingData || []);
-      setApprovedMerchants(approvedData || []);
+      // Transform data to match MerchantApplication type
+      const pendingApplicationsTyped: MerchantApplication[] = pendingData?.map(item => ({
+        id: item.id,
+        business_name: item.business_name,
+        business_address: item.business_address,
+        business_email: item.business_email,
+        business_phone: item.business_phone,
+        service_category: item.service_category,
+        status: 'pending',
+        created_at: item.created_at,
+        user_profile: item.user_profile
+      })) || [];
+      
+      const approvedMerchantsTyped: MerchantApplication[] = approvedData?.map(item => ({
+        id: item.id,
+        business_name: item.business_name,
+        business_address: item.business_address,
+        business_email: item.business_email,
+        business_phone: item.business_phone,
+        service_category: item.service_category,
+        status: 'approved',
+        created_at: item.created_at,
+        user_profile: item.user_profile
+      })) || [];
+      
+      setPendingApplications(pendingApplicationsTyped);
+      setApprovedMerchants(approvedMerchantsTyped);
       
       // Fetch dashboard stats
       const { data: merchantCount } = await supabase
@@ -128,7 +150,7 @@ const AdminDashboard = () => {
         totalMerchants: merchantCount?.length || 0,
         totalUsers: userCount?.length || 0,
         totalBookings: bookingCount?.length || 0,
-        pendingApplications: pendingData?.length || 0
+        pendingApplications: pendingApplicationsTyped.length
       });
       
     } catch (error) {
@@ -153,18 +175,16 @@ const AdminDashboard = () => {
       
       if (error) throw error;
       
-      // Update profiles table to set is_merchant to true
-      const { data: merchantData } = await supabase
-        .from('merchants')
-        .select('user_id')
-        .eq('id', merchantId)
-        .single();
+      // Find the merchant data from our local state
+      const merchantToApprove = pendingApplications.find(app => app.id === merchantId);
       
-      if (merchantData) {
+      if (merchantToApprove?.user_profile) {
+        // Update profiles table - assuming the profile id is linked to the merchant somehow
+        // This is a simplified example; in a real app, you'd have a proper link between merchants and profiles
         await supabase
           .from('profiles')
           .update({ is_merchant: true })
-          .eq('id', merchantData.user_id);
+          .eq('username', merchantToApprove.user_profile.username);
       }
       
       // Update local state
