@@ -1,103 +1,39 @@
+
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 
-// Define a proper type for bookingData
-interface BookingData {
-  userId: string;
-  salonId: string;
-  salonName: string;
-  serviceName: string;
-  date: string;
-  timeSlot: string;
-  email: string;
-  phone: string;
-  totalPrice: number;
-  totalDuration: number;
-  slotId: string;
-  notes?: string;
-}
-
-// Define the return type for the booking
-interface BookingResponse {
-  id: string;
-  user_id: string;
-  merchant_id: string;
-  salon_id: string | null;
-  salon_name: string | null;
-  service_name: string;
-  booking_date: string | null;
-  time_slot: string | null;
-  customer_email: string | null;
-  customer_phone: string | null;
-  service_price: number | null;
-  service_duration: number | null;
-  slot_id: string;
-  status: string;
-  additional_notes: string | null;
-  created_at: string;
-  updated_at: string;
-  payment_id: string | null;
-}
-
-// Define the type for the RPC response
-interface BookingRPCResponse {
-  success: boolean;
-  message: string;
-  id: string;
-}
-
 // Function to create a new booking in the database
-export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
-  // Use explicit any type for the supabase call to bypass TypeScript's type constraints
-  const { data, error } = await supabase.rpc(
-    'create_booking_transaction',
-    {
-      p_user_id: bookingData.userId,
-      p_merchant_id: bookingData.salonId,
-      p_salon_id: bookingData.salonId,
-      p_salon_name: bookingData.salonName,
-      p_service_name: bookingData.serviceName,
-      p_booking_date: bookingData.date,
-      p_time_slot: bookingData.timeSlot,
-      p_customer_email: bookingData.email,
-      p_customer_phone: bookingData.phone,
-      p_service_price: bookingData.totalPrice,
-      p_service_duration: bookingData.totalDuration,
-      p_slot_id: bookingData.slotId,
-      p_additional_notes: bookingData.notes || ""
-    } as any
-  ) as any;
+export const createBooking = async (bookingData: any) => {
+  try {
+    const { data: newBooking, error: bookingError } = await supabase
+      .from("bookings")
+      .insert({
+        user_id: bookingData.userId,
+        merchant_id: bookingData.salonId,
+        salon_id: bookingData.salonId,
+        salon_name: bookingData.salonName,
+        service_name: bookingData.serviceName,
+        booking_date: bookingData.date,
+        time_slot: bookingData.timeSlot,
+        customer_email: bookingData.email,
+        customer_phone: bookingData.phone,
+        service_price: bookingData.totalPrice,
+        service_duration: bookingData.totalDuration,
+        slot_id: bookingData.slotId,
+        status: "upcoming",
+        additional_notes: bookingData.notes || ""
+      })
+      .select()
+      .single();
 
-  if (error) {
-    console.error("Error in create_booking_transaction:", error);
+    if (bookingError) throw bookingError;
+
+    return newBooking;
+  } catch (error) {
+    console.error("Error creating booking:", error);
     throw error;
   }
-
-  // Check if the response data is valid and has the expected shape
-  if (data && typeof data === 'object') {
-    const responseData = data as any;
-    
-    if ('success' in responseData && responseData.success && 'id' in responseData) {
-      // Cast the data to our expected response type
-      const rpcResponse = responseData as BookingRPCResponse;
-      
-      // Fetch the booking record to return the full booking object
-      const { data: bookingData, error: bookingError } = await supabase
-        .from("bookings")
-        .select("*")
-        .eq("id", rpcResponse.id)
-        .single();
-        
-      if (bookingError) {
-        console.error("Error fetching booking after creation:", bookingError);
-        throw bookingError;
-      }
-      
-      return bookingData;
-    }
-  }
-  
-  return null;
 };
 
 // Function to create a payment record
@@ -223,29 +159,4 @@ export const initializeDatabase = async () => {
     console.error("Error initializing database:", error);
     return { success: false, message: "Error initializing database", error };
   }
-};
-
-// Function to subscribe to booking updates for a specific user
-export const subscribeToBookingUpdates = (userId: string, callback: (bookings: any[]) => void) => {
-  // Create a subscription channel
-  const channel = supabase
-    .channel('booking-updates')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'bookings',
-        filter: `user_id=eq.${userId}`
-      },
-      async () => {
-        // When booking changes are detected, get the updated list of bookings
-        const bookings = await fetchUserBookings(userId);
-        callback(bookings);
-      }
-    )
-    .subscribe();
-
-  // Return the channel so it can be unsubscribed later
-  return channel;
 };

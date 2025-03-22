@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -10,8 +10,6 @@ import { Slider } from '@/components/ui/slider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { MapPin, Search, Filter } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { initializeDatabase } from '@/utils/bookingUtils';
 
 // Mock data for salons
 const salonData = [
@@ -137,47 +135,11 @@ const BookNow = () => {
   const [salonType, setSalonType] = useState("all");
   const [filteredSalons, setFilteredSalons] = useState(salonData);
   const [showFilters, setShowFilters] = useState(false);
-  const [dbInitialized, setDbInitialized] = useState(false);
-
-  useEffect(() => {
-    const initDb = async () => {
-      if (!dbInitialized) {
-        try {
-          const result = await initializeDatabase();
-          console.log('Database initialization result:', result);
-          setDbInitialized(true);
-        } catch (error) {
-          console.error('Failed to initialize database:', error);
-        }
-      }
-    };
-    
-    initDb();
-
-    const channel = supabase
-      .channel('merchant-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'merchants'
-        },
-        () => {
-          // For now, we're still using mock data so no action needed
-          // In a real application, this would fetch the latest merchant data
-        }
-      )
-      .subscribe();
-      
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [dbInitialized]);
 
   const handleSearch = () => {
     let results = salonData;
     
+    // Filter by search term
     if (searchTerm) {
       results = results.filter(salon => 
         salon.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -186,11 +148,13 @@ const BookNow = () => {
       );
     }
     
+    // Filter by distance
     results = results.filter(salon => {
       const salonDistance = parseFloat(salon.distance.replace(" mi", ""));
       return salonDistance <= distance[0];
     });
     
+    // Filter by salon type
     if (salonType !== "all") {
       results = results.filter(salon => salon.type === salonType);
     }
@@ -204,6 +168,7 @@ const BookNow = () => {
         <Navbar />
         
         <main className="flex-grow pt-20">
+          {/* Hero Section */}
           <section className="bg-gradient-to-r from-salon-men/5 to-salon-women/5 dark:from-salon-men-light/5 dark:to-salon-women-light/5 py-12">
             <div className="container mx-auto px-4">
               <div className="max-w-3xl mx-auto text-center">
@@ -344,6 +309,7 @@ const BookNow = () => {
             </div>
           </section>
           
+          {/* Salon Listings */}
           <section className="py-12 px-4">
             <div className="container mx-auto">
               <div className="flex justify-between items-center mb-8">

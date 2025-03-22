@@ -19,12 +19,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 import BookingSummary from '@/components/payment/BookingSummary';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
-import { toast } from 'sonner';
 
 const Payment = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { toast: uiToast } = useToast();
+  const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -73,7 +72,7 @@ const Payment = () => {
       setPaymentError(null);
       
       if (!user) {
-        uiToast({
+        toast({
           title: "Authentication Required",
           description: "Please sign in to book an appointment.",
           variant: "destructive",
@@ -92,11 +91,6 @@ const Payment = () => {
       if (!slotCheck.available) {
         setPaymentError("Sorry, this time slot is no longer available. Please select another time.");
         setIsSubmitting(false);
-        
-        // Show toast notification for better UX
-        toast("Time slot unavailable", {
-          description: "This slot was just booked by someone else. Please go back and select a different time.",
-        });
         return;
       }
       
@@ -112,14 +106,9 @@ const Payment = () => {
         phone: values.phone,
         totalPrice: bookingData.totalPrice,
         totalDuration: bookingData.totalDuration,
-        slotId: bookingData.slotId,
+        slotId: slotCheck.slotId,
         notes: values.notes
       });
-      
-      // Add null check for newBooking
-      if (!newBooking) {
-        throw new Error("Failed to create booking record");
-      }
       
       // Process payment (in development, this will always succeed)
       const payment = await createPayment({
@@ -131,8 +120,11 @@ const Payment = () => {
         transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`
       });
       
+      // Mark the slot as booked
+      await bookSlot(slotCheck.slotId);
+      
       // Show success toast
-      uiToast({
+      toast({
         title: "Payment Successful",
         description: "Your appointment has been booked!",
       });
@@ -160,7 +152,7 @@ const Payment = () => {
     } catch (error) {
       console.error("Payment error:", error);
       setPaymentError("There was an error processing your payment. Please try again.");
-      uiToast({
+      toast({
         title: "Payment Failed",
         description: "There was an error processing your payment. Please try again.",
         variant: "destructive",

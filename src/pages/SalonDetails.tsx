@@ -14,11 +14,6 @@ import PageTransition from '@/components/transitions/PageTransition';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  getAvailableTimeSlots, 
-  formatSlotsForDisplay,
-  subscribeToSlotUpdates 
-} from '@/utils/slotUtils';
 
 const mockSalonData = {
   "1": {
@@ -143,6 +138,24 @@ const mockSalonData = {
   }
 };
 
+const generateTimeSlots = () => {
+  const slots = [];
+  const startHour = 9;
+  const endHour = 19;
+  
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      slots.push({
+        id: `slot-${hour}-${minute}`,
+        time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+        available: Math.random() > 0.3
+      });
+    }
+  }
+  
+  return slots;
+};
+
 const SalonDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -175,53 +188,14 @@ const SalonDetails = () => {
   }, [id, navigate, toast]);
   
   useEffect(() => {
-    let channel: any = null;
-    
-    const fetchSlots = async () => {
-      if (selectedDate && id) {
-        setFetchingSlots(true);
-        try {
-          const slots = await getAvailableTimeSlots(id, selectedDate);
-          setTimeSlots(formatSlotsForDisplay(slots));
-          
-          channel = subscribeToSlotUpdates(id, format(selectedDate, "yyyy-MM-dd"), (updatedSlots) => {
-            setTimeSlots(updatedSlots);
-            
-            if (selectedSlot) {
-              const slotStillAvailable = updatedSlots.some(
-                (slot) => slot.id === selectedSlot && slot.available
-              );
-              if (!slotStillAvailable) {
-                setSelectedSlot(null);
-                toast({
-                  title: "Slot no longer available",
-                  description: "The time slot you selected has been booked by someone else. Please select another time.",
-                  variant: "destructive",
-                });
-              }
-            }
-          });
-        } catch (error) {
-          console.error("Error fetching slots:", error);
-          toast({
-            title: "Error loading slots",
-            description: "There was an error loading available time slots. Please try again.",
-            variant: "destructive",
-          });
-        } finally {
-          setFetchingSlots(false);
-        }
-      }
-    };
-    
-    fetchSlots();
-    
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [selectedDate, id, toast, selectedSlot]);
+    if (selectedDate) {
+      setFetchingSlots(true);
+      setTimeout(() => {
+        setTimeSlots(generateTimeSlots());
+        setFetchingSlots(false);
+      }, 500);
+    }
+  }, [selectedDate]);
   
   const handleServiceToggle = (selectedIds: string[]) => {
     setSelectedServices(selectedIds);
@@ -274,17 +248,6 @@ const SalonDetails = () => {
       return;
     }
 
-    const selectedSlotDetails = timeSlots.find((slot: any) => slot.id === selectedSlot);
-    
-    if (!selectedSlotDetails || !selectedSlotDetails.available) {
-      toast({
-        title: "Slot No Longer Available",
-        description: "This time slot is no longer available. Please select another time.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     navigate(`/payment`, { 
       state: { 
         salonId: id,
@@ -293,10 +256,9 @@ const SalonDetails = () => {
           salon?.services.find((s: any) => s.id === serviceId)
         ),
         date: selectedDate,
-        timeSlot: selectedSlotDetails.time,
+        timeSlot: timeSlots.find((slot: any) => slot.id === selectedSlot)?.time,
         totalPrice: calculateTotalPrice(),
-        totalDuration: calculateTotalDuration(),
-        slotId: selectedSlot
+        totalDuration: calculateTotalDuration()
       } 
     });
   };
