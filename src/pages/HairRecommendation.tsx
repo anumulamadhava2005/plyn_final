@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,6 @@ import { Loader2, Upload, Scissors, Image, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import Layout from '@/components/layout/Layout';
 import Navbar from '@/components/layout/Navbar';
 
 const HairRecommendation = () => {
@@ -30,7 +28,6 @@ const HairRecommendation = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       
-      // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         toast({
           title: "File too large",
@@ -42,14 +39,12 @@ const HairRecommendation = () => {
       
       setPhoto(file);
       
-      // Create a preview
       const reader = new FileReader();
       reader.onload = (event) => {
         setPhotoPreview(event.target?.result as string);
       };
       reader.readAsDataURL(file);
       
-      // Reset previous results
       setAnalysis(null);
       setRecommendedStyles([]);
       setError(null);
@@ -74,16 +69,13 @@ const HairRecommendation = () => {
     setError(null);
     
     try {
-      // Convert photo to base64
       const reader = new FileReader();
       reader.readAsDataURL(photo);
       
       reader.onload = async () => {
         try {
-          // Extract base64 data without the prefix
           const base64String = (reader.result as string).split(',')[1];
           
-          // Call Supabase Edge Function
           const { data, error } = await supabase.functions.invoke('analyze-face', {
             body: {
               imageBase64: base64String,
@@ -101,11 +93,8 @@ const HairRecommendation = () => {
           
           setAnalysis(data.analysis);
           
-          // Process recommended styles
           if (data.stylePrompts && data.stylePrompts.length > 0) {
-            // Use stock images for now
             const stylesWithImages = data.stylePrompts.map((style: any, index: number) => {
-              // Use predefined stock images based on gender
               const baseUrl = "https://images.unsplash.com/photo-";
               let imageUrl = "";
               
@@ -173,7 +162,6 @@ const HairRecommendation = () => {
     }
   };
 
-  // Format the analysis text with paragraphs
   const formattedAnalysis = analysis ? analysis.split('\n\n').map((paragraph, i) => (
     <p key={i} className="mb-3">{paragraph}</p>
   )) : null;
