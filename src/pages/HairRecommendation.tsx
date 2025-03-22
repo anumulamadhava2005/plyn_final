@@ -7,17 +7,21 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Upload, Scissors, Image } from 'lucide-react';
+import { Loader2, Upload, Scissors, Image, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import Layout from '@/components/layout/Layout';
+import Navbar from '@/components/layout/Navbar';
 
 const HairRecommendation = () => {
   const [selectedGender, setSelectedGender] = useState<'male' | 'female'>('male');
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [recommendation, setRecommendation] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<string | null>(null);
   const [recommendedStyles, setRecommendedStyles] = useState<Array<{ name: string, description: string, imageUrl: string }>>([]);
+  const [error, setError] = useState<string | null>(null);
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -25,6 +29,17 @@ const HairRecommendation = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select an image under 5MB",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       setPhoto(file);
       
       // Create a preview
@@ -33,6 +48,11 @@ const HairRecommendation = () => {
         setPhotoPreview(event.target?.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Reset previous results
+      setAnalysis(null);
+      setRecommendedStyles([]);
+      setError(null);
     }
   };
 
@@ -49,191 +69,262 @@ const HairRecommendation = () => {
     }
 
     setIsLoading(true);
-    setRecommendation(null);
+    setAnalysis(null);
+    setRecommendedStyles([]);
+    setError(null);
     
     try {
-      // Simulate AI processing for demo
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Convert photo to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(photo);
       
-      // Mock recommendation response
-      if (selectedGender === 'male') {
-        setRecommendation("Based on your face shape and features, these hairstyles would suit you well:");
-        setRecommendedStyles([
-          {
-            name: "Modern Pompadour",
-            description: "A classic style with modern updates, providing volume on top and shorter sides.",
-            imageUrl: "https://images.unsplash.com/photo-1583195764036-6dc248ac07d9?q=80&w=400"
-          },
-          {
-            name: "Textured Crop",
-            description: "A low-maintenance style with textured top and faded sides, perfect for oval and square faces.",
-            imageUrl: "https://images.unsplash.com/photo-1587500154541-9cafd2393326?q=80&w=400" 
-          },
-          {
-            name: "Classic Side Part",
-            description: "A timeless style that works well for professional settings and most face shapes.",
-            imageUrl: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?q=80&w=400"
+      reader.onload = async () => {
+        try {
+          // Extract base64 data without the prefix
+          const base64String = (reader.result as string).split(',')[1];
+          
+          // Call Supabase Edge Function
+          const { data, error } = await supabase.functions.invoke('analyze-face', {
+            body: {
+              imageBase64: base64String,
+              gender: selectedGender
+            }
+          });
+          
+          if (error) {
+            throw new Error(error.message);
           }
-        ]);
-      } else {
-        setRecommendation("Your face shape and features would look great with these hairstyles:");
-        setRecommendedStyles([
-          {
-            name: "Layered Bob",
-            description: "A versatile cut that adds volume and frames your face beautifully.",
-            imageUrl: "https://images.unsplash.com/photo-1554519515-242393f652d4?q=80&w=400"
-          },
-          {
-            name: "Long Layers",
-            description: "Soft layers that enhance your natural texture and provide movement.",
-            imageUrl: "https://images.unsplash.com/photo-1605980776566-0486c3ac7617?q=80&w=400"
-          },
-          {
-            name: "Textured Lob",
-            description: "A shoulder-length cut with texture that works well for various face shapes.",
-            imageUrl: "https://images.unsplash.com/photo-1595319100466-ec94616feba7?q=80&w=400"
+          
+          if (data.error) {
+            throw new Error(data.error);
           }
-        ]);
-      }
+          
+          setAnalysis(data.analysis);
+          
+          // Process recommended styles
+          if (data.stylePrompts && data.stylePrompts.length > 0) {
+            // Use stock images for now
+            const stylesWithImages = data.stylePrompts.map((style: any, index: number) => {
+              // Use predefined stock images based on gender
+              const baseUrl = "https://images.unsplash.com/photo-";
+              let imageUrl = "";
+              
+              if (selectedGender === 'male') {
+                const maleImages = [
+                  "1583195764036-6dc248ac07d9?q=80&w=400",
+                  "1587500154541-9cafd2393326?q=80&w=400",
+                  "1519699047748-de8e457a634e?q=80&w=400"
+                ];
+                imageUrl = baseUrl + maleImages[index % maleImages.length];
+              } else {
+                const femaleImages = [
+                  "1554519515-242393f652d4?q=80&w=400",
+                  "1605980776566-0486c3ac7617?q=80&w=400",
+                  "1595319100466-ec94616feba7?q=80&w=400"
+                ];
+                imageUrl = baseUrl + femaleImages[index % femaleImages.length];
+              }
+              
+              return {
+                ...style,
+                imageUrl
+              };
+            });
+            
+            setRecommendedStyles(stylesWithImages);
+          }
+          
+          toast({
+            title: "Analysis complete!",
+            description: "We've analyzed your photo and found great hairstyle recommendations for you."
+          });
+        } catch (error: any) {
+          console.error("Error in analysis process:", error);
+          setError(error.message || "Failed to analyze the photo");
+          toast({
+            title: "Analysis failed",
+            description: error.message || "We couldn't analyze your photo. Please try again.",
+            variant: "destructive"
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      };
       
-      toast({
-        title: "Analysis complete!",
-        description: "We've found some great hairstyles for you."
-      });
-    } catch (error) {
+      reader.onerror = () => {
+        setIsLoading(false);
+        setError("Failed to read the image file");
+        toast({
+          title: "File error",
+          description: "We couldn't read your photo. Please try another image.",
+          variant: "destructive"
+        });
+      };
+      
+    } catch (error: any) {
+      console.error("Error processing photo:", error);
+      setIsLoading(false);
+      setError(error.message || "An unknown error occurred");
       toast({
         title: "Something went wrong",
-        description: "We couldn't process your photo. Please try again.",
+        description: error.message || "We couldn't process your photo. Please try again.",
         variant: "destructive"
       });
-      console.error("Error processing photo:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
+  // Format the analysis text with paragraphs
+  const formattedAnalysis = analysis ? analysis.split('\n\n').map((paragraph, i) => (
+    <p key={i} className="mb-3">{paragraph}</p>
+  )) : null;
+
   return (
-    <PageTransition className="container mx-auto px-4 py-24 md:py-32">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">AI Hair Recommendations</h1>
-        <p className="text-muted-foreground mb-8">Upload your photo to get personalized haircut suggestions</p>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Get Your Personal Hair Recommendation</CardTitle>
-            <CardDescription>
-              Upload a clear photo of your face to see AI-suggested hairstyles that would suit you
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="gender">Select your gender</Label>
-                <RadioGroup 
-                  value={selectedGender} 
-                  onValueChange={(value) => setSelectedGender(value as 'male' | 'female')} 
-                  className="flex flex-row space-x-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="male" id="male" />
-                    <Label htmlFor="male">Male</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="female" id="female" />
-                    <Label htmlFor="female">Female</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="photo">Upload your photo</Label>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-center border-2 border-dashed border-border rounded-lg p-4 h-40">
-                      {photoPreview ? (
-                        <img 
-                          src={photoPreview} 
-                          alt="Preview" 
-                          className="max-h-full object-contain"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center text-muted-foreground">
-                          <Image className="h-10 w-10 mb-2" />
-                          <p className="text-sm">No photo selected</p>
-                        </div>
-                      )}
+    <>
+      <Navbar />
+      <PageTransition className="container mx-auto px-4 py-24 md:py-32">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl md:text-4xl font-bold mb-2">AI Hair Recommendations</h1>
+          <p className="text-muted-foreground mb-8">Upload your photo to get personalized haircut suggestions</p>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Get Your Personal Hair Recommendation</CardTitle>
+              <CardDescription>
+                Upload a clear photo of your face to see AI-suggested hairstyles that would suit you
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Select your gender</Label>
+                  <RadioGroup 
+                    value={selectedGender} 
+                    onValueChange={(value) => setSelectedGender(value as 'male' | 'female')} 
+                    className="flex flex-row space-x-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="male" id="male" />
+                      <Label htmlFor="male">Male</Label>
                     </div>
-                    <Input
-                      id="photo"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="cursor-pointer"
-                    />
-                  </div>
-                  
-                  <div className="flex flex-col space-y-4">
-                    <h3 className="font-medium">Photo tips:</h3>
-                    <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
-                      <li>Use a recent, front-facing photo</li>
-                      <li>Make sure your face is clearly visible</li>
-                      <li>Good lighting will improve results</li>
-                      <li>Remove glasses or accessories that cover your face</li>
-                    </ul>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="female" id="female" />
+                      <Label htmlFor="female">Female</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="photo">Upload your photo</Label>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-center border-2 border-dashed border-border rounded-lg p-4 h-40">
+                        {photoPreview ? (
+                          <img 
+                            src={photoPreview} 
+                            alt="Preview" 
+                            className="max-h-full object-contain"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center text-muted-foreground">
+                            <Image className="h-10 w-10 mb-2" />
+                            <p className="text-sm">No photo selected</p>
+                          </div>
+                        )}
+                      </div>
+                      <Input
+                        id="photo"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="cursor-pointer"
+                      />
+                    </div>
+                    
+                    <div className="flex flex-col space-y-4">
+                      <h3 className="font-medium">Photo tips:</h3>
+                      <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
+                        <li>Use a recent, front-facing photo</li>
+                        <li>Make sure your face is clearly visible</li>
+                        <li>Good lighting will improve results</li>
+                        <li>Remove glasses or accessories that cover your face</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </div>
+                
+                <Button type="submit" className="w-full" disabled={isLoading || !photo}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Scissors className="mr-2 h-4 w-4" />
+                      Get Recommendations
+                    </>
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+          
+          {error && (
+            <Card className="mt-8 border-destructive">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center text-destructive">
+                  <AlertTriangle className="mr-2 h-5 w-5" />
+                  Analysis Error
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>{error}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Please try again with a different photo, or ensure your face is clearly visible.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          
+          {analysis && (
+            <div className="mt-8 space-y-4">
+              <h2 className="text-2xl font-bold">Your Hair Analysis</h2>
+              <Card className="p-4">
+                <div className="prose dark:prose-invert max-w-none">
+                  {formattedAnalysis}
+                </div>
+              </Card>
               
-              <Button type="submit" className="w-full" disabled={isLoading || !photo}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Scissors className="mr-2 h-4 w-4" />
-                    Get Recommendations
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-        
-        {recommendation && (
-          <div className="mt-8 space-y-4">
-            <h2 className="text-2xl font-bold">Your Recommendations</h2>
-            <p className="text-muted-foreground">{recommendation}</p>
-            
-            <div className="grid gap-4 md:grid-cols-3 mt-4">
-              {recommendedStyles.map((style, index) => (
-                <Card key={index} className="overflow-hidden">
-                  <div className="h-48 w-full overflow-hidden">
-                    <img 
-                      src={style.imageUrl} 
-                      alt={style.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <CardHeader className="py-4">
-                    <CardTitle className="text-lg">{style.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-0">
-                    <p className="text-sm text-muted-foreground">{style.description}</p>
-                  </CardContent>
-                  <CardFooter className="pt-4 pb-4">
-                    <Button variant="outline" className="w-full" onClick={() => navigate('/book-now')}>
-                      Book This Style
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
+              <h2 className="text-2xl font-bold mt-8">Recommended Styles</h2>
+              <div className="grid gap-4 md:grid-cols-3 mt-4">
+                {recommendedStyles.map((style, index) => (
+                  <Card key={index} className="overflow-hidden">
+                    <div className="h-48 w-full overflow-hidden">
+                      <img 
+                        src={style.imageUrl} 
+                        alt={style.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <CardHeader className="py-4">
+                      <CardTitle className="text-lg">{style.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-0">
+                      <p className="text-sm text-muted-foreground line-clamp-3">{style.description}</p>
+                    </CardContent>
+                    <CardFooter className="pt-4 pb-4">
+                      <Button variant="outline" className="w-full" onClick={() => navigate('/book-now')}>
+                        Book This Style
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </PageTransition>
+          )}
+        </div>
+      </PageTransition>
+    </>
   );
 };
 
