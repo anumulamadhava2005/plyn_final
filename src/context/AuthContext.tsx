@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +20,8 @@ type AuthContextType = {
   } | null;
   isMerchant: boolean;
   merchantLogin: (email: string, password: string) => Promise<void>;
+  isAdmin: boolean;
+  checkAndRedirectUserByRole: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,7 +38,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isMerchant?: boolean;
   } | null>(null);
   const [isMerchant, setIsMerchant] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
+
+  // Function to check user role and redirect accordingly
+  const checkAndRedirectUserByRole = () => {
+    if (!user) return;
+    
+    const currentPath = window.location.pathname;
+    
+    if (isMerchant) {
+      // If merchant is on non-merchant pages, redirect to merchant dashboard
+      if (!currentPath.includes('/merchant') && 
+          currentPath !== '/profile' && 
+          currentPath !== '/auth') {
+        window.location.href = '/merchant-dashboard';
+      }
+    } else if (isAdmin) {
+      // If admin is on non-admin pages, redirect to admin dashboard
+      if (!currentPath.includes('/admin') && 
+          currentPath !== '/profile' && 
+          currentPath !== '/auth') {
+        window.location.href = '/admin-dashboard';
+      }
+    } else {
+      // Regular users shouldn't be on merchant or admin pages
+      if (currentPath.includes('/merchant-dashboard') || 
+          currentPath.includes('/admin-dashboard')) {
+        window.location.href = '/';
+      }
+    }
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -49,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           setUserProfile(null);
           setIsMerchant(false);
+          setIsAdmin(false);
         }
 
         if (event === 'SIGNED_IN') {
@@ -106,6 +140,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       setIsMerchant(data.is_merchant || false);
+      
+      // Check if user is an admin (email-based check for simplicity)
+      // In a production app, you would have a proper roles table
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData && userData.user) {
+        const isAdminEmail = userData.user.email?.endsWith('@admin.plyn.com') || false;
+        setIsAdmin(isAdminEmail);
+      }
+      
+      // After profile is fetched and roles determined, redirect user based on role
+      setTimeout(() => {
+        checkAndRedirectUserByRole();
+      }, 100);
       
       if (data.is_merchant) {
         const { data: merchantData, error: merchantError } = await supabase
@@ -317,7 +364,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signOut, 
       userProfile, 
       isMerchant,
-      merchantLogin
+      merchantLogin,
+      isAdmin,
+      checkAndRedirectUserByRole
     }}>
       {children}
     </AuthContext.Provider>

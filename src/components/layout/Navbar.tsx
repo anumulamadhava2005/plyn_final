@@ -14,23 +14,40 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Calendar, Layout } from 'lucide-react';
+import { LogOut, User, Calendar, Layout, Store, Settings } from 'lucide-react';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import LogoAnimation from '@/components/ui/LogoAnimation';
 import NavLink from '@/components/layout/NavLink';
 import NotificationsPopover from '@/components/notifications/NotificationsPopover';
 
-const navLinks = [
+// Customer navigation links
+const customerNavLinks = [
   { label: 'Home', path: '/' },
   { label: 'About', path: '/about' },
   { label: 'Find Salons', path: '/book-now' },
   { label: 'Hair Recommendation', path: '/hair-recommendation' },
   { label: 'My Bookings', path: '/my-bookings' },
-  { label: 'For Merchants', path: '/merchant-login' },  // Update this link to point to merchant login
+];
+
+// Merchant navigation links
+const merchantNavLinks = [
+  { label: 'Dashboard', path: '/merchant-dashboard' },
+  { label: 'Bookings', path: '/merchant-dashboard?tab=appointments' },
+  { label: 'Availability', path: '/merchant-dashboard?tab=availability' },
+  { label: 'Settings', path: '/merchant-dashboard?tab=settings' },
+];
+
+// Admin navigation links
+const adminNavLinks = [
+  { label: 'Dashboard', path: '/admin-dashboard' },
+  { label: 'Applications', path: '/admin-dashboard?tab=applications' },
+  { label: 'Merchants', path: '/admin-dashboard?tab=merchants' },
+  { label: 'Analytics', path: '/admin-dashboard?tab=analytics' },
 ];
 
 export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () => void }) => {
   const navigate = useNavigate();
+  const { isMerchant, isAdmin } = useAuth();
   
   return (
     <DropdownMenu>
@@ -52,7 +69,7 @@ export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () =>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user.email || 'User'}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user.role || 'Customer'}
+              {isAdmin ? 'Administrator' : isMerchant ? 'Merchant' : 'Customer'}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -61,16 +78,28 @@ export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () =>
           <User className="mr-2 h-4 w-4" />
           <span>Profile</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/my-bookings')}>
-          <Calendar className="mr-2 h-4 w-4" />
-          <span>My Bookings</span>
-        </DropdownMenuItem>
-        {user.is_merchant && (
+        
+        {!isMerchant && !isAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/my-bookings')}>
+            <Calendar className="mr-2 h-4 w-4" />
+            <span>My Bookings</span>
+          </DropdownMenuItem>
+        )}
+        
+        {isMerchant && (
           <DropdownMenuItem onClick={() => navigate('/merchant-dashboard')}>
-            <Layout className="mr-2 h-4 w-4" />
+            <Store className="mr-2 h-4 w-4" />
             <span>Merchant Dashboard</span>
           </DropdownMenuItem>
         )}
+        
+        {isAdmin && (
+          <DropdownMenuItem onClick={() => navigate('/admin-dashboard')}>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Admin Dashboard</span>
+          </DropdownMenuItem>
+        )}
+        
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onLogout}>
           <LogOut className="mr-2 h-4 w-4" />
@@ -83,8 +112,15 @@ export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () =>
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isMerchant, isAdmin } = useAuth();
   const navigate = useNavigate();
+
+  // Determine which nav links to show based on user role
+  const navLinks = isAdmin 
+    ? adminNavLinks 
+    : isMerchant 
+      ? merchantNavLinks 
+      : customerNavLinks;
 
   const handleLogout = async () => {
     await signOut();
@@ -96,8 +132,10 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center">
+            <Link to={isMerchant ? '/merchant-dashboard' : isAdmin ? '/admin-dashboard' : '/'} className="flex items-center">
               <LogoAnimation size="sm" />
+              {isMerchant && <span className="ml-2 font-medium">Merchant Portal</span>}
+              {isAdmin && <span className="ml-2 font-medium">Admin Portal</span>}
             </Link>
           </div>
 
