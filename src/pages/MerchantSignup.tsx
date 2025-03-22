@@ -32,7 +32,7 @@ const MerchantSignup = () => {
   } = useMerchantSignup();
   
   const { toast } = useToast();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, isMerchant } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -55,12 +55,12 @@ const MerchantSignup = () => {
         
         console.log("User profile:", userProfile);
         
-        // If already checked user profile and confirmed not merchant
+        // If already checked user profile and it's not a merchant
         if (userProfile !== null && !userProfile.isMerchant) {
-          console.log("User is not registered as a merchant, redirecting to auth page");
-          setAuthError("Access restricted. You need to sign up as a merchant to access this page.");
+          console.log("User is not registered as a merchant, redirecting to profile page");
+          setAuthError("You need to register as a merchant first. Please visit your profile page.");
           setTimeout(() => {
-            navigate('/auth');
+            navigate('/profile');
           }, 3000);
           return;
         }

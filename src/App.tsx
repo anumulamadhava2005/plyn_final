@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -34,7 +35,7 @@ const MerchantRoute = ({ children }: { children: React.ReactNode }) => {
   
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/merchant-login" replace />;
   if (!isMerchant) return <Navigate to="/" replace />;
   
   return <>{children}</>;

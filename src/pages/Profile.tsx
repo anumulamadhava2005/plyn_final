@@ -1,7 +1,8 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
@@ -14,6 +15,7 @@ const Profile = () => {
   const { user, userProfile, signOut, isMerchant } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     // Redirect to auth page if not logged in
@@ -34,6 +36,49 @@ const Profile = () => {
         description: "There was an error signing you out. Please try again.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleBecomeMerchant = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in first to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    
+    try {
+      // Update the user's profile to set is_merchant to true
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_merchant: true })
+        .eq('id', user.id);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Profile updated",
+        description: "Your account has been upgraded to merchant status. You will now be redirected to complete your merchant profile.",
+      });
+      
+      // Force reload to update the auth context
+      setTimeout(() => {
+        navigate('/merchant-signup');
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error('Error updating merchant status:', error);
+      toast({
+        title: "Update failed",
+        description: "There was an error upgrading your account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -152,16 +197,16 @@ const Profile = () => {
                       <p className="text-sm text-muted-foreground mb-4">
                         As a merchant, you can list your services, manage bookings, and grow your business on our platform.
                       </p>
-                      <Link to="/merchant-signup">
-                        <AnimatedButton 
-                          variant="gradient" 
-                          size="sm"
-                          className="w-full"
-                          icon={<ArrowUpRight className="w-4 h-4" />}
-                        >
-                          Register as a Merchant
-                        </AnimatedButton>
-                      </Link>
+                      <AnimatedButton 
+                        variant="gradient" 
+                        size="sm"
+                        className="w-full"
+                        icon={<ArrowUpRight className="w-4 h-4" />}
+                        onClick={handleBecomeMerchant}
+                        disabled={isUpdating}
+                      >
+                        {isUpdating ? "Processing..." : "Register as a Merchant"}
+                      </AnimatedButton>
                     </div>
                   </CardFooter>
                 )}

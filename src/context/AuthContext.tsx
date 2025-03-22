@@ -49,9 +49,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (isMerchant) {
       // If merchant is on non-merchant pages, redirect to merchant dashboard
-      if (!currentPath.includes('/merchant') && 
-          currentPath !== '/profile' && 
-          currentPath !== '/auth') {
+      if (currentPath === '/' || 
+          currentPath.includes('/book') || 
+          currentPath.includes('/payment') || 
+          currentPath.includes('/my-bookings') ||
+          currentPath.includes('/hair-recommendation')) {
         window.location.href = '/merchant-dashboard';
       }
     } else if (isAdmin) {
@@ -64,7 +66,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       // Regular users shouldn't be on merchant or admin pages
       if (currentPath.includes('/merchant-dashboard') || 
-          currentPath.includes('/admin-dashboard')) {
+          currentPath.includes('/admin-dashboard') ||
+          currentPath.includes('/merchant-signup')) {
         window.location.href = '/';
       }
     }
@@ -152,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // After profile is fetched and roles determined, redirect user based on role
       setTimeout(() => {
         checkAndRedirectUserByRole();
-      }, 100);
+      }, 300);
       
       if (data.is_merchant) {
         const { data: merchantData, error: merchantError } = await supabase
