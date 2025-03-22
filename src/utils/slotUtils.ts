@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { format, addMinutes, addDays, parseISO, subDays } from "date-fns";
 
@@ -266,9 +267,9 @@ async function createTestBookings(merchants: any[]) {
 // New function to support real-time updates
 export const enableRealtimeForSlots = async () => {
   try {
-    // Enable realtime for slots table; casting supabase.rpc as any to bypass type checks
+    // Enable realtime for slots table; casting to any to bypass TypeScript checking
     const { data, error } = await (supabase.rpc as any)(
-      'supabase_realtime',
+      'supabase_realtime' as any,
       {
         table_name: 'slots',
         action: 'enable'

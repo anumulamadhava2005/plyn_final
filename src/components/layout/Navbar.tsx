@@ -24,6 +24,7 @@ const navLinks = [
   { label: 'Home', path: '/' },
   { label: 'About', path: '/about' },
   { label: 'Find Salons', path: '/book-now' },
+  { label: 'Hair Recommendation', path: '/hair-recommendation' },
   { label: 'My Bookings', path: '/my-bookings' },
   { label: 'For Merchants', path: '/merchant-signup' },
 ];
