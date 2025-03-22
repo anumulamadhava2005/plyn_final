@@ -22,3 +22,31 @@ export type DashboardStats = {
   totalBookings: number;
   pendingApplications: number;
 };
+
+export type MerchantData = {
+  id: string;
+  business_name: string;
+  business_address: string;
+  business_email: string;
+  business_phone: string;
+  service_category: string;
+  status: string;
+  created_at: string;
+};
+
+export type BookingStats = {
+  total: number;
+  pending: number;
+  confirmed: number;
+  cancelled: number;
+};
+
+export type RevenueData = {
+  period: string;
+  amount: number;
+};
+
+export type ServiceDistribution = {
+  name: string;
+  value: number;
+};
