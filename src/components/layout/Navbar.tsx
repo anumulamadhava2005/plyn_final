@@ -26,7 +26,7 @@ const navLinks = [
   { label: 'Find Salons', path: '/book-now' },
   { label: 'Hair Recommendation', path: '/hair-recommendation' },
   { label: 'My Bookings', path: '/my-bookings' },
-  { label: 'For Merchants', path: '/merchant-signup' },
+  { label: 'For Merchants', path: '/merchant-login' },  // Update this link to point to merchant login
 ];
 
 export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () => void }) => {
@@ -121,7 +121,7 @@ const Navbar = () => {
                   Sign In
                 </Button>
                 <div className="hidden md:block">
-                  <Button variant="outline" size="sm" onClick={() => navigate('/merchant-signup')}>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/merchant-login')}>
                     For Merchants
                   </Button>
                 </div>
@@ -171,7 +171,7 @@ const Navbar = () => {
               <Button variant="default" size="sm" className="w-full" onClick={() => navigate('/auth')}>
                 Sign In
               </Button>
-              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => navigate('/merchant-signup')}>
+              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => navigate('/merchant-login')}>
                 For Merchants
               </Button>
             </>
