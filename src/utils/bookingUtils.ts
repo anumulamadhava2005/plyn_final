@@ -49,8 +49,8 @@ interface BookingRPCResponse {
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
-  // Call the RPC function with the correct type parameters - using any type for the generic parameters
-  // to bypass the type constraint issue
+  // Skip type parameters completely and let TypeScript infer them
+  // This avoids the never type constraint issues
   const { data, error } = await supabase.rpc(
     'create_booking_transaction',
     {
