@@ -23,7 +23,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
-// Define the user profile type to match what's returned from Supabase
+// Define more specific types for the user profile
 type UserProfile = {
   username: string | null;
   email: string | null;
@@ -124,42 +124,56 @@ const AdminDashboard = () => {
       
       if (approvedError) throw approvedError;
       
-      // Process and handle possible null user profiles
-      const pendingApplicationsTyped: MerchantApplication[] = pendingData ? pendingData.map(item => ({
-        id: item.id,
-        business_name: item.business_name,
-        business_address: item.business_address,
-        business_email: item.business_email,
-        business_phone: item.business_phone,
-        service_category: item.service_category,
-        status: 'pending',
-        created_at: item.created_at,
-        // Handle user_profile properly, ensuring it matches UserProfile type
-        user_profile: item.user_profile && typeof item.user_profile !== 'string' 
-          ? { 
-              username: item.user_profile.username || null, 
-              email: item.user_profile.email || null 
-            } 
-          : null
-      })) : [];
+      // Process and handle possible null user profiles with proper type checking
+      const pendingApplicationsTyped: MerchantApplication[] = pendingData ? pendingData.map(item => {
+        // Check if user_profile exists and is not a string
+        let processedUserProfile: UserProfile | null = null;
+        
+        if (item.user_profile && typeof item.user_profile === 'object') {
+          const profile = item.user_profile as Record<string, any>;
+          processedUserProfile = {
+            username: profile.username || null,
+            email: profile.email || null
+          };
+        }
+        
+        return {
+          id: item.id,
+          business_name: item.business_name,
+          business_address: item.business_address,
+          business_email: item.business_email,
+          business_phone: item.business_phone,
+          service_category: item.service_category,
+          status: 'pending',
+          created_at: item.created_at,
+          user_profile: processedUserProfile
+        };
+      }) : [];
       
-      const approvedMerchantsTyped: MerchantApplication[] = approvedData ? approvedData.map(item => ({
-        id: item.id,
-        business_name: item.business_name,
-        business_address: item.business_address,
-        business_email: item.business_email,
-        business_phone: item.business_phone,
-        service_category: item.service_category,
-        status: 'approved',
-        created_at: item.created_at,
-        // Handle user_profile properly, ensuring it matches UserProfile type
-        user_profile: item.user_profile && typeof item.user_profile !== 'string' 
-          ? { 
-              username: item.user_profile.username || null, 
-              email: item.user_profile.email || null 
-            } 
-          : null
-      })) : [];
+      const approvedMerchantsTyped: MerchantApplication[] = approvedData ? approvedData.map(item => {
+        // Check if user_profile exists and is not a string
+        let processedUserProfile: UserProfile | null = null;
+        
+        if (item.user_profile && typeof item.user_profile === 'object') {
+          const profile = item.user_profile as Record<string, any>;
+          processedUserProfile = {
+            username: profile.username || null,
+            email: profile.email || null
+          };
+        }
+        
+        return {
+          id: item.id,
+          business_name: item.business_name,
+          business_address: item.business_address,
+          business_email: item.business_email,
+          business_phone: item.business_phone,
+          service_category: item.service_category,
+          status: 'approved',
+          created_at: item.created_at,
+          user_profile: processedUserProfile
+        };
+      }) : [];
       
       setPendingApplications(pendingApplicationsTyped);
       setApprovedMerchants(approvedMerchantsTyped);
