@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 
@@ -39,9 +40,16 @@ interface BookingResponse {
   payment_id: string | null;
 }
 
+// Define the type for the RPC response
+interface BookingRPCResponse {
+  success: boolean;
+  message: string;
+  id: string;
+}
+
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
-  const { data, error } = await supabase.rpc('create_booking_transaction', {
+  const { data, error } = await supabase.rpc<BookingRPCResponse>('create_booking_transaction', {
     p_user_id: bookingData.userId,
     p_merchant_id: bookingData.salonId,
     p_salon_id: bookingData.salonId,
