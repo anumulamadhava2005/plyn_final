@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +18,7 @@ type AuthContextType = {
     isMerchant?: boolean;
   } | null;
   isMerchant: boolean;
+  merchantLogin: (email: string, password: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -150,6 +150,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const merchantLogin = async (email: string, password: string) => {
+    try {
+      console.log("Attempting merchant login for:", email);
+      const { error, data } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error("Merchant login error:", error);
+        throw error;
+      }
+      
+      console.log("Sign in successful, checking merchant status:", data.user?.id);
+      
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_merchant')
+        .eq('id', data.user?.id)
+        .single();
+        
+      if (profileError) {
+        console.error("Error fetching profile data:", profileError);
+        await supabase.auth.signOut();
+        throw new Error("Could not verify merchant status. Please try again.");
+      }
+        
+      if (!profileData?.is_merchant) {
+        console.error("Non-merchant attempted to log in as merchant");
+        await supabase.auth.signOut();
+        throw new Error("This account is not registered as a merchant. Please contact support if you believe this is an error.");
+      }
+      
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('*')
+        .eq('id', data.user?.id)
+        .single();
+        
+      if (merchantError) {
+        console.error("Error fetching merchant profile:", merchantError);
+      }
+      
+      toast({
+        title: "Welcome back, Merchant!",
+        description: "You've successfully signed in to your merchant account.",
+      });
+      
+    } catch (error: any) {
+      console.error("Merchant login error details:", error);
+      toast({
+        title: "Merchant login failed",
+        description: error.message || "An error occurred during login.",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   const signUp = async (
     email: string, 
     password: string, 
@@ -161,7 +220,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     try {
       console.log("Checking if username exists:", username);
-      // Check if username already exists
       const { data: existingUsers, error: checkError } = await supabase
         .from('profiles')
         .select('username')
@@ -177,7 +235,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Username already exists. Please choose a different username.");
       }
       
-      // Generate a unique username by appending a timestamp if needed
       const uniqueUsername = username;
       
       console.log("Signing up user with email:", email);
@@ -221,13 +278,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log("Attempting to sign out...");
       
-      // First clear the state so UI updates immediately
       setUser(null);
       setSession(null);
       setUserProfile(null);
       setIsMerchant(false);
       
-      // Then perform actual signout
       const { error } = await supabase.auth.signOut();
       
       if (error) {
@@ -261,7 +316,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signUp, 
       signOut, 
       userProfile, 
-      isMerchant 
+      isMerchant,
+      merchantLogin
     }}>
       {children}
     </AuthContext.Provider>
