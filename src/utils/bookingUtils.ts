@@ -2,8 +2,24 @@
 import { supabase } from "@/integrations/supabase/client";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 
+// Define a proper type for bookingData
+interface BookingData {
+  userId: string;
+  salonId: string;
+  salonName: string;
+  serviceName: string;
+  date: string;
+  timeSlot: string;
+  email: string;
+  phone: string;
+  totalPrice: number;
+  totalDuration: number;
+  slotId: string;
+  notes?: string;
+}
+
 // Function to create a new booking in the database
-export const createBooking = async (bookingData: any) => {
+export const createBooking = async (bookingData: BookingData) => {
   const { data, error } = await supabase.rpc('create_booking_transaction', {
     p_user_id: bookingData.userId,
     p_merchant_id: bookingData.salonId,

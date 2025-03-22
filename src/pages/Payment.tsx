@@ -61,7 +61,7 @@ const Payment = () => {
     cardNumber: "",
     expiryDate: "",
     cvv: "",
-    phone: userProfile?.phone_number || "",
+    phone: userProfile?.phoneNumber || "", // Fixed property name from phone_number to phoneNumber
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
@@ -116,6 +116,11 @@ const Payment = () => {
         notes: values.notes
       });
       
+      // Add null check for newBooking
+      if (!newBooking) {
+        throw new Error("Failed to create booking record");
+      }
+      
       // Process payment (in development, this will always succeed)
       const payment = await createPayment({
         bookingId: newBooking.id,
@@ -143,7 +148,7 @@ const Payment = () => {
       navigate('/booking-confirmation', { 
         state: {
           ...bookingData,
-          bookingId: newBooking.id,
+          bookingId: newBooking.id, // Add null check
           paymentDetails: {
             cardName: values.cardName,
             cardNumber: values.cardNumber.slice(-4).padStart(16, '*'),
