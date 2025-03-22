@@ -267,10 +267,13 @@ async function createTestBookings(merchants: any[]) {
 export const enableRealtimeForSlots = async () => {
   try {
     // Enable realtime for slots table
-    const { data, error } = await supabase.rpc('supabase_realtime', {
-      table_name: 'slots',
-      action: 'enable'
-    });
+    const { data, error } = await supabase.rpc(
+      'supabase_realtime',
+      {
+        table_name: 'slots',
+        action: 'enable'
+      } as any
+    );
     
     if (error) throw error;
     console.log("Realtime enabled for slots table");
