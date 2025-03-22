@@ -24,6 +24,7 @@ const HairRecommendation = () => {
   const [progress, setProgress] = useState(0);
   const [progressStage, setProgressStage] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
+  const [progressAnimationInterval, setProgressAnimationInterval] = useState<NodeJS.Timeout | null>(null);
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -34,6 +35,13 @@ const HairRecommendation = () => {
     setProgress(0);
     setProgressStage('');
     setIsLoading(false);
+    
+    // Clean up any existing interval when component unmounts
+    return () => {
+      if (progressAnimationInterval) {
+        clearInterval(progressAnimationInterval);
+      }
+    };
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,6 +89,40 @@ const HairRecommendation = () => {
     setProgressStage('');
     setPhoto(null);
     setPhotoPreview(null);
+    
+    if (progressAnimationInterval) {
+      clearInterval(progressAnimationInterval);
+      setProgressAnimationInterval(null);
+    }
+  };
+
+  const startProgressAnimation = (startValue: number, endValue: number, duration: number) => {
+    if (progressAnimationInterval) {
+      clearInterval(progressAnimationInterval);
+    }
+    
+    setProgress(startValue);
+    const steps = Math.max(5, Math.floor(duration / 200)); // Update every 200ms, min 5 steps
+    const increment = (endValue - startValue) / steps;
+    let currentStep = 0;
+    
+    const interval = setInterval(() => {
+      currentStep++;
+      setProgress(prevProgress => {
+        const newProgress = prevProgress + increment;
+        // Don't exceed the end value
+        return currentStep >= steps ? endValue : newProgress;
+      });
+      
+      if (currentStep >= steps) {
+        clearInterval(interval);
+        setProgressAnimationInterval(null);
+      }
+    }, 200);
+    
+    setProgressAnimationInterval(interval);
+    
+    return interval;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -93,6 +135,12 @@ const HairRecommendation = () => {
         variant: "destructive"
       });
       return;
+    }
+
+    // Clear any existing intervals
+    if (progressAnimationInterval) {
+      clearInterval(progressAnimationInterval);
+      setProgressAnimationInterval(null);
     }
 
     setIsLoading(true);
@@ -108,7 +156,7 @@ const HairRecommendation = () => {
       
       reader.onload = async () => {
         try {
-          setProgress(15);
+          startProgressAnimation(5, 15, 1000);
           setProgressStage('Processing image');
           
           if (!reader.result) {
@@ -121,121 +169,125 @@ const HairRecommendation = () => {
           }
           
           console.log("Sending photo for analysis...");
-          setProgress(30);
           setProgressStage('Sending to AI for analysis');
+          startProgressAnimation(15, 40, 3000);
           
-          // Add a timeout to update progress indicator to simulate activity
-          const progressInterval = setInterval(() => {
-            setProgress(prev => {
-              if (prev < 45) return prev + 1;
-              return prev;
-            });
-          }, 1000);
+          // Set a timeout to show user something is happening if it takes too long
+          const timeoutId = setTimeout(() => {
+            setProgressStage('This might take a minute...');
+            startProgressAnimation(40, 48, 10000); // Slow progress for the wait
+          }, 10000);
           
-          const { data, error: supabaseError } = await supabase.functions.invoke('analyze-face', {
-            body: {
-              imageBase64: base64String,
-              gender: selectedGender
-            }
-          });
-          
-          clearInterval(progressInterval);
-          setProgress(60);
-          setProgressStage('Processing analysis results');
-          
-          if (supabaseError) {
-            console.error("Supabase function error:", supabaseError);
-            throw new Error(supabaseError.message || "Failed to analyze photo");
-          }
-          
-          if (!data) {
-            throw new Error("No response from analysis service");
-          }
-          
-          if (data.error) {
-            console.error("Analysis error:", data.error);
-            throw new Error(data.error);
-          }
-          
-          console.log("Analysis data received:", data);
-          setProgress(80);
-          setProgressStage('Generating recommendations');
-          
-          if (!data.analysis) {
-            throw new Error("AI analysis was not provided");
-          }
-          
-          setAnalysis(data.analysis);
-          
-          if (data.stylePrompts && data.stylePrompts.length > 0) {
-            const stylesWithImages = data.stylePrompts.map((style: any, index: number) => {
-              const baseUrl = "https://images.unsplash.com/photo-";
-              let imageUrl = "";
-              
-              if (selectedGender === 'male') {
-                const maleImages = [
-                  "1583195764036-6dc248ac07d9?q=80&w=400",
-                  "1587500154541-9cafd2393326?q=80&w=400",
-                  "1519699047748-de8e457a634e?q=80&w=400"
-                ];
-                imageUrl = baseUrl + maleImages[index % maleImages.length];
-              } else {
-                const femaleImages = [
-                  "1554519515-242393f652d4?q=80&w=400",
-                  "1605980776566-0486c3ac7617?q=80&w=400",
-                  "1595319100466-ec94616feba7?q=80&w=400"
-                ];
-                imageUrl = baseUrl + femaleImages[index % femaleImages.length];
+          try {
+            const { data, error: supabaseError } = await supabase.functions.invoke('analyze-face', {
+              body: {
+                imageBase64: base64String,
+                gender: selectedGender
               }
-              
-              return {
-                ...style,
-                imageUrl
-              };
             });
             
-            setRecommendedStyles(stylesWithImages);
-          } else {
-            // Create fallback styles
-            const fallbackStyles = [];
-            for (let i = 0; i < 3; i++) {
-              const baseUrl = "https://images.unsplash.com/photo-";
-              let imageUrl = "";
-              
-              if (selectedGender === 'male') {
-                const maleImages = [
-                  "1583195764036-6dc248ac07d9?q=80&w=400",
-                  "1587500154541-9cafd2393326?q=80&w=400",
-                  "1519699047748-de8e457a634e?q=80&w=400"
-                ];
-                imageUrl = baseUrl + maleImages[i % maleImages.length];
-              } else {
-                const femaleImages = [
-                  "1554519515-242393f652d4?q=80&w=400",
-                  "1605980776566-0486c3ac7617?q=80&w=400",
-                  "1595319100466-ec94616feba7?q=80&w=400"
-                ];
-                imageUrl = baseUrl + femaleImages[i % femaleImages.length];
-              }
-              
-              fallbackStyles.push({
-                name: `Recommended Style ${i+1}`,
-                description: `A ${selectedGender === 'male' ? 'men\'s' : 'women\'s'} hairstyle that would complement your face shape and features.`,
-                imageUrl
+            clearTimeout(timeoutId);
+            
+            if (supabaseError) {
+              console.error("Supabase function error:", supabaseError);
+              throw new Error(supabaseError.message || "Failed to analyze photo");
+            }
+            
+            if (!data) {
+              throw new Error("No response from analysis service");
+            }
+            
+            if (data.error) {
+              console.error("Analysis error:", data.error);
+              throw new Error(data.error);
+            }
+            
+            console.log("Analysis data received:", data);
+            setProgressStage('Processing analysis results');
+            startProgressAnimation(50, 80, 2000);
+            
+            if (!data.analysis) {
+              throw new Error("AI analysis was not provided");
+            }
+            
+            setAnalysis(data.analysis);
+            
+            setProgressStage('Generating recommendations');
+            startProgressAnimation(80, 95, 1500);
+            
+            if (data.stylePrompts && data.stylePrompts.length > 0) {
+              const stylesWithImages = data.stylePrompts.map((style: any, index: number) => {
+                const baseUrl = "https://images.unsplash.com/photo-";
+                let imageUrl = "";
+                
+                if (selectedGender === 'male') {
+                  const maleImages = [
+                    "1583195764036-6dc248ac07d9?q=80&w=400",
+                    "1587500154541-9cafd2393326?q=80&w=400",
+                    "1519699047748-de8e457a634e?q=80&w=400"
+                  ];
+                  imageUrl = baseUrl + maleImages[index % maleImages.length];
+                } else {
+                  const femaleImages = [
+                    "1554519515-242393f652d4?q=80&w=400",
+                    "1605980776566-0486c3ac7617?q=80&w=400",
+                    "1595319100466-ec94616feba7?q=80&w=400"
+                  ];
+                  imageUrl = baseUrl + femaleImages[index % femaleImages.length];
+                }
+                
+                return {
+                  ...style,
+                  imageUrl
+                };
               });
+              
+              setRecommendedStyles(stylesWithImages);
+            } else {
+              // Create fallback styles
+              const fallbackStyles = [];
+              for (let i = 0; i < 3; i++) {
+                const baseUrl = "https://images.unsplash.com/photo-";
+                let imageUrl = "";
+                
+                if (selectedGender === 'male') {
+                  const maleImages = [
+                    "1583195764036-6dc248ac07d9?q=80&w=400",
+                    "1587500154541-9cafd2393326?q=80&w=400",
+                    "1519699047748-de8e457a634e?q=80&w=400"
+                  ];
+                  imageUrl = baseUrl + maleImages[i % maleImages.length];
+                } else {
+                  const femaleImages = [
+                    "1554519515-242393f652d4?q=80&w=400",
+                    "1605980776566-0486c3ac7617?q=80&w=400",
+                    "1595319100466-ec94616feba7?q=80&w=400"
+                  ];
+                  imageUrl = baseUrl + femaleImages[i % femaleImages.length];
+                }
+                
+                fallbackStyles.push({
+                  name: `Recommended Style ${i+1}`,
+                  description: `A ${selectedGender === 'male' ? 'men\'s' : 'women\'s'} hairstyle that would complement your face shape and features.`,
+                  imageUrl
+                });
+              }
+              
+              setRecommendedStyles(fallbackStyles);
+              console.warn("No style prompts received, using fallback styles");
             }
             
-            setRecommendedStyles(fallbackStyles);
-            console.warn("No style prompts received, using fallback styles");
+            startProgressAnimation(95, 100, 500);
+            setProgressStage('Complete!');
+            
+            toast({
+              title: "Analysis complete!",
+              description: "We've analyzed your photo and found great hairstyle recommendations for you."
+            });
+          } catch (error: any) {
+            clearTimeout(timeoutId);
+            throw error;
           }
-          
-          setProgress(100);
-          setProgressStage('Complete!');
-          
-          toast({
-            title: "Analysis complete!",
-            description: "We've analyzed your photo and found great hairstyle recommendations for you."
-          });
         } catch (error: any) {
           console.error("Error in analysis process:", error);
           setError(error.message || "Failed to analyze the photo");
@@ -246,6 +298,17 @@ const HairRecommendation = () => {
           });
         } finally {
           setIsLoading(false);
+          // Make sure progress reaches 100 or 0 depending on success/failure
+          if (progressAnimationInterval) {
+            clearInterval(progressAnimationInterval);
+            setProgressAnimationInterval(null);
+          }
+          
+          if (!error) {
+            setProgress(100);
+          } else {
+            setProgress(0);
+          }
         }
       };
       
@@ -346,6 +409,7 @@ const HairRecommendation = () => {
                         <li>Make sure your face is clearly visible</li>
                         <li>Good lighting will improve results</li>
                         <li>Remove glasses or accessories that cover your face</li>
+                        <li>Keep image size under 5MB for best results</li>
                       </ul>
                     </div>
                   </div>
@@ -369,7 +433,7 @@ const HairRecommendation = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>{progressStage}</span>
-                      <span>{progress}%</span>
+                      <span>{Math.floor(progress)}%</span>
                     </div>
                     <Progress value={progress} className="h-2" />
                   </div>
@@ -389,7 +453,9 @@ const HairRecommendation = () => {
               <CardContent>
                 <p>{error}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Please try again with a different photo, or ensure your face is clearly visible.
+                  {error.includes("timed out") 
+                    ? "The server took too long to respond. Please try with a smaller image or try again later."
+                    : "Please try again with a different photo, or ensure your face is clearly visible."}
                 </p>
               </CardContent>
               <CardFooter className="flex gap-2">

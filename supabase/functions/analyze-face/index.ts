@@ -83,6 +83,10 @@ serve(async (req) => {
     try {
       console.log('Sending request to OpenAI API...');
       
+      // Add timeout and retry logic for OpenAI API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -108,16 +112,25 @@ serve(async (req) => {
           ],
           max_tokens: 800,
         }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { status: response.status, statusText: response.statusText };
+        }
         console.error('OpenAI API error status:', response.status);
         console.error('OpenAI API error details:', errorData);
-        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+        throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText || 'Unknown error'}`);
       }
 
       openAIResponse = await response.json();
+      console.log('OpenAI API response received with status:', response.status);
       
       if (!openAIResponse || !openAIResponse.choices || !openAIResponse.choices[0]) {
         console.error('OpenAI API returned an unexpected response format:', openAIResponse);
@@ -127,6 +140,13 @@ serve(async (req) => {
       console.log('OpenAI API response received successfully');
     } catch (error) {
       console.error('Error calling OpenAI API:', error);
+      // Check if the error is a timeout
+      if (error.name === 'AbortError') {
+        return new Response(
+          JSON.stringify({ error: 'The analysis request timed out. Please try with a smaller image or try again later.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 504 }
+        );
+      }
       return new Response(
         JSON.stringify({ error: `OpenAI API error: ${error.message}` }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -175,6 +195,10 @@ async function generateStyleImagePrompts(analysisText: string, gender: string, a
   try {
     console.log('Starting style prompt generation...');
     
+    // Add timeout and retry logic for style prompts generation
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
     // Extract hairstyle names and create image prompts
     const promptGenerationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -196,12 +220,20 @@ async function generateStyleImagePrompts(analysisText: string, gender: string, a
         ],
         max_tokens: 500,
       }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
     if (!promptGenerationResponse.ok) {
-      const errorData = await promptGenerationResponse.json();
+      let errorData;
+      try {
+        errorData = await promptGenerationResponse.json();
+      } catch (e) {
+        errorData = { status: promptGenerationResponse.status, statusText: promptGenerationResponse.statusText };
+      }
       console.error('OpenAI API error during style prompt generation:', errorData);
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      throw new Error(`OpenAI API error: ${errorData.error?.message || promptGenerationResponse.statusText || 'Unknown error'}`);
     }
 
     const promptData = await promptGenerationResponse.json();
@@ -292,6 +324,10 @@ async function generateStyleImagePrompts(analysisText: string, gender: string, a
     return stylePrompts;
   } catch (error) {
     console.error('Error generating style prompts:', error);
+    // If the error is a timeout, provide specific message
+    if (error.name === 'AbortError') {
+      console.error('Style prompt generation timed out');
+    }
     // Return generic prompts as the fallback
     return [
       { name: 'Style 1', description: `Trendy ${gender} hairstyle` },
