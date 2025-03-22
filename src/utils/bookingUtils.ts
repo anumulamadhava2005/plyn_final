@@ -49,7 +49,7 @@ interface BookingRPCResponse {
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
-  // Call the RPC method with proper type assertions
+  // Call the RPC method with type assertion
   const { data, error } = await supabase.rpc(
     'create_booking_transaction',
     {
@@ -67,7 +67,7 @@ export const createBooking = async (bookingData: BookingData): Promise<BookingRe
       p_slot_id: bookingData.slotId,
       p_additional_notes: bookingData.notes || ""
     }
-  );
+  ) as { data: any; error: any };
 
   if (error) {
     console.error("Error in create_booking_transaction:", error);
