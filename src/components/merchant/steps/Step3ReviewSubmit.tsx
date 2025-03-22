@@ -1,7 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 interface Step3Props {
   formData: {
@@ -24,6 +26,45 @@ const Step3ReviewSubmit: React.FC<Step3Props> = ({
   isSubmitting, 
   handleSubmit 
 }) => {
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Validate all required fields before submission
+  const validateAndSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Check for required fields
+    if (!formData.businessName?.trim()) {
+      setValidationError("Business name is required");
+      return;
+    }
+    
+    if (!formData.ownerName?.trim()) {
+      setValidationError("Owner name is required");
+      return;
+    }
+    
+    if (!formData.email?.trim()) {
+      setValidationError("Email is required");
+      return;
+    }
+    
+    if (!formData.phone?.trim()) {
+      setValidationError("Phone number is required");
+      return;
+    }
+    
+    if (!formData.address?.trim()) {
+      setValidationError("Address is required");
+      return;
+    }
+    
+    // Clear any validation errors
+    setValidationError(null);
+    
+    // Proceed with form submission
+    handleSubmit(e);
+  };
+
   return (
     <motion.form
       initial={{ opacity: 0, x: 20 }}
@@ -31,12 +72,19 @@ const Step3ReviewSubmit: React.FC<Step3Props> = ({
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.5 }}
       className="space-y-6"
-      onSubmit={handleSubmit}
+      onSubmit={validateAndSubmit}
     >
       <h2 className="text-2xl font-bold">Review & Submit</h2>
       <p className="text-muted-foreground mb-6">
         Please review your information before submitting.
       </p>
+      
+      {validationError && (
+        <Alert variant="destructive" className="my-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{validationError}</AlertDescription>
+        </Alert>
+      )}
       
       <div className="space-y-6">
         <div className="glass-card p-4 rounded-lg">

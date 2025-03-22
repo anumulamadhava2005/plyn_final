@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
@@ -14,6 +14,9 @@ import Step2SalonDetails from '@/components/merchant/steps/Step2SalonDetails';
 import Step3ReviewSubmit from '@/components/merchant/steps/Step3ReviewSubmit';
 import Step4Success from '@/components/merchant/steps/Step4Success';
 import { useMerchantSignup } from '@/hooks/useMerchantSignup';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
 
 const MerchantSignup = () => {
   const { 
@@ -31,39 +34,52 @@ const MerchantSignup = () => {
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) {
-      console.log("No authenticated user, redirecting to auth page");
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to access merchant signup.",
-        variant: "destructive",
-      });
-      navigate('/auth');
-      return;
-    }
+    const verifyAuth = async () => {
+      setIsLoading(true);
+      setAuthError(null);
+      
+      try {
+        // Checking if user is authenticated
+        if (!user) {
+          console.log("No authenticated user, redirecting to auth page");
+          setAuthError("Authentication required. Please sign in to access merchant signup.");
+          setTimeout(() => {
+            navigate('/auth');
+          }, 3000);
+          return;
+        }
+        
+        console.log("User profile:", userProfile);
+        
+        // If already checked user profile and confirmed not merchant
+        if (userProfile !== null && !userProfile.isMerchant) {
+          console.log("User is not registered as a merchant, redirecting to auth page");
+          setAuthError("Access restricted. You need to sign up as a merchant to access this page.");
+          setTimeout(() => {
+            navigate('/auth');
+          }, 3000);
+          return;
+        }
+        
+        // Only check merchant profile if user is authenticated and registered as a merchant
+        if (user && userProfile?.isMerchant) {
+          console.log("Checking merchant profile");
+          await checkMerchantProfile();
+        }
+      } catch (error) {
+        console.error("Error verifying authentication:", error);
+        setAuthError("An error occurred while verifying your account. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    console.log("User profile:", userProfile);
-    
-    // If the user is not registered as a merchant, redirect them to auth page
-    if (userProfile && !userProfile.isMerchant) {
-      console.log("User is not registered as a merchant, redirecting to auth page");
-      toast({
-        title: "Access Restricted",
-        description: "You need to sign up as a merchant to access this page.",
-        variant: "destructive",
-      });
-      navigate('/auth');
-      return;
-    }
-    
-    // Only check merchant profile if user is authenticated and registered as a merchant
-    if (user && userProfile?.isMerchant) {
-      console.log("Checking merchant profile");
-      checkMerchantProfile();
-    }
-  }, [user, userProfile, navigate, checkMerchantProfile, toast]);
+    verifyAuth();
+  }, [user, userProfile, navigate, checkMerchantProfile]);
 
   const renderStep = () => {
     switch (step) {
@@ -105,6 +121,45 @@ const MerchantSignup = () => {
     }
   };
 
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-center text-muted-foreground">Verifying your account...</p>
+        </div>
+      );
+    }
+    
+    if (authError) {
+      return (
+        <div className="p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Error</AlertTitle>
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
+          <div className="mt-6 text-center">
+            <AnimatedButton
+              variant="gradient"
+              onClick={() => navigate('/auth')}
+              className="mx-auto"
+            >
+              Go to Login/Signup
+            </AnimatedButton>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <>
+        {step < 4 && <StepIndicator currentStep={step} />}
+        {renderStep()}
+      </>
+    );
+  };
+
   return (
     <PageTransition>
       <div className="min-h-screen flex flex-col">
@@ -125,8 +180,7 @@ const MerchantSignup = () => {
                     transition={{ duration: 0.7, delay: 0.2 }}
                     className="glass-card p-6 md:p-8 rounded-xl shadow-lg"
                   >
-                    {step < 4 && <StepIndicator currentStep={step} />}
-                    {renderStep()}
+                    {renderContent()}
                   </motion.div>
                 </div>
               </div>
