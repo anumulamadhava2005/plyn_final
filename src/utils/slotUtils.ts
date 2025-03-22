@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { format, addMinutes, addDays } from "date-fns";
 
@@ -93,6 +94,32 @@ export const formatSlotsForDisplay = (slots: any[]) => {
   }));
 };
 
+// Set up real-time subscription for slot updates
+export const subscribeToSlotUpdates = (salonId: string, date: string, callback: (slots: any[]) => void) => {
+  // Create a subscription channel
+  const channel = supabase
+    .channel('slot-updates')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'slots',
+        filter: `merchant_id=eq.${salonId}:date=eq.${date}`
+      },
+      async (payload) => {
+        // When slot changes are detected, get the updated list of slots
+        const newDate = new Date(date);
+        const updatedSlots = await getAvailableTimeSlots(salonId, newDate);
+        callback(formatSlotsForDisplay(updatedSlots));
+      }
+    )
+    .subscribe();
+
+  // Return the channel so it can be unsubscribed later
+  return channel;
+};
+
 // Add default data for development purposes
 export const seedDefaultData = async () => {
   try {
@@ -141,6 +168,28 @@ export const seedDefaultData = async () => {
       for (let i = 0; i < 7; i++) {
         const date = addDays(today, i);
         await generateSalonTimeSlots(merchant.id, date);
+      }
+    }
+    
+    // Create some random bookings (20% of slots booked)
+    const { data: allSlots, error: slotsError } = await supabase
+      .from("slots")
+      .select("*")
+      .order("date");
+      
+    if (slotsError) throw slotsError;
+    
+    if (allSlots && allSlots.length > 0) {
+      // Mark about 20% of slots as booked randomly
+      const slotsToBook = allSlots
+        .filter(() => Math.random() < 0.2)
+        .slice(0, Math.floor(allSlots.length * 0.2));
+      
+      for (const slot of slotsToBook) {
+        await supabase
+          .from("slots")
+          .update({ is_booked: true })
+          .eq("id", slot.id);
       }
     }
     

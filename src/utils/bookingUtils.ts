@@ -1,39 +1,31 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: any) => {
-  try {
-    const { data: newBooking, error: bookingError } = await supabase
-      .from("bookings")
-      .insert({
-        user_id: bookingData.userId,
-        merchant_id: bookingData.salonId,
-        salon_id: bookingData.salonId,
-        salon_name: bookingData.salonName,
-        service_name: bookingData.serviceName,
-        booking_date: bookingData.date,
-        time_slot: bookingData.timeSlot,
-        customer_email: bookingData.email,
-        customer_phone: bookingData.phone,
-        service_price: bookingData.totalPrice,
-        service_duration: bookingData.totalDuration,
-        slot_id: bookingData.slotId,
-        status: "upcoming",
-        additional_notes: bookingData.notes || ""
-      })
-      .select()
-      .single();
+  const { data, error } = await supabase.rpc('create_booking_transaction', {
+    p_user_id: bookingData.userId,
+    p_merchant_id: bookingData.salonId,
+    p_salon_id: bookingData.salonId,
+    p_salon_name: bookingData.salonName,
+    p_service_name: bookingData.serviceName,
+    p_booking_date: bookingData.date,
+    p_time_slot: bookingData.timeSlot,
+    p_customer_email: bookingData.email,
+    p_customer_phone: bookingData.phone,
+    p_service_price: bookingData.totalPrice,
+    p_service_duration: bookingData.totalDuration,
+    p_slot_id: bookingData.slotId,
+    p_additional_notes: bookingData.notes || ""
+  });
 
-    if (bookingError) throw bookingError;
-
-    return newBooking;
-  } catch (error) {
-    console.error("Error creating booking:", error);
+  if (error) {
+    console.error("Error in create_booking_transaction:", error);
     throw error;
   }
+
+  return data;
 };
 
 // Function to create a payment record
@@ -159,4 +151,29 @@ export const initializeDatabase = async () => {
     console.error("Error initializing database:", error);
     return { success: false, message: "Error initializing database", error };
   }
+};
+
+// Function to subscribe to booking updates for a specific user
+export const subscribeToBookingUpdates = (userId: string, callback: (bookings: any[]) => void) => {
+  // Create a subscription channel
+  const channel = supabase
+    .channel('booking-updates')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'bookings',
+        filter: `user_id=eq.${userId}`
+      },
+      async () => {
+        // When booking changes are detected, get the updated list of bookings
+        const bookings = await fetchUserBookings(userId);
+        callback(bookings);
+      }
+    )
+    .subscribe();
+
+  // Return the channel so it can be unsubscribed later
+  return channel;
 };

@@ -19,6 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 import BookingSummary from '@/components/payment/BookingSummary';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
+import { toast as sonnerToast } from 'sonner';
 
 const Payment = () => {
   const location = useLocation();
@@ -60,7 +61,7 @@ const Payment = () => {
     cardNumber: "",
     expiryDate: "",
     cvv: "",
-    phone: userProfile?.phoneNumber || "",
+    phone: userProfile?.phone_number || "",
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
@@ -91,6 +92,11 @@ const Payment = () => {
       if (!slotCheck.available) {
         setPaymentError("Sorry, this time slot is no longer available. Please select another time.");
         setIsSubmitting(false);
+        
+        // Show toast notification for better UX
+        sonnerToast.error("Time slot unavailable", {
+          description: "This slot was just booked by someone else. Please go back and select a different time.",
+        });
         return;
       }
       
@@ -106,7 +112,7 @@ const Payment = () => {
         phone: values.phone,
         totalPrice: bookingData.totalPrice,
         totalDuration: bookingData.totalDuration,
-        slotId: slotCheck.slotId,
+        slotId: bookingData.slotId,
         notes: values.notes
       });
       
@@ -119,9 +125,6 @@ const Payment = () => {
         paymentStatus: "completed", // Always completed for development
         transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`
       });
-      
-      // Mark the slot as booked
-      await bookSlot(slotCheck.slotId);
       
       // Show success toast
       toast({
