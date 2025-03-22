@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 
@@ -23,18 +22,18 @@ interface BookingResponse {
   id: string;
   user_id: string;
   merchant_id: string;
-  salon_id: string;
-  salon_name: string;
+  salon_id: string | null;
+  salon_name: string | null;
   service_name: string;
-  booking_date: string;
-  time_slot: string;
-  customer_email: string;
-  customer_phone: string;
-  service_price: number;
-  service_duration: number;
+  booking_date: string | null;
+  time_slot: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  service_price: number | null;
+  service_duration: number | null;
   slot_id: string;
   status: string;
-  additional_notes: string;
+  additional_notes: string | null;
   created_at: string;
   updated_at: string;
   payment_id: string | null;
@@ -63,7 +62,24 @@ export const createBooking = async (bookingData: BookingData): Promise<BookingRe
     throw error;
   }
 
-  return data;
+  // If the booking was created successfully, the RPC returns a JSONB object with success, message, and id
+  if (data && data.success) {
+    // Fetch the booking record to return the full booking object
+    const { data: bookingData, error: bookingError } = await supabase
+      .from("bookings")
+      .select("*")
+      .eq("id", data.id)
+      .single();
+      
+    if (bookingError) {
+      console.error("Error fetching booking after creation:", bookingError);
+      throw bookingError;
+    }
+    
+    return bookingData;
+  }
+  
+  return null;
 };
 
 // Function to create a payment record
