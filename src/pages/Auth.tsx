@@ -10,18 +10,26 @@ import PageTransition from '@/components/transitions/PageTransition';
 import Login from '@/components/auth/Login';
 import Signup from '@/components/auth/Signup';
 import AuthHeader from '@/components/auth/AuthHeader';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const Auth = () => {
   const [activeTab, setActiveTab] = useState('login');
   const [showMerchantFields, setShowMerchantFields] = useState(false);
-  const { user } = useAuth();
+  const { user, isMerchant, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      if (isMerchant) {
+        navigate('/merchant-dashboard');
+      } else if (isAdmin) {
+        navigate('/admin-dashboard');
+      } else {
+        navigate('/');
+      }
     }
-  }, [user, navigate]);
+  }, [user, isMerchant, isAdmin, navigate]);
 
   return (
     <PageTransition>
@@ -47,6 +55,11 @@ const Auth = () => {
                   
                   <TabsContent value="login">
                     <Login />
+                    <div className="mt-4 text-sm text-center">
+                      <p className="text-muted-foreground">
+                        Are you a salon owner? <a href="/merchant-login" className="text-salon-men hover:underline">Sign in as a merchant</a>
+                      </p>
+                    </div>
                   </TabsContent>
                   
                   <TabsContent value="signup">

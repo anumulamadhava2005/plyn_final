@@ -1,14 +1,14 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock, Scissors, Users } from 'lucide-react';
+import { Clock, Scissors, Users, Store } from 'lucide-react';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Calendar } from 'lucide-react';
-import { MerchantData } from '@/types/merchant';
+import { MerchantData, UserProfile } from '@/types/merchant';
 
 interface MerchantHeaderProps {
   merchantData: MerchantData | null;
-  userProfile: { username: string } | null;
+  userProfile: UserProfile | null;
   slotsCount: number;
   bookingsCount: number;
   refreshData: () => void;
@@ -48,12 +48,21 @@ const MerchantHeader: React.FC<MerchantHeaderProps> = ({
             <CardTitle>{merchantData.business_name}</CardTitle>
             <CardDescription>
               {merchantData.service_category.charAt(0).toUpperCase() + merchantData.service_category.slice(1)} Salon
+              {merchantData.status && (
+                <span className={`ml-3 inline-block px-2 py-1 text-xs rounded-full ${
+                  merchantData.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                  merchantData.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {merchantData.status.charAt(0).toUpperCase() + merchantData.status.slice(1)}
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <Store className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">{userProfile?.username || 'Owner'}</span>
               </div>
               <div className="flex items-center gap-2">

@@ -2,6 +2,9 @@
 export type UserProfile = {
   username: string | null;
   phone_number?: string | null;
+  is_merchant?: boolean;
+  age?: number;
+  gender?: string;
 };
 
 export type MerchantData = {
@@ -11,6 +14,7 @@ export type MerchantData = {
   business_email: string;
   business_phone: string;
   service_category: string;
+  status?: string;
 };
 
 export type SlotData = {
@@ -37,4 +41,5 @@ export type BookingData = {
     start_time: string;
     end_time: string;
   };
+  merchant_id?: string;
 };

@@ -1,10 +1,10 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
@@ -32,10 +32,15 @@ const queryClient = new QueryClient();
 // Route Guard Components
 const MerchantRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isMerchant, loading } = useAuth();
+  const location = useLocation();
   
+  // Check if still loading
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   
-  if (!user) return <Navigate to="/merchant-login" replace />;
+  // Check if not logged in
+  if (!user) return <Navigate to="/merchant-login" replace state={{ from: location }} />;
+  
+  // Check if not a merchant
   if (!isMerchant) return <Navigate to="/" replace />;
   
   return <>{children}</>;
@@ -43,10 +48,11 @@ const MerchantRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, loading } = useAuth();
+  const location = useLocation();
   
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/auth" replace state={{ from: location }} />;
   if (!isAdmin) return <Navigate to="/" replace />;
   
   return <>{children}</>;
@@ -54,28 +60,32 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 
 const CustomerRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isMerchant, isAdmin, loading } = useAuth();
+  const location = useLocation();
   
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/auth" replace state={{ from: location }} />;
   if (isMerchant) return <Navigate to="/merchant-dashboard" replace />;
   if (isAdmin) return <Navigate to="/admin-dashboard" replace />;
   
   return <>{children}</>;
 };
 
+const RouteObserver = () => {
+  const { checkAndRedirectUserByRole } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    checkAndRedirectUserByRole();
+  }, [location.pathname, checkAndRedirectUserByRole]);
+
+  return null;
+};
+
 const AppRoutes = () => {
-  const { user, isMerchant, isAdmin, checkAndRedirectUserByRole } = useAuth();
-  
-  // Apply role-based redirections when routes component mounts
-  React.useEffect(() => {
-    if (user) {
-      checkAndRedirectUserByRole();
-    }
-  }, [user, isMerchant, isAdmin, checkAndRedirectUserByRole]);
-  
   return (
     <AnimatePresence mode="wait">
+      <RouteObserver />
       <Routes>
         {/* Public routes */}
         <Route path="/auth" element={<Auth />} />
@@ -111,10 +121,22 @@ const AppRoutes = () => {
         <Route path="/" element={<Index />} />
         <Route path="/book-now" element={<BookNow />} />
         <Route path="/book/:id" element={<SalonDetails />} />
-        <Route path="/payment" element={<Payment />} />
-        <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+        <Route path="/payment" element={
+          <CustomerRoute>
+            <Payment />
+          </CustomerRoute>
+        } />
+        <Route path="/booking-confirmation" element={
+          <CustomerRoute>
+            <BookingConfirmation />
+          </CustomerRoute>
+        } />
         <Route path="/hair-recommendation" element={<HairRecommendation />} />
-        <Route path="/my-bookings" element={<MyBookings />} />
+        <Route path="/my-bookings" element={
+          <CustomerRoute>
+            <MyBookings />
+          </CustomerRoute>
+        } />
         
         {/* Catch-all route */}
         <Route path="*" element={<NotFound />} />
