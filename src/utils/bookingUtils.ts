@@ -49,8 +49,8 @@ interface BookingRPCResponse {
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
-  // Call the RPC function with explicit typing to avoid the 'never' type inference
-  const { data, error } = await supabase.rpc<any>(
+  // Call the RPC function with the correct type parameters
+  const { data, error } = await supabase.rpc<BookingRPCResponse, any>(
     'create_booking_transaction',
     {
       p_user_id: bookingData.userId,
