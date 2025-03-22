@@ -23,6 +23,13 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+// Define the user profile type to match what's returned from Supabase
+type UserProfile = {
+  username: string | null;
+  email: string | null;
+};
+
+// Update the MerchantApplication type to match the merchants table structure
 type MerchantApplication = {
   id: string;
   business_name: string;
@@ -32,10 +39,7 @@ type MerchantApplication = {
   service_category: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
-  user_profile?: {
-    username: string;
-    email: string;
-  }
+  user_profile?: UserProfile | null;
 };
 
 const AdminDashboard = () => {
@@ -86,7 +90,14 @@ const AdminDashboard = () => {
       const { data: pendingData, error: pendingError } = await supabase
         .from('merchants')
         .select(`
-          *,
+          id,
+          business_name,
+          business_address,
+          business_email,
+          business_phone,
+          service_category,
+          created_at,
+          updated_at,
           user_profile:profiles(username, email)
         `)
         .eq('status', 'pending');
@@ -97,7 +108,14 @@ const AdminDashboard = () => {
       const { data: approvedData, error: approvedError } = await supabase
         .from('merchants')
         .select(`
-          *,
+          id,
+          business_name,
+          business_address,
+          business_email,
+          business_phone,
+          service_category,
+          created_at,
+          updated_at,
           user_profile:profiles(username, email)
         `)
         .eq('status', 'approved');
@@ -105,7 +123,7 @@ const AdminDashboard = () => {
       if (approvedError) throw approvedError;
       
       // Transform data to match MerchantApplication type
-      const pendingApplicationsTyped: MerchantApplication[] = pendingData?.map(item => ({
+      const pendingApplicationsTyped: MerchantApplication[] = pendingData ? pendingData.map(item => ({
         id: item.id,
         business_name: item.business_name,
         business_address: item.business_address,
@@ -114,10 +132,11 @@ const AdminDashboard = () => {
         service_category: item.service_category,
         status: 'pending',
         created_at: item.created_at,
-        user_profile: item.user_profile
-      })) || [];
+        // Handle possible null or undefined user_profile
+        user_profile: item.user_profile || null
+      })) : [];
       
-      const approvedMerchantsTyped: MerchantApplication[] = approvedData?.map(item => ({
+      const approvedMerchantsTyped: MerchantApplication[] = approvedData ? approvedData.map(item => ({
         id: item.id,
         business_name: item.business_name,
         business_address: item.business_address,
@@ -126,8 +145,9 @@ const AdminDashboard = () => {
         service_category: item.service_category,
         status: 'approved',
         created_at: item.created_at,
-        user_profile: item.user_profile
-      })) || [];
+        // Handle possible null or undefined user_profile
+        user_profile: item.user_profile || null
+      })) : [];
       
       setPendingApplications(pendingApplicationsTyped);
       setApprovedMerchants(approvedMerchantsTyped);
@@ -168,6 +188,7 @@ const AdminDashboard = () => {
   // Handle merchant application approval
   const handleApprove = async (merchantId: string) => {
     try {
+      // Update the merchant status in the database
       const { error } = await supabase
         .from('merchants')
         .update({ status: 'approved' })
@@ -178,13 +199,16 @@ const AdminDashboard = () => {
       // Find the merchant data from our local state
       const merchantToApprove = pendingApplications.find(app => app.id === merchantId);
       
-      if (merchantToApprove?.user_profile) {
-        // Update profiles table - assuming the profile id is linked to the merchant somehow
-        // This is a simplified example; in a real app, you'd have a proper link between merchants and profiles
-        await supabase
+      if (merchantToApprove?.user_profile?.username) {
+        // Update profiles table using username for lookup
+        const { error: profileError } = await supabase
           .from('profiles')
           .update({ is_merchant: true })
           .eq('username', merchantToApprove.user_profile.username);
+          
+        if (profileError) {
+          console.error('Error updating profile:', profileError);
+        }
       }
       
       // Update local state
@@ -211,6 +235,7 @@ const AdminDashboard = () => {
   // Handle merchant application rejection
   const handleReject = async (merchantId: string) => {
     try {
+      // Update the merchant status in the database
       const { error } = await supabase
         .from('merchants')
         .update({ status: 'rejected' })
