@@ -39,7 +39,7 @@ type MerchantApplication = {
   service_category: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
-  user_profile?: UserProfile | null;
+  user_profile: UserProfile | null;
 };
 
 const AdminDashboard = () => {
@@ -98,6 +98,7 @@ const AdminDashboard = () => {
           service_category,
           created_at,
           updated_at,
+          status,
           user_profile:profiles(username, email)
         `)
         .eq('status', 'pending');
@@ -116,13 +117,14 @@ const AdminDashboard = () => {
           service_category,
           created_at,
           updated_at,
+          status,
           user_profile:profiles(username, email)
         `)
         .eq('status', 'approved');
       
       if (approvedError) throw approvedError;
       
-      // Transform data to match MerchantApplication type
+      // Process and handle possible null user profiles
       const pendingApplicationsTyped: MerchantApplication[] = pendingData ? pendingData.map(item => ({
         id: item.id,
         business_name: item.business_name,
@@ -132,8 +134,13 @@ const AdminDashboard = () => {
         service_category: item.service_category,
         status: 'pending',
         created_at: item.created_at,
-        // Handle possible null or undefined user_profile
-        user_profile: item.user_profile || null
+        // Handle user_profile properly, ensuring it matches UserProfile type
+        user_profile: item.user_profile && typeof item.user_profile !== 'string' 
+          ? { 
+              username: item.user_profile.username || null, 
+              email: item.user_profile.email || null 
+            } 
+          : null
       })) : [];
       
       const approvedMerchantsTyped: MerchantApplication[] = approvedData ? approvedData.map(item => ({
@@ -145,8 +152,13 @@ const AdminDashboard = () => {
         service_category: item.service_category,
         status: 'approved',
         created_at: item.created_at,
-        // Handle possible null or undefined user_profile
-        user_profile: item.user_profile || null
+        // Handle user_profile properly, ensuring it matches UserProfile type
+        user_profile: item.user_profile && typeof item.user_profile !== 'string' 
+          ? { 
+              username: item.user_profile.username || null, 
+              email: item.user_profile.email || null 
+            } 
+          : null
       })) : [];
       
       setPendingApplications(pendingApplicationsTyped);
