@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { Button } from '@/components/ui/button';
@@ -5,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Upload, Scissors, Image, AlertTriangle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Loader2, Upload, Scissors, Image, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +21,7 @@ const HairRecommendation = () => {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [recommendedStyles, setRecommendedStyles] = useState<Array<{ name: string, description: string, imageUrl: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -48,7 +50,14 @@ const HairRecommendation = () => {
       setAnalysis(null);
       setRecommendedStyles([]);
       setError(null);
+      setProgress(0);
     }
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    setProgress(0);
+    setIsLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,6 +76,7 @@ const HairRecommendation = () => {
     setAnalysis(null);
     setRecommendedStyles([]);
     setError(null);
+    setProgress(10);
     
     try {
       const reader = new FileReader();
@@ -74,7 +84,11 @@ const HairRecommendation = () => {
       
       reader.onload = async () => {
         try {
+          setProgress(30);
           const base64String = (reader.result as string).split(',')[1];
+          
+          console.log("Sending photo for analysis...");
+          setProgress(50);
           
           const { data, error } = await supabase.functions.invoke('analyze-face', {
             body: {
@@ -83,13 +97,20 @@ const HairRecommendation = () => {
             }
           });
           
+          setProgress(80);
+          
           if (error) {
-            throw new Error(error.message);
+            console.error("Supabase function error:", error);
+            throw new Error(error.message || "Failed to analyze photo");
           }
           
           if (data.error) {
+            console.error("Analysis error:", data.error);
             throw new Error(data.error);
           }
+          
+          console.log("Analysis data received:", data);
+          setProgress(90);
           
           setAnalysis(data.analysis);
           
@@ -123,6 +144,8 @@ const HairRecommendation = () => {
             setRecommendedStyles(stylesWithImages);
           }
           
+          setProgress(100);
+          
           toast({
             title: "Analysis complete!",
             description: "We've analyzed your photo and found great hairstyle recommendations for you."
@@ -140,7 +163,8 @@ const HairRecommendation = () => {
         }
       };
       
-      reader.onerror = () => {
+      reader.onerror = (event) => {
+        console.error("FileReader error:", event);
         setIsLoading(false);
         setError("Failed to read the image file");
         toast({
@@ -253,6 +277,16 @@ const HairRecommendation = () => {
                     </>
                   )}
                 </Button>
+                
+                {isLoading && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Analysis progress</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <Progress value={progress} className="h-2" />
+                  </div>
+                )}
               </form>
             </CardContent>
           </Card>
@@ -271,6 +305,16 @@ const HairRecommendation = () => {
                   Please try again with a different photo, or ensure your face is clearly visible.
                 </p>
               </CardContent>
+              <CardFooter>
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleRetry}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Try Again
+                </Button>
+              </CardFooter>
             </Card>
           )}
           

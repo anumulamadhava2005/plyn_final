@@ -19,13 +19,37 @@ serve(async (req) => {
       throw new Error('OpenAI API key is not configured');
     }
 
-    const { imageBase64, gender } = await req.json();
+    // Parse request body
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (error) {
+      console.error('Error parsing request body:', error);
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+    
+    const { imageBase64, gender } = requestData;
     
     if (!imageBase64) {
-      throw new Error('No image provided');
+      console.error('No image provided');
+      return new Response(
+        JSON.stringify({ error: 'No image provided' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
-    console.log(`Analyzing face for ${gender} user...`);
+    if (!gender) {
+      console.error('No gender specified');
+      return new Response(
+        JSON.stringify({ error: 'Gender not specified' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    console.log(`Analyzing face for ${gender} user with image length: ${imageBase64.length}`);
     
     // Prepare the system message for the AI
     const systemMessage = `You are a professional hair stylist with expertise in analyzing face shapes and features. 
@@ -42,55 +66,66 @@ serve(async (req) => {
     Keep your analysis professional and focused on ${gender} hairstyles.`;
 
     // Call OpenAI API with the image
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { 
-            role: 'user', 
-            content: [
-              { type: 'text', text: `Please analyze this face for ${gender} hairstyle recommendations.` },
-              { 
-                type: 'image_url', 
-                image_url: {
-                  url: `data:image/jpeg;base64,${imageBase64}`
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemMessage },
+            { 
+              role: 'user', 
+              content: [
+                { type: 'text', text: `Please analyze this face for ${gender} hairstyle recommendations.` },
+                { 
+                  type: 'image_url', 
+                  image_url: {
+                    url: `data:image/jpeg;base64,${imageBase64}`
+                  }
                 }
-              }
-            ]
-          }
-        ],
-        max_tokens: 800,
-      }),
-    });
+              ]
+            }
+          ],
+          max_tokens: 800,
+        }),
+      });
 
-    const data = await response.json();
-    
-    if (data.error) {
-      console.error('OpenAI API error:', data.error);
-      throw new Error(`OpenAI API error: ${data.error.message}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('OpenAI API error:', errorData);
+        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error('OpenAI API error in response:', data.error);
+        throw new Error(`OpenAI API error: ${data.error.message}`);
+      }
+
+      console.log('Analysis complete');
+      
+      // Extract the analysis
+      const analysisText = data.choices[0].message.content;
+      
+      // Generate image prompts for each recommended style
+      const stylePrompts = await generateStyleImagePrompts(analysisText, gender, openAIApiKey);
+
+      return new Response(
+        JSON.stringify({ 
+          analysis: analysisText,
+          stylePrompts
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      console.error('Error calling OpenAI API:', error);
+      throw new Error(`Error calling OpenAI API: ${error.message}`);
     }
-
-    console.log('Analysis complete');
-    
-    // Extract the analysis
-    const analysisText = data.choices[0].message.content;
-    
-    // Generate image prompts for each recommended style
-    const stylePrompts = await generateStyleImagePrompts(analysisText, gender, openAIApiKey);
-
-    return new Response(
-      JSON.stringify({ 
-        analysis: analysisText,
-        stylePrompts
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   } catch (error) {
     console.error('Error:', error);
     return new Response(
@@ -125,14 +160,21 @@ async function generateStyleImagePrompts(analysisText: string, gender: string, a
       }),
     });
 
+    if (!promptGenerationResponse.ok) {
+      const errorData = await promptGenerationResponse.json();
+      console.error('OpenAI API error during style prompt generation:', errorData);
+      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+
     const promptData = await promptGenerationResponse.json();
     
     if (promptData.error) {
-      console.error('OpenAI API error:', promptData.error);
+      console.error('OpenAI API error in prompt generation response:', promptData.error);
       throw new Error(`OpenAI API error: ${promptData.error.message}`);
     }
     
     const promptsText = promptData.choices[0].message.content;
+    console.log('Generated style prompts:', promptsText);
     
     // Parse the text into a structured format
     // This is a simple parser. The structure might need adjustment based on actual response patterns
@@ -143,6 +185,7 @@ async function generateStyleImagePrompts(analysisText: string, gender: string, a
       return { name, description };
     });
     
+    console.log('Parsed style prompts:', stylePrompts);
     return stylePrompts;
   } catch (error) {
     console.error('Error generating style prompts:', error);
