@@ -19,7 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 import BookingSummary from '@/components/payment/BookingSummary';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
-import { toast as sonnerToast } from 'sonner';
+import { sonnerToast as toast } from 'sonner';
 
 const Payment = () => {
   const location = useLocation();
@@ -94,7 +94,7 @@ const Payment = () => {
         setIsSubmitting(false);
         
         // Show toast notification for better UX
-        sonnerToast.error("Time slot unavailable", {
+        toast.error("Time slot unavailable", {
           description: "This slot was just booked by someone else. Please go back and select a different time.",
         });
         return;
@@ -148,7 +148,7 @@ const Payment = () => {
       navigate('/booking-confirmation', { 
         state: {
           ...bookingData,
-          bookingId: newBooking.id, // Add null check
+          bookingId: newBooking.id,
           paymentDetails: {
             cardName: values.cardName,
             cardNumber: values.cardNumber.slice(-4).padStart(16, '*'),

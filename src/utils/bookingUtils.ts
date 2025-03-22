@@ -18,8 +18,30 @@ interface BookingData {
   notes?: string;
 }
 
+// Define the return type for the booking
+interface BookingResponse {
+  id: string;
+  user_id: string;
+  merchant_id: string;
+  salon_id: string;
+  salon_name: string;
+  service_name: string;
+  booking_date: string;
+  time_slot: string;
+  customer_email: string;
+  customer_phone: string;
+  service_price: number;
+  service_duration: number;
+  slot_id: string;
+  status: string;
+  additional_notes: string;
+  created_at: string;
+  updated_at: string;
+  payment_id: string | null;
+}
+
 // Function to create a new booking in the database
-export const createBooking = async (bookingData: BookingData) => {
+export const createBooking = async (bookingData: BookingData): Promise<BookingResponse | null> => {
   const { data, error } = await supabase.rpc('create_booking_transaction', {
     p_user_id: bookingData.userId,
     p_merchant_id: bookingData.salonId,
