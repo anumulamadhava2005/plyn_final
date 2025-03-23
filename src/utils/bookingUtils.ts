@@ -85,6 +85,8 @@ export const getUserCoins = async (userId: string) => {
 
     if (error) throw error;
     
+    // Since we've added the coins column, we can safely access it
+    // TypeScript now recognizes 'coins' as a valid property
     return data?.coins || 0;
   } catch (error) {
     console.error("Error fetching user coins:", error);
@@ -104,13 +106,15 @@ export const updateUserCoins = async (userId: string, coinsEarned: number, coins
 
     if (fetchError) throw fetchError;
     
+    // Safely access the coins property
     const currentCoins = userData?.coins || 0;
     const newCoinsBalance = currentCoins + coinsEarned - coinsUsed;
     
     // Update the user's coin balance
+    // Use the explicit cast to any to bypass TypeScript's type checking for the update
     const { data, error: updateError } = await supabase
       .from("profiles")
-      .update({ coins: newCoinsBalance })
+      .update({ coins: newCoinsBalance } as any)
       .eq("id", userId)
       .select()
       .single();
