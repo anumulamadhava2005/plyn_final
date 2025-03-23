@@ -60,7 +60,7 @@ const Payment = () => {
     cardNumber: "",
     expiryDate: "",
     cvv: "",
-    phone: userProfile?.phoneNumber || "",
+    phone: userProfile?.phoneNumber || userProfile?.phone_number || "",
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
@@ -94,7 +94,7 @@ const Payment = () => {
         return;
       }
       
-      // Create a booking record in the database
+      // Create a booking record in the database - SIMPLIFIED, always succeeds
       const newBooking = await createBooking({
         userId: user.id,
         salonId: bookingData.salonId,
@@ -110,23 +110,23 @@ const Payment = () => {
         notes: values.notes
       });
       
-      // Process payment (in development, this will always succeed)
+      // Auto-complete payment (always succeeds)
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
         amount: bookingData.totalPrice,
         paymentMethod: values.paymentMethod,
-        paymentStatus: "completed", // Always completed for development
-        transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`
+        paymentStatus: "completed", // Always completed
+        transactionId: `AUTO-${Math.floor(Math.random() * 1000000)}`
       });
       
       // Mark the slot as booked
       await bookSlot(slotCheck.slotId);
       
-      // Show success toast
+      // Show success toast immediately
       toast({
-        title: "Payment Successful",
-        description: "Your appointment has been booked!",
+        title: "Booking Successful!",
+        description: "Your appointment has been confirmed.",
       });
       
       // Show booking success notification
@@ -136,25 +136,25 @@ const Payment = () => {
         timeSlot: bookingData.timeSlot
       });
       
-      // Navigate to confirmation page
+      // Navigate to confirmation page immediately
       navigate('/booking-confirmation', { 
         state: {
           ...bookingData,
           bookingId: newBooking.id,
           paymentDetails: {
-            cardName: values.cardName,
-            cardNumber: values.cardNumber.slice(-4).padStart(16, '*'),
-            expiryDate: values.expiryDate,
-            paymentMethod: values.paymentMethod
+            cardName: values.cardName || "N/A",
+            cardNumber: values.cardNumber ? values.cardNumber.slice(-4).padStart(16, '*') : "****",
+            expiryDate: values.expiryDate || "N/A",
+            paymentMethod: values.paymentMethod || "auto"
           }
         }
       });
     } catch (error) {
-      console.error("Payment error:", error);
-      setPaymentError("There was an error processing your payment. Please try again.");
+      console.error("Booking error:", error);
+      setPaymentError("There was an error processing your booking. Please try again.");
       toast({
-        title: "Payment Failed",
-        description: "There was an error processing your payment. Please try again.",
+        title: "Booking Failed",
+        description: "There was an error processing your booking. Please try again.",
         variant: "destructive",
       });
     } finally {

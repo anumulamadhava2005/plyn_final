@@ -21,7 +21,7 @@ export const createBooking = async (bookingData: any) => {
         service_price: bookingData.totalPrice,
         service_duration: bookingData.totalDuration,
         slot_id: bookingData.slotId,
-        status: "upcoming",
+        status: "confirmed", // Changed from "upcoming" to "confirmed" to show it's immediately confirmed
         additional_notes: bookingData.notes || ""
       })
       .select()
@@ -36,10 +36,10 @@ export const createBooking = async (bookingData: any) => {
   }
 };
 
-// Function to create a payment record
+// Function to create a payment record - simplified
 export const createPayment = async (paymentData: any) => {
   try {
-    // For development purposes, always create a successful payment
+    // Create a successful payment immediately
     const { data: newPayment, error: paymentError } = await supabase
       .from("payments")
       .insert({
@@ -47,8 +47,8 @@ export const createPayment = async (paymentData: any) => {
         user_id: paymentData.userId,
         amount: paymentData.amount,
         payment_method: paymentData.paymentMethod,
-        payment_status: "completed", // Always completed for development
-        transaction_id: `DEV-${Math.floor(Math.random() * 1000000)}`
+        payment_status: "completed", // Always mark as completed
+        transaction_id: `INSTANT-${Math.floor(Math.random() * 1000000)}`
       })
       .select()
       .single();
