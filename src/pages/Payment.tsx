@@ -27,9 +27,8 @@ const Payment = () => {
   const { user, userProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  
-  // Get booking data from location state
-  const bookingData = location.state;
+  const [bookingData, setBookingData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Initialize the database with default data on component mount
   useEffect(() => {
@@ -48,11 +47,17 @@ const Payment = () => {
     initDb();
   }, []);
   
-  // If no booking data, redirect to book now page
-  if (!bookingData) {
-    navigate('/book-now');
-    return null;
-  }
+  // Get booking data from location state
+  useEffect(() => {
+    console.log("Location state:", location.state);
+    if (location.state) {
+      setBookingData(location.state);
+    } else {
+      console.log("No booking data found in location state");
+      navigate('/book-now');
+    }
+    setIsLoading(false);
+  }, [location.state, navigate]);
   
   // Default form values
   const defaultValues = {
@@ -161,6 +166,43 @@ const Payment = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <PageTransition>
+        <div className="min-h-screen flex flex-col">
+          <Navbar />
+          <main className="flex-grow flex items-center justify-center">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <p>Loading booking details...</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </PageTransition>
+    );
+  }
+  
+  if (!bookingData) {
+    return (
+      <PageTransition>
+        <div className="min-h-screen flex flex-col">
+          <Navbar />
+          <main className="flex-grow pt-20">
+            <div className="container mx-auto px-4 py-8 text-center">
+              <h1 className="text-2xl font-bold mb-4">No Booking Information</h1>
+              <p className="mb-6">Please select a salon and services before proceeding to payment.</p>
+              <AnimatedButton onClick={() => navigate('/book-now')}>
+                Browse Salons
+              </AnimatedButton>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>
