@@ -91,13 +91,6 @@ const Login = () => {
           return;
         }
         
-        // Check if admin
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user?.email?.endsWith('@admin.plyn.com')) {
-          navigate('/admin-dashboard');
-          return;
-        }
-        
         try {
           const { data: merchantData, error: merchantError } = await supabase
             .from('merchants')
@@ -118,14 +111,6 @@ const Login = () => {
           navigate('/merchant-signup');
         }
       } else {
-        // For admin users
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user?.email?.endsWith('@admin.plyn.com')) {
-          navigate('/admin-dashboard');
-          return;
-        }
-        
-        // For regular users
         navigate('/');
       }
     } catch (error: any) {

@@ -48,32 +48,9 @@ const Payment = () => {
     initDb();
   }, []);
   
-  // Check if user is authenticated, redirect if not
-  useEffect(() => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to proceed with payment",
-        variant: "destructive",
-      });
-      navigate('/auth', { state: { redirectTo: '/payment' } });
-      return;
-    }
-  }, [user, navigate, toast]);
-  
   // If no booking data, redirect to book now page
-  useEffect(() => {
-    if (!bookingData) {
-      toast({
-        title: "No booking information",
-        description: "Please select a service before proceeding to payment",
-        variant: "destructive",
-      });
-      navigate('/book-now');
-    }
-  }, [bookingData, navigate, toast]);
-  
-  if (!bookingData || !user) {
+  if (!bookingData) {
+    navigate('/book-now');
     return null;
   }
   
@@ -93,6 +70,16 @@ const Payment = () => {
     try {
       setIsSubmitting(true);
       setPaymentError(null);
+      
+      if (!user) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to book an appointment.",
+          variant: "destructive",
+        });
+        navigate('/auth', { state: { redirectTo: `/payment` } });
+        return;
+      }
       
       // Check if slot is still available
       const slotCheck = await checkSlotAvailability(

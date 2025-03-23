@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/AuthContext';
@@ -14,30 +14,14 @@ import AuthHeader from '@/components/auth/AuthHeader';
 const Auth = () => {
   const [activeTab, setActiveTab] = useState('login');
   const [showMerchantFields, setShowMerchantFields] = useState(false);
-  const { user, isMerchant, isAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  
-  // Get redirectUrl from location state or default to homepage
-  const from = location.state?.from?.pathname || '/';
 
   useEffect(() => {
     if (user) {
-      if (isMerchant) {
-        navigate('/merchant-dashboard', { replace: true });
-      } else if (isAdmin) {
-        navigate('/admin-dashboard', { replace: true });
-      } else {
-        // Use the from path if it's not a protected route
-        const isProtectedRoute = 
-          from.includes('/merchant') || 
-          from.includes('/admin') ||
-          from === '/auth';
-        
-        navigate(isProtectedRoute ? '/' : from, { replace: true });
-      }
+      navigate('/');
     }
-  }, [user, isMerchant, isAdmin, navigate, from]);
+  }, [user, navigate]);
 
   return (
     <PageTransition>
@@ -63,11 +47,6 @@ const Auth = () => {
                   
                   <TabsContent value="login">
                     <Login />
-                    <div className="mt-4 text-sm text-center">
-                      <p className="text-muted-foreground">
-                        Are you a salon owner? <a href="/merchant-login" className="text-salon-men hover:underline">Sign in as a merchant</a>
-                      </p>
-                    </div>
                   </TabsContent>
                   
                   <TabsContent value="signup">

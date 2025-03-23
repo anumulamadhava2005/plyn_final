@@ -1,8 +1,7 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
@@ -10,17 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight, Store } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
 
 const Profile = () => {
   const { user, userProfile, signOut, isMerchant } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Redirect to auth page if not logged in
     if (!user) {
       navigate('/auth');
     }
@@ -29,6 +25,7 @@ const Profile = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
+      // Force navigate to auth page after signout
       navigate('/auth', { replace: true });
     } catch (error) {
       console.error('Error signing out:', error);
@@ -40,56 +37,8 @@ const Profile = () => {
     }
   };
 
-  const handleBecomeMerchant = async () => {
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please log in first to continue.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsUpdating(true);
-    setError(null);
-    
-    try {
-      console.log("Updating profile for user ID:", user.id);
-      
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ is_merchant: true })
-        .eq('id', user.id);
-        
-      if (profileError) {
-        console.error("Profile update error:", profileError);
-        throw profileError;
-      }
-      
-      toast({
-        title: "Profile updated",
-        description: "Your account has been upgraded to merchant status. You will now be redirected to complete your merchant profile.",
-      });
-      
-      // Force refresh the auth context to update the merchant status
-      setTimeout(() => {
-        window.location.href = '/merchant-signup';
-      }, 1500);
-    } catch (error: any) {
-      console.error('Error updating merchant status:', error);
-      setError(error.message || "There was an error upgrading your account");
-      toast({
-        title: "Update failed",
-        description: "There was an error upgrading your account. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
   if (!user || !userProfile) {
-    return null;
+    return null; // Will redirect via useEffect
   }
 
   return (
@@ -101,20 +50,13 @@ const Profile = () => {
           <div className="container mx-auto max-w-4xl">
             <h1 className="text-3xl md:text-4xl font-bold mb-8 gradient-heading">Your Profile</h1>
             
-            {error && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="col-span-1">
                 <CardHeader className="text-center">
                   <div className="w-24 h-24 bg-gradient-to-r from-salon-men to-salon-women rounded-full flex items-center justify-center text-white text-4xl font-bold mx-auto mb-2">
-                    {userProfile.username?.charAt(0).toUpperCase() || 'U'}
+                    {userProfile.username.charAt(0).toUpperCase()}
                   </div>
-                  <CardTitle className="text-xl">{userProfile.username || 'User'}</CardTitle>
+                  <CardTitle className="text-xl">{userProfile.username}</CardTitle>
                   <CardDescription>{user.email}</CardDescription>
                   {isMerchant && (
                     <span className="inline-block px-3 py-1 mt-2 text-xs font-medium rounded-full bg-salon-women/10 text-salon-women dark:bg-salon-women-light/10 dark:text-salon-women-light">
@@ -155,7 +97,7 @@ const Profile = () => {
                     <UserCircle className="w-5 h-5 mt-0.5 text-muted-foreground" />
                     <div>
                       <p className="text-sm font-medium">Username</p>
-                      <p className="text-muted-foreground">{userProfile.username || 'Not set'}</p>
+                      <p className="text-muted-foreground">{userProfile.username}</p>
                     </div>
                   </div>
                   
@@ -210,16 +152,16 @@ const Profile = () => {
                       <p className="text-sm text-muted-foreground mb-4">
                         As a merchant, you can list your services, manage bookings, and grow your business on our platform.
                       </p>
-                      <AnimatedButton 
-                        variant="gradient" 
-                        size="sm"
-                        className="w-full"
-                        icon={<ArrowUpRight className="w-4 h-4" />}
-                        onClick={handleBecomeMerchant}
-                        disabled={isUpdating}
-                      >
-                        {isUpdating ? "Processing..." : "Register as a Merchant"}
-                      </AnimatedButton>
+                      <Link to="/merchant-signup">
+                        <AnimatedButton 
+                          variant="gradient" 
+                          size="sm"
+                          className="w-full"
+                          icon={<ArrowUpRight className="w-4 h-4" />}
+                        >
+                          Register as a Merchant
+                        </AnimatedButton>
+                      </Link>
                     </div>
                   </CardFooter>
                 )}

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -22,10 +23,7 @@ const MyBookings = () => {
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    console.log("MyBookings page mounted");
-    
     if (!user) {
-      console.log("No user found, redirecting to auth");
       toast({
         title: "Authentication Required",
         description: "Please sign in to view your bookings",
@@ -35,12 +33,7 @@ const MyBookings = () => {
       return;
     }
     
-    console.log("User found, fetching bookings");
     fetchBookings();
-    
-    return () => {
-      console.log("MyBookings page unmounted");
-    };
   }, [user, navigate, toast]);
   
   const fetchBookings = async () => {
@@ -49,16 +42,13 @@ const MyBookings = () => {
     try {
       if (!user) return;
       
-      console.log("Fetching bookings for user ID:", user.id);
       const bookingsData = await fetchUserBookings(user.id);
-      console.log("Bookings data received:", bookingsData);
       
       // If no bookings yet, show some sample ones for demo purposes
       if (bookingsData && bookingsData.length > 0) {
         setBookings(bookingsData);
       } else {
         // Fallback to mock data if no bookings exist
-        console.log("No bookings found, using mock data");
         setBookings(getMockBookings());
       }
       setLoading(false);
@@ -287,8 +277,6 @@ const MyBookings = () => {
     );
   };
   
-  console.log("Rendering MyBookings page with", bookings.length, "bookings");
-  
   return (
     <PageTransition>
       <div className="min-h-screen flex flex-col">
@@ -298,7 +286,7 @@ const MyBookings = () => {
           <section className="py-8 px-4">
             <div className="container mx-auto max-w-3xl">
               <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl md:text-3xl font-bold mb-6 text-center">My Bookings</h1>
+                <h1 className="text-2xl md:text-3xl font-bold">My Bookings</h1>
                 <AnimatedButton
                   variant="outline"
                   size="sm"
