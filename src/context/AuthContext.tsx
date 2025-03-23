@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,7 +18,7 @@ type AuthContextType = {
     isMerchant?: boolean;
   } | null;
   isMerchant: boolean;
-  merchantLogin: (email: string, password: string) => Promise<void>;
+  merchantLogin: (email: string, password: string) => Promise<any>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -177,7 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.auth.signOut();
         throw new Error("Could not verify merchant status. Please try again.");
       }
-        
+      
       if (!profileData?.is_merchant) {
         console.error("Non-merchant attempted to log in as merchant");
         await supabase.auth.signOut();
