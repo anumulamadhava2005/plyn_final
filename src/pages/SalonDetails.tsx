@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -169,7 +169,6 @@ const SalonDetails = () => {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchingSlots, setFetchingSlots] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   
   useEffect(() => {
     if (id) {
@@ -221,38 +220,36 @@ const SalonDetails = () => {
   };
   
   const handleProceedToPayment = async () => {
-    try {
-      if (!user) {
-        toast({
-          title: "Authentication Required",
-          description: "Please sign in to book an appointment.",
-          variant: "destructive",
-        });
-        navigate('/auth', { state: { redirectTo: `/book/${id}` } });
-        return;
-      }
-      
-      if (selectedServices.length === 0) {
-        toast({
-          title: "No Services Selected",
-          description: "Please select at least one service to proceed.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      if (!selectedSlot) {
-        toast({
-          title: "No Time Slot Selected",
-          description: "Please select a time slot for your appointment.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      setIsProcessing(true);
-      
-      const bookingData = {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to book an appointment.",
+        variant: "destructive",
+      });
+      navigate('/auth', { state: { redirectTo: `/book/${id}` } });
+      return;
+    }
+    
+    if (selectedServices.length === 0) {
+      toast({
+        title: "No Services Selected",
+        description: "Please select at least one service to proceed.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!selectedSlot) {
+      toast({
+        title: "No Time Slot Selected",
+        description: "Please select a time slot for your appointment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    navigate(`/payment`, { 
+      state: { 
         salonId: id,
         salonName: salon?.name,
         services: selectedServices.map(serviceId => 
@@ -262,22 +259,8 @@ const SalonDetails = () => {
         timeSlot: timeSlots.find((slot: any) => slot.id === selectedSlot)?.time,
         totalPrice: calculateTotalPrice(),
         totalDuration: calculateTotalDuration()
-      };
-      
-      console.log("Navigating to payment with booking data:", bookingData);
-      
-      setTimeout(() => {
-        navigate('/payment', { state: bookingData });
-      }, 100);
-    } catch (error) {
-      console.error("Error proceeding to payment:", error);
-      toast({
-        title: "Error",
-        description: "There was an error processing your request. Please try again.",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-    }
+      } 
+    });
   };
 
   if (loading) {
@@ -416,19 +399,9 @@ const SalonDetails = () => {
                             variant={salon.type === 'men' ? 'men' : 'women'}
                             className="w-full"
                             onClick={handleProceedToPayment}
-                            disabled={isProcessing}
                           >
-                            {isProcessing ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Processing...
-                              </>
-                            ) : (
-                              <>
-                                Proceed to Payment
-                                <ArrowRight className="ml-2 h-4 w-4" />
-                              </>
-                            )}
+                            Proceed to Payment
+                            <ArrowRight className="ml-2 h-4 w-4" />
                           </AnimatedButton>
                         </div>
                       ) : (

@@ -1,10 +1,12 @@
 
 export type UserProfile = {
   username: string | null;
-  phoneNumber?: string | null; // Standardized to camelCase
+  phone_number?: string | null;
+  phoneNumber?: string | null;
+  is_merchant?: boolean;
+  isMerchant?: boolean;
   age?: number;
   gender?: string;
-  isMerchant?: boolean; // Standardized to camelCase
 };
 
 export type MerchantData = {
@@ -34,7 +36,7 @@ export type BookingData = {
   created_at: string;
   user_profile?: {
     username: string;
-    phoneNumber?: string; // Updated to camelCase
+    phone_number?: string;
   } | null;
   slot?: {
     date: string;
@@ -42,34 +44,4 @@ export type BookingData = {
     end_time: string;
   };
   merchant_id?: string;
-};
-
-export type BookingFormData = {
-  salonId: string;
-  salonName: string;
-  services: Array<{
-    id: string;
-    name: string;
-    price: number;
-    duration: number;
-  }>;
-  date: Date | string;
-  timeSlot: string;
-  totalPrice: number;
-  totalDuration: number;
-  notes?: string;
-  email?: string;
-  phone?: string;
-  slotId?: string;
-};
-
-export type PaymentDetails = {
-  cardName?: string;
-  cardNumber?: string;
-  expiryDate?: string;
-  cvv?: string;
-  paymentMethod: string;
-  notes?: string;
-  phone?: string;
-  email?: string;
 };

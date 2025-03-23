@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -11,15 +12,13 @@ import {
   createBooking, 
   createPayment, 
   checkSlotAvailability, 
-  bookSlot
+  bookSlot, 
+  initializeDatabase 
 } from '@/utils/bookingUtils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 import BookingSummary from '@/components/payment/BookingSummary';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
-import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { getBookingData, saveBookingData, clearBookingData } from '@/utils/bookingStorageUtils';
-import { BookingFormData } from '@/types/merchant';
 
 const Payment = () => {
   const location = useLocation();
@@ -28,61 +27,40 @@ const Payment = () => {
   const { user, userProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [bookingData, setBookingData] = useState<BookingFormData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   
+  // Get booking data from location state
+  const bookingData = location.state;
+  
+  // Initialize the database with default data on component mount
   useEffect(() => {
-    console.log("Payment page - Initializing");
-    console.log("Payment page - Location state:", location.state);
-    
-    // First try to get data from location state
-    if (location.state && location.state.salonId && location.state.services) {
-      console.log("Using booking data from location state");
-      setBookingData(location.state);
-      
-      // Also store in session storage as backup
-      try {
-        saveBookingData(location.state);
-      } catch (error) {
-        console.error("Error storing booking data in session storage:", error);
+    const initDb = async () => {
+      // Only seed data if we're in development mode
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          const result = await initializeDatabase();
+          console.log('Database initialization result:', result);
+        } catch (error) {
+          console.error('Failed to initialize database:', error);
+        }
       }
-      
-      setIsLoading(false);
-      return;
-    }
+    };
     
-    // If not in location state, try session storage
-    console.log("Attempting to retrieve booking data from session storage");
-    const storedData = getBookingData();
-    
-    if (storedData) {
-      console.log("Retrieved valid booking data from session storage:", storedData);
-      setBookingData(storedData);
-      setIsLoading(false);
-      return;
-    }
-    
-    // If we get here, no valid booking data was found
-    console.error("No valid booking data found in location state or session storage");
-    toast({
-      title: "Missing booking information",
-      description: "Please select a salon and services before proceeding to payment.",
-      variant: "destructive",
-    });
-    
-    // Allow a slight delay before navigation to ensure the toast is shown
-    setTimeout(() => {
-      navigate('/book-now');
-    }, 500);
-    
-  }, [location.state, navigate, toast]);
+    initDb();
+  }, []);
   
+  // If no booking data, redirect to book now page
+  if (!bookingData) {
+    navigate('/book-now');
+    return null;
+  }
+  
+  // Default form values
   const defaultValues = {
     cardName: "",
     cardNumber: "",
     expiryDate: "",
     cvv: "",
-    phone: userProfile?.phoneNumber || "", // Fixed: removed phone_number reference
+    phone: userProfile?.phoneNumber || "",
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
@@ -93,10 +71,7 @@ const Payment = () => {
       setIsSubmitting(true);
       setPaymentError(null);
       
-      console.log("Processing payment with values:", values);
-      
       if (!user) {
-        console.error("User is not authenticated");
         toast({
           title: "Authentication Required",
           description: "Please sign in to book an appointment.",
@@ -106,49 +81,26 @@ const Payment = () => {
         return;
       }
       
-      if (!bookingData || !bookingData.salonId || !bookingData.timeSlot) {
-        console.error("Invalid booking data:", bookingData);
-        setPaymentError("Invalid booking data. Please try again.");
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Convert date to ISO string format for API calls
-      const bookingDate = bookingData.date instanceof Date 
-        ? bookingData.date.toISOString().split('T')[0]
-        : new Date(bookingData.date).toISOString().split('T')[0];
-        
-      console.log("Checking slot availability for:", {
-        salonId: bookingData.salonId,
-        date: bookingDate,
-        timeSlot: bookingData.timeSlot
-      });
-      
-      // Check if the slot is available
+      // Check if slot is still available
       const slotCheck = await checkSlotAvailability(
         bookingData.salonId,
-        bookingDate,
+        new Date(bookingData.date).toISOString().split('T')[0],
         bookingData.timeSlot
       );
       
-      console.log("Slot availability check result:", slotCheck);
-      
       if (!slotCheck.available) {
-        console.error("Slot is not available");
         setPaymentError("Sorry, this time slot is no longer available. Please select another time.");
         setIsSubmitting(false);
         return;
       }
       
-      console.log("Slot is available, proceeding with booking creation. Slot ID:", slotCheck.slotId);
-      
-      // Create the booking
+      // Create a booking record in the database
       const newBooking = await createBooking({
         userId: user.id,
         salonId: bookingData.salonId,
         salonName: bookingData.salonName,
-        serviceName: bookingData.services.map((s) => s.name).join(", "),
-        date: bookingDate,
+        serviceName: bookingData.services.map((s: any) => s.name).join(", "),
+        date: new Date(bookingData.date).toISOString().split('T')[0],
         timeSlot: bookingData.timeSlot,
         email: values.email,
         phone: values.phone,
@@ -158,28 +110,23 @@ const Payment = () => {
         notes: values.notes
       });
       
-      console.log("Booking created:", newBooking);
-      
-      // Create the payment
+      // Process payment (in development, this will always succeed)
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
         amount: bookingData.totalPrice,
         paymentMethod: values.paymentMethod,
-        paymentStatus: "completed",
-        transactionId: `AUTO-${Math.floor(Math.random() * 1000000)}`
+        paymentStatus: "completed", // Always completed for development
+        transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`
       });
       
-      console.log("Payment created:", payment);
-      
-      // Book the slot
+      // Mark the slot as booked
       await bookSlot(slotCheck.slotId);
-      console.log("Slot booked successfully");
       
       // Show success toast
       toast({
-        title: "Booking Successful!",
-        description: "Your appointment has been confirmed.",
+        title: "Payment Successful",
+        description: "Your appointment has been booked!",
       });
       
       // Show booking success notification
@@ -189,71 +136,31 @@ const Payment = () => {
         timeSlot: bookingData.timeSlot
       });
       
-      // Clear the session storage after successful booking
-      clearBookingData();
-      
-      // Navigate to booking confirmation page
+      // Navigate to confirmation page
       navigate('/booking-confirmation', { 
         state: {
           ...bookingData,
           bookingId: newBooking.id,
           paymentDetails: {
-            cardName: values.cardName || "N/A",
-            cardNumber: values.cardNumber ? values.cardNumber.slice(-4).padStart(16, '*') : "****",
-            expiryDate: values.expiryDate || "N/A",
-            paymentMethod: values.paymentMethod || "auto"
+            cardName: values.cardName,
+            cardNumber: values.cardNumber.slice(-4).padStart(16, '*'),
+            expiryDate: values.expiryDate,
+            paymentMethod: values.paymentMethod
           }
         }
       });
     } catch (error) {
-      console.error("Booking error:", error);
-      setPaymentError("There was an error processing your booking. Please try again.");
+      console.error("Payment error:", error);
+      setPaymentError("There was an error processing your payment. Please try again.");
       toast({
-        title: "Booking Failed",
-        description: "There was an error processing your booking. Please try again.",
+        title: "Payment Failed",
+        description: "There was an error processing your payment. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  if (isLoading) {
-    return (
-      <PageTransition>
-        <div className="min-h-screen flex flex-col">
-          <Navbar />
-          <main className="flex-grow flex items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p>Loading booking details...</p>
-            </div>
-          </main>
-          <Footer />
-        </div>
-      </PageTransition>
-    );
-  }
-  
-  if (!bookingData) {
-    return (
-      <PageTransition>
-        <div className="min-h-screen flex flex-col">
-          <Navbar />
-          <main className="flex-grow pt-20">
-            <div className="container mx-auto px-4 py-8 text-center">
-              <h1 className="text-2xl font-bold mb-4">No Booking Information</h1>
-              <p className="mb-6">Please select a salon and services before proceeding to payment.</p>
-              <AnimatedButton onClick={() => navigate('/book-now')}>
-                Browse Salons
-              </AnimatedButton>
-            </div>
-          </main>
-          <Footer />
-        </div>
-      </PageTransition>
-    );
-  }
 
   return (
     <PageTransition>
@@ -281,6 +188,7 @@ const Payment = () => {
               )}
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Booking Summary */}
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -296,6 +204,7 @@ const Payment = () => {
                   />
                 </motion.div>
                 
+                {/* Payment Form */}
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}

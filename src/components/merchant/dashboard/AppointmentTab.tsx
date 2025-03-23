@@ -70,7 +70,7 @@ const AppointmentTab: React.FC<AppointmentTabProps> = ({
                         </div>
                         <div>
                           <p className="text-sm font-medium">{booking.user_profile?.username || 'Customer'}</p>
-                          <p className="text-xs text-muted-foreground">{booking.user_profile?.phoneNumber || 'No phone'}</p>
+                          <p className="text-xs text-muted-foreground">{booking.user_profile?.phone_number || 'No phone'}</p>
                         </div>
                       </div>
                     </div>
