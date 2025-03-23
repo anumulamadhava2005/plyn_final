@@ -60,7 +60,7 @@ const Payment = () => {
     cardNumber: "",
     expiryDate: "",
     cvv: "",
-    phone: userProfile?.phoneNumber || userProfile?.phone_number || "",
+    phone: userProfile?.phoneNumber || "", // Fixed: removed reference to phone_number
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
