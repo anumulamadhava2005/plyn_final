@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/AuthContext';
@@ -13,19 +13,30 @@ import { Store } from 'lucide-react';
 
 const MerchantAuth = () => {
   const [activeTab, setActiveTab] = useState('login');
-  const { user, isMerchant } = useAuth();
+  const { user, isMerchant, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
+  // This handles redirection when user logs in from another page
   useEffect(() => {
-    // Check on mount and when auth state changes
+    if (loading) return; // Wait until auth state is loaded
+    
+    if (!initialLoadComplete) {
+      setInitialLoadComplete(true);
+      return; // Skip first render to prevent redirect flash
+    }
+    
+    console.log("Auth state in MerchantAuth:", { user, isMerchant, loading, path: location.pathname });
+    
     if (user && isMerchant) {
-      console.log("User is authenticated as merchant, redirecting to dashboard");
+      console.log("Merchant authenticated, redirecting to dashboard");
       navigate('/merchant-dashboard', { replace: true });
     } else if (user && !isMerchant) {
-      console.log("User is authenticated but not a merchant, redirecting to home");
+      console.log("User authenticated but not a merchant, redirecting to home");
       navigate('/', { replace: true });
     }
-  }, [user, isMerchant, navigate]);
+  }, [user, isMerchant, loading, navigate, initialLoadComplete, location.pathname]);
 
   return (
     <PageTransition>

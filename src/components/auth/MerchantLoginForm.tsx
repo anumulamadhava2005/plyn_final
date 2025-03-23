@@ -39,17 +39,19 @@ const MerchantLoginForm = () => {
     setError(null);
     
     try {
-      await merchantLogin(values.email, values.password);
-      console.log("Merchant login successful, navigating to dashboard");
+      const loginResult = await merchantLogin(values.email, values.password);
+      console.log("Merchant login completed with result:", loginResult);
       
-      // Force immediate navigation to merchant dashboard
-      navigate('/merchant-dashboard', { replace: true });
-      
-      // Additional confirmation toast
-      toast({
-        title: "Login Successful",
-        description: "Redirecting to your merchant dashboard...",
-      });
+      // Short timeout to ensure state updates are processed
+      setTimeout(() => {
+        console.log("Navigating to merchant dashboard after login");
+        navigate('/merchant-dashboard', { replace: true });
+        
+        toast({
+          title: "Login Successful",
+          description: "Welcome to your merchant dashboard!",
+        });
+      }, 100);
     } catch (error: any) {
       console.error('Merchant login error:', error);
       setError(error.message || 'Login failed. Please check your credentials and try again.');
