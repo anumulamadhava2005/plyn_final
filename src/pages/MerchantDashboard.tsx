@@ -64,7 +64,12 @@ const MerchantDashboard = () => {
       date: booking.booking_date,
       time: booking.time_slot,
       duration: `${booking.service_duration} min`,
-      status: booking.status
+      // Convert the string status to the expected union type
+      status: (booking.status === 'confirmed' 
+        ? 'confirmed' 
+        : booking.status === 'cancelled' 
+          ? 'cancelled' 
+          : 'pending') as 'pending' | 'confirmed' | 'cancelled'
     }));
   }, [bookings]);
 
