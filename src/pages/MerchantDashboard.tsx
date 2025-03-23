@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -16,13 +17,35 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import PageTransition from '@/components/transitions/PageTransition';
 
+// Define the missing BookingData type
+interface BookingData {
+  id: string;
+  user_id: string;
+  merchant_id: string;
+  slot_id: string;
+  service_name: string;
+  booking_date?: string;
+  time_slot?: string;
+  service_duration?: number;
+  status: string;
+  user_profile?: {
+    username: string;
+    phone_number?: string;
+  };
+  slot?: {
+    date: string;
+    start_time: string;
+    end_time: string;
+  };
+}
+
 const MerchantDashboard = () => {
   const { user, userProfile, isMerchant } = useAuth();
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'dashboard';
   const [merchantData, setMerchantData] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<BookingData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newSlot, setNewSlot] = useState({
     date: '',
@@ -50,7 +73,8 @@ const MerchantDashboard = () => {
       id: slot.id,
       day: new Date(slot.date).toLocaleDateString('en-US', { weekday: 'short' }),
       time: slot.start_time,
-      status: slot.is_booked ? 'booked' : 'available'
+      // Fix the status type to match the expected union type
+      status: slot.is_booked ? 'booked' : 'available' as 'available' | 'booked' | 'unavailable'
     }));
   }, [slots]);
 
