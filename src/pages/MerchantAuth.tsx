@@ -17,7 +17,7 @@ const MerchantAuth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // If user is already logged in as a merchant, redirect to merchant dashboard
+    // If user is already logged in as a merchant, immediately redirect to merchant dashboard
     if (user && isMerchant) {
       navigate('/merchant-dashboard');
     } else if (user && !isMerchant) {

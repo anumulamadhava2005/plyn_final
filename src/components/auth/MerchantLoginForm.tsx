@@ -38,7 +38,8 @@ const MerchantLoginForm = () => {
     
     try {
       await merchantLogin(values.email, values.password);
-      // Successful login will redirect automatically via useEffect in the MerchantAuth page
+      // Immediately redirect to merchant dashboard after successful login
+      navigate('/merchant-dashboard');
     } catch (error: any) {
       console.error('Merchant login error:', error);
       setError(error.message || 'Login failed. Please check your credentials and try again.');

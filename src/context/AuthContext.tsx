@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -197,6 +198,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: "Welcome back, Merchant!",
         description: "You've successfully signed in to your merchant account.",
       });
+      
+      // Successfully authenticated as merchant
+      setIsMerchant(true);
+      return data;
       
     } catch (error: any) {
       console.error("Merchant login error details:", error);
