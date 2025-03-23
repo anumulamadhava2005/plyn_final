@@ -45,3 +45,25 @@ export type BookingData = {
   };
   merchant_id?: string;
 };
+
+export type BookingFormData = {
+  salonId: string;
+  salonName: string;
+  services: Array<{
+    id: string;
+    name: string;
+    price: number;
+    duration: number;
+  }>;
+  date: Date | string;
+  timeSlot: string;
+  totalPrice: number;
+  totalDuration: number;
+};
+
+export type PaymentDetails = {
+  cardName?: string;
+  cardNumber?: string;
+  expiryDate?: string;
+  paymentMethod: string;
+};

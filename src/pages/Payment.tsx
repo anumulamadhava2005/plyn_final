@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -46,15 +47,54 @@ const Payment = () => {
   }, []);
   
   useEffect(() => {
-    console.log("Location state:", location.state);
-    if (location.state) {
+    console.log("Payment page - Location state:", location.state);
+    
+    if (!location.state && sessionStorage.getItem('bookingData')) {
+      try {
+        // Attempt to retrieve booking data from session storage if not in location state
+        const storedData = JSON.parse(sessionStorage.getItem('bookingData') || '');
+        console.log("Retrieved booking data from session storage:", storedData);
+        
+        if (storedData && storedData.salonId && storedData.services) {
+          setBookingData(storedData);
+        } else {
+          console.error("Invalid booking data in session storage");
+          toast({
+            title: "Error",
+            description: "Invalid booking data. Please try again.",
+            variant: "destructive",
+          });
+          navigate('/book-now');
+          return;
+        }
+      } catch (error) {
+        console.error("Error parsing booking data from session storage:", error);
+        navigate('/book-now');
+        return;
+      }
+    } else if (location.state) {
+      console.log("Using booking data from location state");
       setBookingData(location.state);
+      
+      // Also store in session storage as backup
+      try {
+        sessionStorage.setItem('bookingData', JSON.stringify(location.state));
+      } catch (error) {
+        console.error("Error storing booking data in session storage:", error);
+      }
     } else {
-      console.log("No booking data found in location state");
+      console.log("No booking data found in location state or session storage");
+      toast({
+        title: "Missing booking information",
+        description: "Please select a salon and services before proceeding to payment.",
+        variant: "destructive",
+      });
       navigate('/book-now');
+      return;
     }
+    
     setIsLoading(false);
-  }, [location.state, navigate]);
+  }, [location.state, navigate, toast]);
   
   const defaultValues = {
     cardName: "",
@@ -79,6 +119,12 @@ const Payment = () => {
           variant: "destructive",
         });
         navigate('/auth', { state: { redirectTo: `/payment` } });
+        return;
+      }
+      
+      if (!bookingData || !bookingData.salonId || !bookingData.timeSlot) {
+        setPaymentError("Invalid booking data. Please try again.");
+        setIsSubmitting(false);
         return;
       }
       
@@ -109,6 +155,8 @@ const Payment = () => {
         notes: values.notes
       });
       
+      console.log("Booking created:", newBooking);
+      
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
@@ -117,6 +165,8 @@ const Payment = () => {
         paymentStatus: "completed",
         transactionId: `AUTO-${Math.floor(Math.random() * 1000000)}`
       });
+      
+      console.log("Payment created:", payment);
       
       await bookSlot(slotCheck.slotId);
       
@@ -130,6 +180,9 @@ const Payment = () => {
         date: new Date(bookingData.date),
         timeSlot: bookingData.timeSlot
       });
+      
+      // Clear the session storage after successful booking
+      sessionStorage.removeItem('bookingData');
       
       navigate('/booking-confirmation', { 
         state: {
