@@ -59,11 +59,18 @@ export type BookingFormData = {
   timeSlot: string;
   totalPrice: number;
   totalDuration: number;
+  notes?: string;
+  email?: string;
+  phone?: string;
 };
 
 export type PaymentDetails = {
   cardName?: string;
   cardNumber?: string;
   expiryDate?: string;
+  cvv?: string;
   paymentMethod: string;
+  notes?: string;
+  phone?: string;
+  email?: string;
 };

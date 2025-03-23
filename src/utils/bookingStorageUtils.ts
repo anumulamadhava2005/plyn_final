@@ -1,10 +1,11 @@
 
 // Utility functions for storing and retrieving booking data
+import { BookingFormData } from "@/types/merchant";
 
 /**
- * Saves booking data to session storage
+ * Saves booking data to session storage with type safety
  */
-export const saveBookingData = (bookingData: any): void => {
+export const saveBookingData = (bookingData: BookingFormData): void => {
   try {
     if (!bookingData) {
       console.error("Cannot save empty booking data");
@@ -13,29 +14,45 @@ export const saveBookingData = (bookingData: any): void => {
     
     // Ensure required fields exist
     if (!bookingData.salonId || !bookingData.salonName || !bookingData.date || !bookingData.timeSlot) {
-      console.error("Missing required booking data fields");
+      console.error("Missing required booking data fields", bookingData);
       return;
     }
     
-    sessionStorage.setItem('bookingData', JSON.stringify(bookingData));
-    console.log("Booking data saved to session storage:", bookingData);
+    // Convert date to string if it's a Date object
+    const processedData = {
+      ...bookingData,
+      date: bookingData.date instanceof Date 
+        ? bookingData.date.toISOString() 
+        : bookingData.date
+    };
+    
+    sessionStorage.setItem('bookingData', JSON.stringify(processedData));
+    console.log("Booking data saved to session storage:", processedData);
   } catch (error) {
     console.error("Error saving booking data to session storage:", error);
   }
 };
 
 /**
- * Retrieves booking data from session storage
+ * Retrieves booking data from session storage with type safety
  */
-export const getBookingData = (): any | null => {
+export const getBookingData = (): BookingFormData | null => {
   try {
     const storedData = sessionStorage.getItem('bookingData');
     if (!storedData) {
+      console.log("No booking data found in session storage");
       return null;
     }
     
-    const bookingData = JSON.parse(storedData);
+    const bookingData = JSON.parse(storedData) as BookingFormData;
     console.log("Retrieved booking data from session storage:", bookingData);
+    
+    // Validate essential data
+    if (!validateBookingData(bookingData)) {
+      console.error("Retrieved booking data is invalid");
+      return null;
+    }
+    
     return bookingData;
   } catch (error) {
     console.error("Error retrieving booking data from session storage:", error);
@@ -59,7 +76,10 @@ export const clearBookingData = (): void => {
  * Validates if booking data contains all required fields
  */
 export const validateBookingData = (data: any): boolean => {
-  if (!data) return false;
+  if (!data) {
+    console.error("Booking data is null or undefined");
+    return false;
+  }
   
   const requiredFields = [
     'salonId', 

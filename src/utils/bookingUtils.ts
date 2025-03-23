@@ -10,27 +10,39 @@ export const createBooking = async (bookingData: any) => {
     
     // Validate required fields
     if (!bookingData.userId || !bookingData.salonId || !bookingData.date || !bookingData.timeSlot) {
-      throw new Error("Missing required booking data fields");
+      const missingFields = [];
+      if (!bookingData.userId) missingFields.push('userId');
+      if (!bookingData.salonId) missingFields.push('salonId');
+      if (!bookingData.date) missingFields.push('date');
+      if (!bookingData.timeSlot) missingFields.push('timeSlot');
+      
+      console.error(`Missing required booking data fields: ${missingFields.join(', ')}`, bookingData);
+      throw new Error(`Missing required booking data fields: ${missingFields.join(', ')}`);
     }
+    
+    // Prepare the booking object with all necessary fields
+    const bookingObject = {
+      user_id: bookingData.userId,
+      merchant_id: bookingData.salonId,
+      salon_id: bookingData.salonId,
+      salon_name: bookingData.salonName,
+      service_name: bookingData.serviceName,
+      booking_date: bookingData.date,
+      time_slot: bookingData.timeSlot,
+      customer_email: bookingData.email,
+      customer_phone: bookingData.phone,
+      service_price: bookingData.totalPrice,
+      service_duration: bookingData.totalDuration,
+      slot_id: bookingData.slotId,
+      status: "confirmed", 
+      additional_notes: bookingData.notes || ""
+    };
+    
+    console.log("Submitting booking to database:", bookingObject);
     
     const { data: newBooking, error: bookingError } = await supabase
       .from("bookings")
-      .insert({
-        user_id: bookingData.userId,
-        merchant_id: bookingData.salonId,
-        salon_id: bookingData.salonId,
-        salon_name: bookingData.salonName,
-        service_name: bookingData.serviceName,
-        booking_date: bookingData.date,
-        time_slot: bookingData.timeSlot,
-        customer_email: bookingData.email,
-        customer_phone: bookingData.phone,
-        service_price: bookingData.totalPrice,
-        service_duration: bookingData.totalDuration,
-        slot_id: bookingData.slotId,
-        status: "confirmed", 
-        additional_notes: bookingData.notes || ""
-      })
+      .insert(bookingObject)
       .select()
       .single();
 
@@ -54,20 +66,31 @@ export const createPayment = async (paymentData: any) => {
     
     // Validate required fields
     if (!paymentData.bookingId || !paymentData.userId || !paymentData.amount) {
-      throw new Error("Missing required payment data fields");
+      const missingFields = [];
+      if (!paymentData.bookingId) missingFields.push('bookingId');
+      if (!paymentData.userId) missingFields.push('userId');
+      if (!paymentData.amount) missingFields.push('amount');
+      
+      console.error(`Missing required payment data fields: ${missingFields.join(', ')}`, paymentData);
+      throw new Error(`Missing required payment data fields: ${missingFields.join(', ')}`);
     }
+    
+    // Prepare the payment object
+    const paymentObject = {
+      booking_id: paymentData.bookingId,
+      user_id: paymentData.userId,
+      amount: paymentData.amount,
+      payment_method: paymentData.paymentMethod,
+      payment_status: "completed", // Always mark as completed
+      transaction_id: paymentData.transactionId || `INSTANT-${Math.floor(Math.random() * 1000000)}`
+    };
+    
+    console.log("Submitting payment to database:", paymentObject);
     
     // Create a successful payment immediately
     const { data: newPayment, error: paymentError } = await supabase
       .from("payments")
-      .insert({
-        booking_id: paymentData.bookingId,
-        user_id: paymentData.userId,
-        amount: paymentData.amount,
-        payment_method: paymentData.paymentMethod,
-        payment_status: "completed", // Always mark as completed
-        transaction_id: `INSTANT-${Math.floor(Math.random() * 1000000)}`
-      })
+      .insert(paymentObject)
       .select()
       .single();
 
@@ -77,6 +100,7 @@ export const createPayment = async (paymentData: any) => {
     }
 
     // Update the booking with the payment ID
+    console.log("Updating booking with payment ID:", newPayment.id);
     const { error: updateError } = await supabase
       .from("bookings")
       .update({ payment_id: newPayment.id })
@@ -101,8 +125,17 @@ export const checkSlotAvailability = async (salonId: string, date: string, timeS
     console.log(`Checking slot availability for salon ${salonId} on ${date} at ${timeSlot}`);
     
     if (!salonId || !date || !timeSlot) {
-      throw new Error("Missing required slot data fields");
+      const missingParams = [];
+      if (!salonId) missingParams.push('salonId');
+      if (!date) missingParams.push('date');
+      if (!timeSlot) missingParams.push('timeSlot');
+      
+      const errorMsg = `Missing required slot data fields: ${missingParams.join(', ')}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
+    
+    console.log("Querying database for slot availability with params:", { merchant_id: salonId, date, start_time: timeSlot, is_booked: false });
     
     // Begin transaction
     const { data, error } = await supabase
@@ -145,10 +178,13 @@ export const bookSlot = async (slotId: string) => {
     console.log(`Booking slot with ID: ${slotId}`);
     
     if (!slotId) {
-      throw new Error("Missing required slot ID");
+      const errorMsg = "Missing required slot ID";
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
     
     // First check if slot is still available
+    console.log("Verifying slot is still available before booking");
     const { data: checkData, error: checkError } = await supabase
       .from("slots")
       .select("*")
@@ -167,6 +203,7 @@ export const bookSlot = async (slotId: string) => {
     }
 
     // If we got here, slot is available, so mark it as booked with optimistic locking
+    console.log("Slot verified as available, now marking as booked");
     const { data, error } = await supabase
       .from("slots")
       .update({ is_booked: true })

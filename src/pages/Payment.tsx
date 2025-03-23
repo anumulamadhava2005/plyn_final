@@ -20,6 +20,8 @@ import { showBookingSuccessNotification } from '@/components/booking/BookingSucc
 import BookingSummary from '@/components/payment/BookingSummary';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
+import { getBookingData, saveBookingData } from '@/utils/bookingStorageUtils';
+import { BookingFormData } from '@/types/merchant';
 
 const Payment = () => {
   const location = useLocation();
@@ -28,7 +30,7 @@ const Payment = () => {
   const { user, userProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [bookingData, setBookingData] = useState<any>(null);
+  const [bookingData, setBookingData] = useState<BookingFormData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
@@ -49,49 +51,45 @@ const Payment = () => {
   useEffect(() => {
     console.log("Payment page - Location state:", location.state);
     
-    if (!location.state && sessionStorage.getItem('bookingData')) {
-      try {
-        // Attempt to retrieve booking data from session storage if not in location state
-        const storedData = JSON.parse(sessionStorage.getItem('bookingData') || '');
-        console.log("Retrieved booking data from session storage:", storedData);
-        
-        if (storedData && storedData.salonId && storedData.services) {
-          setBookingData(storedData);
-        } else {
-          console.error("Invalid booking data in session storage");
-          toast({
-            title: "Error",
-            description: "Invalid booking data. Please try again.",
-            variant: "destructive",
-          });
-          navigate('/book-now');
-          return;
-        }
-      } catch (error) {
-        console.error("Error parsing booking data from session storage:", error);
-        navigate('/book-now');
-        return;
-      }
-    } else if (location.state) {
+    // First try to get data from location state
+    if (location.state && location.state.salonId && location.state.services) {
       console.log("Using booking data from location state");
       setBookingData(location.state);
       
       // Also store in session storage as backup
       try {
-        sessionStorage.setItem('bookingData', JSON.stringify(location.state));
+        saveBookingData(location.state);
       } catch (error) {
         console.error("Error storing booking data in session storage:", error);
       }
-    } else {
-      console.log("No booking data found in location state or session storage");
-      toast({
-        title: "Missing booking information",
-        description: "Please select a salon and services before proceeding to payment.",
-        variant: "destructive",
-      });
-      navigate('/book-now');
+      
+      setIsLoading(false);
       return;
     }
+    
+    // If not in location state, try session storage
+    console.log("Attempting to retrieve booking data from session storage");
+    const storedData = getBookingData();
+    
+    if (storedData) {
+      console.log("Retrieved valid booking data from session storage:", storedData);
+      setBookingData(storedData);
+      setIsLoading(false);
+      return;
+    }
+    
+    // If we get here, no valid booking data was found
+    console.log("No valid booking data found in location state or session storage");
+    toast({
+      title: "Missing booking information",
+      description: "Please select a salon and services before proceeding to payment.",
+      variant: "destructive",
+    });
+    
+    // Allow a slight delay before navigation to ensure the toast is shown
+    setTimeout(() => {
+      navigate('/book-now');
+    }, 500);
     
     setIsLoading(false);
   }, [location.state, navigate, toast]);
@@ -128,9 +126,20 @@ const Payment = () => {
         return;
       }
       
+      // Convert date to ISO string format for API calls
+      const bookingDate = bookingData.date instanceof Date 
+        ? bookingData.date.toISOString().split('T')[0]
+        : new Date(bookingData.date).toISOString().split('T')[0];
+        
+      console.log("Checking slot availability for:", {
+        salonId: bookingData.salonId,
+        date: bookingDate,
+        timeSlot: bookingData.timeSlot
+      });
+      
       const slotCheck = await checkSlotAvailability(
         bookingData.salonId,
-        new Date(bookingData.date).toISOString().split('T')[0],
+        bookingDate,
         bookingData.timeSlot
       );
       
@@ -140,12 +149,14 @@ const Payment = () => {
         return;
       }
       
+      console.log("Slot is available, proceeding with booking creation. Slot ID:", slotCheck.slotId);
+      
       const newBooking = await createBooking({
         userId: user.id,
         salonId: bookingData.salonId,
         salonName: bookingData.salonName,
         serviceName: bookingData.services.map((s: any) => s.name).join(", "),
-        date: new Date(bookingData.date).toISOString().split('T')[0],
+        date: bookingDate,
         timeSlot: bookingData.timeSlot,
         email: values.email,
         phone: values.phone,
@@ -169,6 +180,7 @@ const Payment = () => {
       console.log("Payment created:", payment);
       
       await bookSlot(slotCheck.slotId);
+      console.log("Slot booked successfully");
       
       toast({
         title: "Booking Successful!",
