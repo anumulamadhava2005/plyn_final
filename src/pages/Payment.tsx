@@ -12,15 +12,14 @@ import {
   createBooking, 
   createPayment, 
   checkSlotAvailability, 
-  bookSlot, 
-  initializeDatabase 
+  bookSlot
 } from '@/utils/bookingUtils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 import BookingSummary from '@/components/payment/BookingSummary';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { getBookingData, saveBookingData } from '@/utils/bookingStorageUtils';
+import { getBookingData, saveBookingData, clearBookingData } from '@/utils/bookingStorageUtils';
 import { BookingFormData } from '@/types/merchant';
 
 const Payment = () => {
@@ -34,21 +33,7 @@ const Payment = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    const initDb = async () => {
-      if (process.env.NODE_ENV === 'development') {
-        try {
-          const result = await initializeDatabase();
-          console.log('Database initialization result:', result);
-        } catch (error) {
-          console.error('Failed to initialize database:', error);
-        }
-      }
-    };
-    
-    initDb();
-  }, []);
-  
-  useEffect(() => {
+    console.log("Payment page - Initializing");
     console.log("Payment page - Location state:", location.state);
     
     // First try to get data from location state
@@ -79,7 +64,7 @@ const Payment = () => {
     }
     
     // If we get here, no valid booking data was found
-    console.log("No valid booking data found in location state or session storage");
+    console.error("No valid booking data found in location state or session storage");
     toast({
       title: "Missing booking information",
       description: "Please select a salon and services before proceeding to payment.",
@@ -91,7 +76,6 @@ const Payment = () => {
       navigate('/book-now');
     }, 500);
     
-    setIsLoading(false);
   }, [location.state, navigate, toast]);
   
   const defaultValues = {
@@ -99,7 +83,7 @@ const Payment = () => {
     cardNumber: "",
     expiryDate: "",
     cvv: "",
-    phone: userProfile?.phoneNumber || "",
+    phone: userProfile?.phoneNumber || userProfile?.phone_number || "",
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
@@ -110,7 +94,10 @@ const Payment = () => {
       setIsSubmitting(true);
       setPaymentError(null);
       
+      console.log("Processing payment with values:", values);
+      
       if (!user) {
+        console.error("User is not authenticated");
         toast({
           title: "Authentication Required",
           description: "Please sign in to book an appointment.",
@@ -121,6 +108,7 @@ const Payment = () => {
       }
       
       if (!bookingData || !bookingData.salonId || !bookingData.timeSlot) {
+        console.error("Invalid booking data:", bookingData);
         setPaymentError("Invalid booking data. Please try again.");
         setIsSubmitting(false);
         return;
@@ -137,13 +125,17 @@ const Payment = () => {
         timeSlot: bookingData.timeSlot
       });
       
+      // Check if the slot is available
       const slotCheck = await checkSlotAvailability(
         bookingData.salonId,
         bookingDate,
         bookingData.timeSlot
       );
       
+      console.log("Slot availability check result:", slotCheck);
+      
       if (!slotCheck.available) {
+        console.error("Slot is not available");
         setPaymentError("Sorry, this time slot is no longer available. Please select another time.");
         setIsSubmitting(false);
         return;
@@ -151,11 +143,12 @@ const Payment = () => {
       
       console.log("Slot is available, proceeding with booking creation. Slot ID:", slotCheck.slotId);
       
+      // Create the booking
       const newBooking = await createBooking({
         userId: user.id,
         salonId: bookingData.salonId,
         salonName: bookingData.salonName,
-        serviceName: bookingData.services.map((s: any) => s.name).join(", "),
+        serviceName: bookingData.services.map((s) => s.name).join(", "),
         date: bookingDate,
         timeSlot: bookingData.timeSlot,
         email: values.email,
@@ -168,6 +161,7 @@ const Payment = () => {
       
       console.log("Booking created:", newBooking);
       
+      // Create the payment
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
@@ -179,14 +173,17 @@ const Payment = () => {
       
       console.log("Payment created:", payment);
       
+      // Book the slot
       await bookSlot(slotCheck.slotId);
       console.log("Slot booked successfully");
       
+      // Show success toast
       toast({
         title: "Booking Successful!",
         description: "Your appointment has been confirmed.",
       });
       
+      // Show booking success notification
       showBookingSuccessNotification({
         ...bookingData,
         date: new Date(bookingData.date),
@@ -194,8 +191,9 @@ const Payment = () => {
       });
       
       // Clear the session storage after successful booking
-      sessionStorage.removeItem('bookingData');
+      clearBookingData();
       
+      // Navigate to booking confirmation page
       navigate('/booking-confirmation', { 
         state: {
           ...bookingData,

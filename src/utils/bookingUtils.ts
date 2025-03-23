@@ -135,7 +135,12 @@ export const checkSlotAvailability = async (salonId: string, date: string, timeS
       throw new Error(errorMsg);
     }
     
-    console.log("Querying database for slot availability with params:", { merchant_id: salonId, date, start_time: timeSlot, is_booked: false });
+    console.log("Querying database for slot availability with params:", { 
+      merchant_id: salonId,
+      date, 
+      start_time: timeSlot, 
+      is_booked: false 
+    });
     
     // Begin transaction
     const { data, error } = await supabase

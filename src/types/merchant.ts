@@ -62,6 +62,7 @@ export type BookingFormData = {
   notes?: string;
   email?: string;
   phone?: string;
+  slotId?: string;
 };
 
 export type PaymentDetails = {

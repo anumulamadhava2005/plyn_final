@@ -92,7 +92,7 @@ export const validateBookingData = (data: any): boolean => {
   ];
   
   for (const field of requiredFields) {
-    if (!data[field]) {
+    if (data[field] === undefined || data[field] === null) {
       console.error(`Booking data missing required field: ${field}`);
       return false;
     }
