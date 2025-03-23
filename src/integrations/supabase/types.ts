@@ -13,6 +13,8 @@ export type Database = {
         Row: {
           additional_notes: string | null
           booking_date: string | null
+          coins_earned: number
+          coins_used: number
           created_at: string
           customer_email: string | null
           customer_phone: string | null
@@ -33,6 +35,8 @@ export type Database = {
         Insert: {
           additional_notes?: string | null
           booking_date?: string | null
+          coins_earned?: number
+          coins_used?: number
           created_at?: string
           customer_email?: string | null
           customer_phone?: string | null
@@ -53,6 +57,8 @@ export type Database = {
         Update: {
           additional_notes?: string | null
           booking_date?: string | null
+          coins_earned?: number
+          coins_used?: number
           created_at?: string
           customer_email?: string | null
           customer_phone?: string | null
@@ -141,6 +147,8 @@ export type Database = {
         Row: {
           amount: number
           booking_id: string | null
+          coins_earned: number
+          coins_used: number
           created_at: string | null
           id: string
           payment_method: string
@@ -152,6 +160,8 @@ export type Database = {
         Insert: {
           amount: number
           booking_id?: string | null
+          coins_earned?: number
+          coins_used?: number
           created_at?: string | null
           id?: string
           payment_method: string
@@ -163,6 +173,8 @@ export type Database = {
         Update: {
           amount?: number
           booking_id?: string | null
+          coins_earned?: number
+          coins_used?: number
           created_at?: string | null
           id?: string
           payment_method?: string
