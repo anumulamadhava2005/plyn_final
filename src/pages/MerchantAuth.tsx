@@ -17,12 +17,13 @@ const MerchantAuth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // If user is already logged in as a merchant, immediately redirect to merchant dashboard
+    // Check on mount and when auth state changes
     if (user && isMerchant) {
-      navigate('/merchant-dashboard');
+      console.log("User is authenticated as merchant, redirecting to dashboard");
+      navigate('/merchant-dashboard', { replace: true });
     } else if (user && !isMerchant) {
-      // If user is logged in but not a merchant, redirect to home
-      navigate('/');
+      console.log("User is authenticated but not a merchant, redirecting to home");
+      navigate('/', { replace: true });
     }
   }, [user, isMerchant, navigate]);
 

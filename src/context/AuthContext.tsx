@@ -165,9 +165,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Sign in successful, checking merchant status:", data.user?.id);
       
+      // Immediately set the user and session to avoid race conditions
+      setUser(data.user);
+      setSession(data.session);
+      
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('is_merchant')
+        .select('is_merchant, username, phone_number, age, gender')
         .eq('id', data.user?.id)
         .single();
         
@@ -182,6 +186,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.auth.signOut();
         throw new Error("This account is not registered as a merchant. Please contact support if you believe this is an error.");
       }
+      
+      // Immediately set user profile and merchant status
+      setUserProfile({
+        username: profileData.username,
+        phoneNumber: profileData.phone_number,
+        age: profileData.age,
+        gender: profileData.gender,
+        isMerchant: true
+      });
+      setIsMerchant(true);
+      
+      console.log("Successfully set merchant status:", true);
       
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
@@ -198,8 +214,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "You've successfully signed in to your merchant account.",
       });
       
-      // Successfully authenticated as merchant
-      setIsMerchant(true);
       return data;
       
     } catch (error: any) {

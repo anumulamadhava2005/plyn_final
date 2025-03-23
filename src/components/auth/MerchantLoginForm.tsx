@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 
 const merchantLoginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -23,6 +24,7 @@ const MerchantLoginForm = () => {
   const [error, setError] = useState<string | null>(null);
   const { merchantLogin } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const form = useForm<MerchantLoginFormValues>({
     resolver: zodResolver(merchantLoginSchema),
@@ -38,8 +40,16 @@ const MerchantLoginForm = () => {
     
     try {
       await merchantLogin(values.email, values.password);
-      // Immediately redirect to merchant dashboard after successful login
-      navigate('/merchant-dashboard');
+      console.log("Merchant login successful, navigating to dashboard");
+      
+      // Force immediate navigation to merchant dashboard
+      navigate('/merchant-dashboard', { replace: true });
+      
+      // Additional confirmation toast
+      toast({
+        title: "Login Successful",
+        description: "Redirecting to your merchant dashboard...",
+      });
     } catch (error: any) {
       console.error('Merchant login error:', error);
       setError(error.message || 'Login failed. Please check your credentials and try again.');
