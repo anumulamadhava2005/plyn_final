@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider } from "./context/AuthContext";
-import Navbar from "./components/layout/Navbar";
 
 // Pages
 import Index from "./pages/Index";
@@ -25,6 +24,7 @@ import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 import MyBookings from "./pages/MyBookings";
 import HairRecommendation from "./pages/HairRecommendation";
+import Navbar from "./components/layout/Navbar";
 
 const queryClient = new QueryClient();
 
