@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -19,6 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 import BookingSummary from '@/components/payment/BookingSummary';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
 
 const Payment = () => {
   const location = useLocation();
@@ -30,10 +30,8 @@ const Payment = () => {
   const [bookingData, setBookingData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Initialize the database with default data on component mount
   useEffect(() => {
     const initDb = async () => {
-      // Only seed data if we're in development mode
       if (process.env.NODE_ENV === 'development') {
         try {
           const result = await initializeDatabase();
@@ -47,7 +45,6 @@ const Payment = () => {
     initDb();
   }, []);
   
-  // Get booking data from location state
   useEffect(() => {
     console.log("Location state:", location.state);
     if (location.state) {
@@ -59,13 +56,12 @@ const Payment = () => {
     setIsLoading(false);
   }, [location.state, navigate]);
   
-  // Default form values
   const defaultValues = {
     cardName: "",
     cardNumber: "",
     expiryDate: "",
     cvv: "",
-    phone: userProfile?.phoneNumber || "", // Fixed: removed reference to phone_number
+    phone: userProfile?.phoneNumber || "",
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
@@ -86,7 +82,6 @@ const Payment = () => {
         return;
       }
       
-      // Check if slot is still available
       const slotCheck = await checkSlotAvailability(
         bookingData.salonId,
         new Date(bookingData.date).toISOString().split('T')[0],
@@ -99,7 +94,6 @@ const Payment = () => {
         return;
       }
       
-      // Create a booking record in the database - SIMPLIFIED, always succeeds
       const newBooking = await createBooking({
         userId: user.id,
         salonId: bookingData.salonId,
@@ -115,33 +109,28 @@ const Payment = () => {
         notes: values.notes
       });
       
-      // Auto-complete payment (always succeeds)
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
         amount: bookingData.totalPrice,
         paymentMethod: values.paymentMethod,
-        paymentStatus: "completed", // Always completed
+        paymentStatus: "completed",
         transactionId: `AUTO-${Math.floor(Math.random() * 1000000)}`
       });
       
-      // Mark the slot as booked
       await bookSlot(slotCheck.slotId);
       
-      // Show success toast immediately
       toast({
         title: "Booking Successful!",
         description: "Your appointment has been confirmed.",
       });
       
-      // Show booking success notification
       showBookingSuccessNotification({
         ...bookingData,
         date: new Date(bookingData.date),
         timeSlot: bookingData.timeSlot
       });
       
-      // Navigate to confirmation page immediately
       navigate('/booking-confirmation', { 
         state: {
           ...bookingData,
@@ -230,7 +219,6 @@ const Payment = () => {
               )}
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Booking Summary */}
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -246,7 +234,6 @@ const Payment = () => {
                   />
                 </motion.div>
                 
-                {/* Payment Form */}
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
