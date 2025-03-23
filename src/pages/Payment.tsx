@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -35,13 +34,10 @@ const Payment = () => {
   const [useCoins, setUseCoins] = useState(false);
   const [coinsToUse, setCoinsToUse] = useState(0);
   
-  // Get booking data from location state
   const bookingData = location.state;
   
-  // Initialize the database with default data on component mount
   useEffect(() => {
     const initDb = async () => {
-      // Only seed data if we're in development mode
       if (process.env.NODE_ENV === 'development') {
         try {
           const result = await initializeDatabase();
@@ -55,7 +51,6 @@ const Payment = () => {
     initDb();
   }, []);
 
-  // Fetch user coins when the component mounts
   useEffect(() => {
     const fetchUserCoins = async () => {
       if (user) {
@@ -72,23 +67,18 @@ const Payment = () => {
     fetchUserCoins();
   }, [user]);
 
-  // Calculate max coins that can be used for this payment
   useEffect(() => {
     if (bookingData && userCoins > 0) {
-      // User can use up to their total coins, but not more than the price of the service in coin value
-      // 1$ = 2 PLYN coins, so totalPrice * 2 is the maximum coin value
       const maxCoinsForPayment = Math.min(userCoins, bookingData.totalPrice * 2);
       setCoinsToUse(useCoins ? maxCoinsForPayment : 0);
     }
   }, [useCoins, userCoins, bookingData]);
   
-  // If no booking data, redirect to book now page
   if (!bookingData) {
     navigate('/book-now');
     return null;
   }
   
-  // Default form values
   const defaultValues = {
     cardName: "",
     cardNumber: "",
@@ -100,19 +90,16 @@ const Payment = () => {
     notes: "",
   };
 
-  // Calculate the amount to pay after using coins
   const getAmountAfterCoins = () => {
     if (!useCoins || coinsToUse <= 0) return bookingData.totalPrice;
     
-    // 2 coins = $1, so coinsToUse / 2 is the dollar value of coins
     const coinValueInDollars = coinsToUse / 2;
     return Math.max(0, bookingData.totalPrice - coinValueInDollars);
   };
 
-  // Calculate coins to be earned (10% of the payment amount)
   const getCoinsToEarn = () => {
     const paymentAmount = getAmountAfterCoins();
-    return Math.round(paymentAmount * 0.1 * 2); // 10% of payment in dollars, convert to coins (1$ = 2 coins)
+    return Math.round(paymentAmount / 10);
   };
   
   const handlePayment = async (values: PaymentFormValues) => {
@@ -130,7 +117,6 @@ const Payment = () => {
         return;
       }
       
-      // Check if slot is still available
       const slotCheck = await checkSlotAvailability(
         bookingData.salonId,
         new Date(bookingData.date).toISOString().split('T')[0],
@@ -143,11 +129,9 @@ const Payment = () => {
         return;
       }
 
-      // Calculate final payment amount after using coins
       const finalPaymentAmount = getAmountAfterCoins();
       const coinsEarned = getCoinsToEarn();
       
-      // Create a booking record in the database
       const newBooking = await createBooking({
         userId: user.id,
         salonId: bookingData.salonId,
@@ -165,38 +149,32 @@ const Payment = () => {
         coinsEarned: coinsEarned
       });
       
-      // Process payment (in development, this will always succeed)
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
         amount: finalPaymentAmount,
         paymentMethod: values.paymentMethod,
-        paymentStatus: "completed", // Always completed for development
+        paymentStatus: "completed",
         transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`,
         coinsUsed: useCoins ? coinsToUse : 0,
         coinsEarned: coinsEarned
       });
       
-      // Mark the slot as booked
       await bookSlot(slotCheck.slotId);
 
-      // Update user coins: subtract used coins and add earned coins
       const newCoinsBalance = await updateUserCoins(user.id, coinsEarned, useCoins ? coinsToUse : 0);
       
-      // Show success toast
       toast({
         title: "Payment Successful",
         description: `Your appointment has been booked! ${coinsEarned > 0 ? `You earned ${coinsEarned} PLYN coins!` : ''}`,
       });
       
-      // Show booking success notification
       showBookingSuccessNotification({
         ...bookingData,
         date: new Date(bookingData.date),
         timeSlot: bookingData.timeSlot
       });
       
-      // Navigate to confirmation page
       navigate('/booking-confirmation', { 
         state: {
           ...bookingData,
@@ -225,7 +203,6 @@ const Payment = () => {
     }
   };
 
-  // Toggle using coins for payment
   const handleToggleCoins = (checked: boolean) => {
     setUseCoins(checked);
   };
@@ -256,7 +233,6 @@ const Payment = () => {
               )}
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Booking Summary */}
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -271,7 +247,6 @@ const Payment = () => {
                     totalPrice={bookingData.totalPrice}
                   />
 
-                  {/* PLYN Coins Section */}
                   <div className="mt-6 bg-primary/5 rounded-lg p-4 border border-primary/20">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center">
@@ -324,14 +299,13 @@ const Payment = () => {
                       </p>
                       
                       <p className="flex justify-between text-primary mt-2">
-                        <span>Coins you'll earn (10%):</span>
+                        <span>Coins you'll earn:</span>
                         <span>+{getCoinsToEarn()} coins</span>
                       </p>
                     </div>
                   </div>
                 </motion.div>
                 
-                {/* Payment Form */}
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}

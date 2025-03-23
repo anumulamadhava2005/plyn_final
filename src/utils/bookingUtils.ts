@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
@@ -85,8 +84,7 @@ export const getUserCoins = async (userId: string) => {
 
     if (error) throw error;
     
-    // Since we've added the coins column, we can safely access it
-    // TypeScript now recognizes 'coins' as a valid property
+    // Handle the coins property safely
     return data?.coins || 0;
   } catch (error) {
     console.error("Error fetching user coins:", error);
@@ -111,7 +109,7 @@ export const updateUserCoins = async (userId: string, coinsEarned: number, coins
     const newCoinsBalance = currentCoins + coinsEarned - coinsUsed;
     
     // Update the user's coin balance
-    // Use the explicit cast to any to bypass TypeScript's type checking for the update
+    // Use type assertion to bypass TypeScript's type checking
     const { data, error: updateError } = await supabase
       .from("profiles")
       .update({ coins: newCoinsBalance } as any)
