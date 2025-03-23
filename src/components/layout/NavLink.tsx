@@ -21,6 +21,13 @@ const NavLink: React.FC<NavLinkProps> = ({
   const location = useLocation();
   const isActive = location.pathname === to;
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (onClick) {
+      onClick();
+    }
+    // We don't need to preventDefault here as we want the Link component to handle navigation
+  };
+
   return (
     <Link
       to={to}
@@ -29,7 +36,7 @@ const NavLink: React.FC<NavLinkProps> = ({
         className,
         isActive && activeClassName
       )}
-      onClick={onClick}
+      onClick={handleClick}
     >
       {children}
     </Link>

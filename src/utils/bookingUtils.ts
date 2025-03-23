@@ -22,7 +22,9 @@ export const createBooking = async (bookingData: any) => {
         service_duration: bookingData.totalDuration,
         slot_id: bookingData.slotId,
         status: "upcoming",
-        additional_notes: bookingData.notes || ""
+        additional_notes: bookingData.notes || "",
+        coins_used: bookingData.coinsUsed || 0,
+        coins_earned: bookingData.coinsEarned || 0
       })
       .select()
       .single();
@@ -48,7 +50,9 @@ export const createPayment = async (paymentData: any) => {
         amount: paymentData.amount,
         payment_method: paymentData.paymentMethod,
         payment_status: "completed", // Always completed for development
-        transaction_id: `DEV-${Math.floor(Math.random() * 1000000)}`
+        transaction_id: `DEV-${Math.floor(Math.random() * 1000000)}`,
+        coins_used: paymentData.coinsUsed || 0,
+        coins_earned: paymentData.coinsEarned || 0
       })
       .select()
       .single();
@@ -66,6 +70,56 @@ export const createPayment = async (paymentData: any) => {
     return newPayment;
   } catch (error) {
     console.error("Error processing payment:", error);
+    throw error;
+  }
+};
+
+// Function to get user's PLYN coins
+export const getUserCoins = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("coins")
+      .eq("id", userId)
+      .single();
+
+    if (error) throw error;
+    
+    return data?.coins || 0;
+  } catch (error) {
+    console.error("Error fetching user coins:", error);
+    return 0; // Default to 0 coins if there's an error
+  }
+};
+
+// Function to update user's PLYN coins
+export const updateUserCoins = async (userId: string, coinsEarned: number, coinsUsed: number) => {
+  try {
+    // First get current coin balance
+    const { data: userData, error: fetchError } = await supabase
+      .from("profiles")
+      .select("coins")
+      .eq("id", userId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    
+    const currentCoins = userData?.coins || 0;
+    const newCoinsBalance = currentCoins + coinsEarned - coinsUsed;
+    
+    // Update the user's coin balance
+    const { data, error: updateError } = await supabase
+      .from("profiles")
+      .update({ coins: newCoinsBalance })
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+    
+    return newCoinsBalance;
+  } catch (error) {
+    console.error("Error updating user coins:", error);
     throw error;
   }
 };

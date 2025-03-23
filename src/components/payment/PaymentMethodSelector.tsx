@@ -2,7 +2,7 @@
 import React from 'react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CreditCard, Smartphone, Building, ArrowDownToLine, QrCode, Settings } from 'lucide-react';
+import { CreditCard, Smartphone, Building, ArrowDownToLine, QrCode, Settings, Coins } from 'lucide-react';
 
 interface PaymentMethodSelectorProps {
   selectedMethod: string;
@@ -15,6 +15,12 @@ const paymentMethods = [
     name: 'Credit/Debit Card',
     icon: <CreditCard className="h-5 w-5" />,
     description: 'Pay securely with your credit or debit card'
+  },
+  {
+    id: 'plyn_coins',
+    name: 'PLYN Coins',
+    icon: <Coins className="h-5 w-5 text-primary" />,
+    description: 'Pay using your PLYN Coins (2 coins = $1)'
   },
   {
     id: 'phonepe',

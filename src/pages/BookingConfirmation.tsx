@@ -10,7 +10,8 @@ import {
   CreditCard, 
   Printer,
   Download,
-  Home
+  Home,
+  Coins
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
@@ -170,6 +171,34 @@ const BookingConfirmation = () => {
                   
                   <hr className="border-border" />
                   
+                  {/* PLYN Coins Section */}
+                  {(bookingData.coinsUsed > 0 || bookingData.coinsEarned > 0) && (
+                    <>
+                      <div>
+                        <h3 className="font-medium mb-3 flex items-center">
+                          <Coins className="h-4 w-4 mr-2 text-primary" />
+                          PLYN Coins
+                        </h3>
+                        <div className="space-y-2 text-sm">
+                          {bookingData.coinsUsed > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span>Coins Used:</span>
+                              <span className="font-medium text-green-600">-{bookingData.coinsUsed} coins (${(bookingData.coinsUsed / 2).toFixed(2)})</span>
+                            </div>
+                          )}
+                          
+                          {bookingData.coinsEarned > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span>Coins Earned:</span>
+                              <span className="font-medium text-primary">+{bookingData.coinsEarned} coins</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <hr className="border-border" />
+                    </>
+                  )}
+                  
                   <div className="flex justify-between items-center">
                     <div>
                       <h3 className="font-medium">Payment</h3>
@@ -180,7 +209,9 @@ const BookingConfirmation = () => {
                         }
                       </p>
                     </div>
-                    <div className="text-xl font-bold">${bookingData.totalPrice}</div>
+                    <div className="text-xl font-bold">
+                      ${bookingData.finalPrice !== undefined ? bookingData.finalPrice.toFixed(2) : bookingData.totalPrice}
+                    </div>
                   </div>
                 </div>
               </motion.div>

@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/layout/Navbar';
@@ -7,13 +7,15 @@ import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight, Store } from 'lucide-react';
+import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight, Store, Coins } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { getUserCoins } from '@/utils/bookingUtils';
 
 const Profile = () => {
   const { user, userProfile, signOut, isMerchant } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [userCoins, setUserCoins] = useState(0);
 
   useEffect(() => {
     // Redirect to auth page if not logged in
@@ -21,6 +23,22 @@ const Profile = () => {
       navigate('/auth');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    // Fetch user coins
+    const fetchCoins = async () => {
+      if (user) {
+        try {
+          const coins = await getUserCoins(user.id);
+          setUserCoins(coins);
+        } catch (error) {
+          console.error('Error fetching user coins:', error);
+        }
+      }
+    };
+    
+    fetchCoins();
+  }, [user]);
 
   const handleSignOut = async () => {
     try {
@@ -64,12 +82,21 @@ const Profile = () => {
                     </span>
                   )}
                 </CardHeader>
-                <CardContent className="flex flex-col items-center">
+                <CardContent className="flex flex-col items-center space-y-4">
+                  {/* PLYN Coins Balance */}
+                  <div className="w-full bg-primary/10 rounded-lg p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Coins className="h-5 w-5 text-primary" />
+                      <span className="font-medium">PLYN Coins</span>
+                    </div>
+                    <span className="text-lg font-bold">{userCoins}</span>
+                  </div>
+                  
                   {isMerchant && (
                     <Link to="/merchant-dashboard" className="w-full">
                       <AnimatedButton 
                         variant="default" 
-                        className="w-full mb-4"
+                        className="w-full"
                         icon={<Briefcase className="w-4 h-4" />}
                       >
                         Merchant Dashboard

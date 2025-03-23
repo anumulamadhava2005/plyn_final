@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Coins } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -13,12 +13,16 @@ import {
   createPayment, 
   checkSlotAvailability, 
   bookSlot, 
-  initializeDatabase 
+  initializeDatabase,
+  updateUserCoins,
+  getUserCoins
 } from '@/utils/bookingUtils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 import BookingSummary from '@/components/payment/BookingSummary';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 const Payment = () => {
   const location = useLocation();
@@ -27,6 +31,9 @@ const Payment = () => {
   const { user, userProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [userCoins, setUserCoins] = useState(0);
+  const [useCoins, setUseCoins] = useState(false);
+  const [coinsToUse, setCoinsToUse] = useState(0);
   
   // Get booking data from location state
   const bookingData = location.state;
@@ -47,6 +54,33 @@ const Payment = () => {
     
     initDb();
   }, []);
+
+  // Fetch user coins when the component mounts
+  useEffect(() => {
+    const fetchUserCoins = async () => {
+      if (user) {
+        try {
+          const coins = await getUserCoins(user.id);
+          setUserCoins(coins);
+          console.log('User coins:', coins);
+        } catch (error) {
+          console.error('Failed to fetch user coins:', error);
+        }
+      }
+    };
+
+    fetchUserCoins();
+  }, [user]);
+
+  // Calculate max coins that can be used for this payment
+  useEffect(() => {
+    if (bookingData && userCoins > 0) {
+      // User can use up to their total coins, but not more than the price of the service in coin value
+      // 1$ = 2 PLYN coins, so totalPrice * 2 is the maximum coin value
+      const maxCoinsForPayment = Math.min(userCoins, bookingData.totalPrice * 2);
+      setCoinsToUse(useCoins ? maxCoinsForPayment : 0);
+    }
+  }, [useCoins, userCoins, bookingData]);
   
   // If no booking data, redirect to book now page
   if (!bookingData) {
@@ -64,6 +98,21 @@ const Payment = () => {
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
+  };
+
+  // Calculate the amount to pay after using coins
+  const getAmountAfterCoins = () => {
+    if (!useCoins || coinsToUse <= 0) return bookingData.totalPrice;
+    
+    // 2 coins = $1, so coinsToUse / 2 is the dollar value of coins
+    const coinValueInDollars = coinsToUse / 2;
+    return Math.max(0, bookingData.totalPrice - coinValueInDollars);
+  };
+
+  // Calculate coins to be earned (10% of the payment amount)
+  const getCoinsToEarn = () => {
+    const paymentAmount = getAmountAfterCoins();
+    return Math.round(paymentAmount * 0.1 * 2); // 10% of payment in dollars, convert to coins (1$ = 2 coins)
   };
   
   const handlePayment = async (values: PaymentFormValues) => {
@@ -93,6 +142,10 @@ const Payment = () => {
         setIsSubmitting(false);
         return;
       }
+
+      // Calculate final payment amount after using coins
+      const finalPaymentAmount = getAmountAfterCoins();
+      const coinsEarned = getCoinsToEarn();
       
       // Create a booking record in the database
       const newBooking = await createBooking({
@@ -104,29 +157,36 @@ const Payment = () => {
         timeSlot: bookingData.timeSlot,
         email: values.email,
         phone: values.phone,
-        totalPrice: bookingData.totalPrice,
+        totalPrice: finalPaymentAmount,
         totalDuration: bookingData.totalDuration,
         slotId: slotCheck.slotId,
-        notes: values.notes
+        notes: values.notes,
+        coinsUsed: useCoins ? coinsToUse : 0,
+        coinsEarned: coinsEarned
       });
       
       // Process payment (in development, this will always succeed)
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
-        amount: bookingData.totalPrice,
+        amount: finalPaymentAmount,
         paymentMethod: values.paymentMethod,
         paymentStatus: "completed", // Always completed for development
-        transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`
+        transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`,
+        coinsUsed: useCoins ? coinsToUse : 0,
+        coinsEarned: coinsEarned
       });
       
       // Mark the slot as booked
       await bookSlot(slotCheck.slotId);
+
+      // Update user coins: subtract used coins and add earned coins
+      const newCoinsBalance = await updateUserCoins(user.id, coinsEarned, useCoins ? coinsToUse : 0);
       
       // Show success toast
       toast({
         title: "Payment Successful",
-        description: "Your appointment has been booked!",
+        description: `Your appointment has been booked! ${coinsEarned > 0 ? `You earned ${coinsEarned} PLYN coins!` : ''}`,
       });
       
       // Show booking success notification
@@ -141,6 +201,9 @@ const Payment = () => {
         state: {
           ...bookingData,
           bookingId: newBooking.id,
+          coinsUsed: useCoins ? coinsToUse : 0,
+          coinsEarned: coinsEarned,
+          finalPrice: finalPaymentAmount,
           paymentDetails: {
             cardName: values.cardName,
             cardNumber: values.cardNumber.slice(-4).padStart(16, '*'),
@@ -160,6 +223,11 @@ const Payment = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Toggle using coins for payment
+  const handleToggleCoins = (checked: boolean) => {
+    setUseCoins(checked);
   };
 
   return (
@@ -202,6 +270,65 @@ const Payment = () => {
                     totalDuration={bookingData.totalDuration}
                     totalPrice={bookingData.totalPrice}
                   />
+
+                  {/* PLYN Coins Section */}
+                  <div className="mt-6 bg-primary/5 rounded-lg p-4 border border-primary/20">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center">
+                        <Coins className="h-5 w-5 text-primary mr-2" />
+                        <h3 className="font-medium">PLYN Coins</h3>
+                      </div>
+                      <span className="text-sm bg-primary/10 px-2 py-1 rounded-full">
+                        Balance: {userCoins} coins
+                      </span>
+                    </div>
+                    
+                    {userCoins > 0 && (
+                      <div className="mb-3">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Checkbox 
+                            id="use-coins" 
+                            checked={useCoins}
+                            onCheckedChange={handleToggleCoins}
+                            disabled={userCoins <= 0}
+                          />
+                          <Label htmlFor="use-coins" className="text-sm">
+                            Use my PLYN coins for this payment
+                          </Label>
+                        </div>
+                        
+                        {useCoins && (
+                          <div className="text-sm text-muted-foreground mt-1">
+                            Using {coinsToUse} coins (${(coinsToUse / 2).toFixed(2)} value)
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="text-sm space-y-1">
+                      <p className="flex justify-between">
+                        <span>Original Price:</span>
+                        <span>${bookingData.totalPrice.toFixed(2)}</span>
+                      </p>
+                      
+                      {useCoins && coinsToUse > 0 && (
+                        <p className="flex justify-between text-green-600">
+                          <span>Coin Discount:</span>
+                          <span>-${(coinsToUse / 2).toFixed(2)}</span>
+                        </p>
+                      )}
+                      
+                      <p className="flex justify-between font-medium pt-1 border-t border-primary/10">
+                        <span>Final Price:</span>
+                        <span>${getAmountAfterCoins().toFixed(2)}</span>
+                      </p>
+                      
+                      <p className="flex justify-between text-primary mt-2">
+                        <span>Coins you'll earn (10%):</span>
+                        <span>+{getCoinsToEarn()} coins</span>
+                      </p>
+                    </div>
+                  </div>
                 </motion.div>
                 
                 {/* Payment Form */}
@@ -215,7 +342,7 @@ const Payment = () => {
                       defaultValues={defaultValues}
                       onSubmit={handlePayment}
                       isSubmitting={isSubmitting}
-                      totalPrice={bookingData.totalPrice}
+                      totalPrice={getAmountAfterCoins()}
                     />
                   </div>
                 </motion.div>
