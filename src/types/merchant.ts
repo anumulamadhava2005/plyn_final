@@ -1,7 +1,6 @@
 
 export type UserProfile = {
   username: string | null;
-  phone_number?: string | null;
   phoneNumber?: string | null;
   is_merchant?: boolean;
   isMerchant?: boolean;
@@ -36,7 +35,7 @@ export type BookingData = {
   created_at: string;
   user_profile?: {
     username: string;
-    phone_number?: string;
+    phoneNumber?: string;
   } | null;
   slot?: {
     date: string;

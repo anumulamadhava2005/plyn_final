@@ -42,13 +42,16 @@ const MyBookings = () => {
     try {
       if (!user) return;
       
+      console.log("Fetching bookings for user ID:", user.id);
       const bookingsData = await fetchUserBookings(user.id);
+      console.log("Bookings data received:", bookingsData);
       
       // If no bookings yet, show some sample ones for demo purposes
       if (bookingsData && bookingsData.length > 0) {
         setBookings(bookingsData);
       } else {
         // Fallback to mock data if no bookings exist
+        console.log("No bookings found, using mock data");
         setBookings(getMockBookings());
       }
       setLoading(false);

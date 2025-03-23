@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import ThemeToggle from '@/components/ui/theme-toggle';
@@ -114,6 +114,7 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, signOut, isMerchant, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Determine which nav links to show based on user role
   const navLinks = isAdmin 
@@ -199,6 +200,15 @@ const Navbar = () => {
               >
                 Profile
               </Link>
+              {!isMerchant && !isAdmin && (
+                <Link
+                  to="/my-bookings"
+                  className="block py-2 px-4 rounded-md hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  My Bookings
+                </Link>
+              )}
               <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
