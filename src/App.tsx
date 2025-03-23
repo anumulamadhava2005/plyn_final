@@ -81,65 +81,69 @@ const RouteObserver = () => {
 };
 
 const AppRoutes = () => {
+  const location = useLocation();
+  
   return (
-    <AnimatePresence mode="wait">
+    <>
       <RouteObserver />
-      <Routes>
-        {/* Public routes */}
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/merchant-login" element={<MerchantAuth />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/profile" element={<Profile />} />
-        
-        {/* Merchant routes */}
-        <Route path="/merchant-dashboard" element={
-          <MerchantRoute>
-            <MerchantDashboard />
-          </MerchantRoute>
-        } />
-        <Route path="/merchant-signup" element={
-          <MerchantRoute>
-            <MerchantSignup />
-          </MerchantRoute>
-        } />
-        <Route path="/merchant-pending" element={
-          <MerchantRoute>
-            <MerchantPending />
-          </MerchantRoute>
-        } />
-        
-        {/* Admin routes */}
-        <Route path="/admin-dashboard" element={
-          <AdminRoute>
-            <AdminDashboard />
-          </AdminRoute>
-        } />
-        
-        {/* Customer routes */}
-        <Route path="/" element={<Index />} />
-        <Route path="/book-now" element={<BookNow />} />
-        <Route path="/book/:id" element={<SalonDetails />} />
-        <Route path="/payment" element={
-          <CustomerRoute>
-            <Payment />
-          </CustomerRoute>
-        } />
-        <Route path="/booking-confirmation" element={
-          <CustomerRoute>
-            <BookingConfirmation />
-          </CustomerRoute>
-        } />
-        <Route path="/hair-recommendation" element={<HairRecommendation />} />
-        <Route path="/my-bookings" element={
-          <CustomerRoute>
-            <MyBookings />
-          </CustomerRoute>
-        } />
-        
-        {/* Catch-all route */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </AnimatePresence>
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
+          {/* Public routes */}
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/merchant-login" element={<MerchantAuth />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/profile" element={<Profile />} />
+          
+          {/* Merchant routes */}
+          <Route path="/merchant-dashboard" element={
+            <MerchantRoute>
+              <MerchantDashboard />
+            </MerchantRoute>
+          } />
+          <Route path="/merchant-signup" element={
+            <MerchantRoute>
+              <MerchantSignup />
+            </MerchantRoute>
+          } />
+          <Route path="/merchant-pending" element={
+            <MerchantRoute>
+              <MerchantPending />
+            </MerchantRoute>
+          } />
+          
+          {/* Admin routes */}
+          <Route path="/admin-dashboard" element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          } />
+          
+          {/* Customer routes */}
+          <Route path="/" element={<Index />} />
+          <Route path="/book-now" element={<BookNow />} />
+          <Route path="/book/:id" element={<SalonDetails />} />
+          <Route path="/payment" element={
+            <CustomerRoute>
+              <Payment />
+            </CustomerRoute>
+          } />
+          <Route path="/booking-confirmation" element={
+            <CustomerRoute>
+              <BookingConfirmation />
+            </CustomerRoute>
+          } />
+          <Route path="/hair-recommendation" element={<HairRecommendation />} />
+          <Route path="/my-bookings" element={
+            <CustomerRoute>
+              <MyBookings />
+            </CustomerRoute>
+          } />
+          
+          {/* Catch-all route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </AnimatePresence>
+    </>
   );
 };
 

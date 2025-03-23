@@ -29,7 +29,12 @@ const NavLink: React.FC<NavLinkProps> = ({
         className,
         isActive && activeClassName
       )}
-      onClick={onClick}
+      onClick={(e) => {
+        // Execute the onClick handler if provided
+        if (onClick) {
+          onClick();
+        }
+      }}
     >
       {children}
     </Link>
