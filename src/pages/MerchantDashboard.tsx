@@ -1,92 +1,77 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
-import PageTransition from '@/components/transitions/PageTransition';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Helmet } from 'react-helmet';
+import MerchantSidebar from '@/components/merchant/MerchantSidebar';
+import { DashboardMetrics } from '@/components/merchant/DashboardMetrics';
+import { AppointmentsList } from '@/components/merchant/AppointmentsList';
+import { WorkingHoursGrid } from '@/components/merchant/WorkingHoursGrid';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { 
-  Calendar, 
-  Clock, 
-  Users, 
-  Settings, 
-  Scissors, 
-  PlusCircle,
-  CalendarDays,
-  CheckCircle2,
-  XCircle,
-  AlertCircle
-} from 'lucide-react';
+import { Plus, Calendar, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-
-type MerchantData = {
-  id: string;
-  business_name: string;
-  business_address: string;
-  business_email: string;
-  business_phone: string;
-  service_category: string;
-};
-
-type SlotData = {
-  id: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  is_booked: boolean;
-};
-
-type BookingData = {
-  id: string;
-  user_id: string;
-  slot_id: string;
-  service_name: string;
-  status: string;
-  created_at: string;
-  user_profile?: {
-    username: string;
-    phone_number?: string;
-  } | null;
-  slot?: {
-    date: string;
-    start_time: string;
-    end_time: string;
-  };
-};
+import PageTransition from '@/components/transitions/PageTransition';
 
 const MerchantDashboard = () => {
   const { user, userProfile, isMerchant } = useAuth();
-  const [merchantData, setMerchantData] = useState<MerchantData | null>(null);
-  const [slots, setSlots] = useState<SlotData[]>([]);
-  const [bookings, setBookings] = useState<BookingData[]>([]);
-  const [activeTab, setActiveTab] = useState('appointments');
+  const [searchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'dashboard';
+  const [merchantData, setMerchantData] = useState<any>(null);
+  const [slots, setSlots] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newSlot, setNewSlot] = useState({
     date: '',
     startTime: '',
     endTime: '',
   });
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const processedAppointments = useMemo(() => {
+    return bookings.map(booking => ({
+      id: booking.id,
+      customerName: booking.user_profile?.username || 'Unknown User',
+      service: booking.service_name,
+      date: booking.booking_date,
+      time: booking.time_slot,
+      duration: `${booking.service_duration} min`,
+      status: booking.status
+    }));
+  }, [bookings]);
+
+  const processedSlots = useMemo(() => {
+    return slots.map(slot => ({
+      id: slot.id,
+      day: new Date(slot.date).toLocaleDateString('en-US', { weekday: 'short' }),
+      time: slot.start_time,
+      status: slot.is_booked ? 'booked' : 'available'
+    }));
+  }, [slots]);
+
+  const metrics = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    return {
+      totalAppointments: bookings.length,
+      todayAppointments: bookings.filter(b => b.booking_date === today).length,
+      totalClients: [...new Set(bookings.map(b => b.user_id))].length,
+      availableSlots: slots.filter(s => !s.is_booked).length
+    };
+  }, [bookings, slots]);
+
   useEffect(() => {
-    // Check if user is logged in and is a merchant
     if (user === null) {
-      // Not logged in
       navigate('/auth');
       return;
     }
     
     if (user && !isMerchant) {
-      // Logged in but not a merchant
       toast({
         title: "Access Denied",
         description: "This page is only available to merchant accounts.",
@@ -97,7 +82,6 @@ const MerchantDashboard = () => {
     }
     
     if (user && isMerchant) {
-      // Load merchant data
       loadMerchantData();
     }
   }, [user, isMerchant, navigate]);
@@ -108,7 +92,6 @@ const MerchantDashboard = () => {
     setIsLoading(true);
     
     try {
-      // Fetch merchant profile data
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
@@ -122,7 +105,6 @@ const MerchantDashboard = () => {
       if (merchantData) {
         setMerchantData(merchantData);
         
-        // Fetch slots
         const { data: slotsData, error: slotsError } = await supabase
           .from('slots')
           .select('*')
@@ -136,7 +118,6 @@ const MerchantDashboard = () => {
         
         setSlots(slotsData || []);
         
-        // Fetch bookings first
         const { data: bookingsData, error: bookingsError } = await supabase
           .from('bookings')
           .select('*')
@@ -146,18 +127,15 @@ const MerchantDashboard = () => {
           throw bookingsError;
         }
         
-        // Process bookings to add user profile and slot info
         const enhancedBookings: BookingData[] = [];
         
         for (const booking of bookingsData || []) {
-          // Fetch user profile separately
           const { data: profileData } = await supabase
             .from('profiles')
             .select('username, phone_number')
             .eq('id', booking.user_id)
             .single();
             
-          // Fetch slot info separately
           const { data: slotData } = await supabase
             .from('slots')
             .select('date, start_time, end_time')
@@ -173,7 +151,6 @@ const MerchantDashboard = () => {
         
         setBookings(enhancedBookings);
       } else {
-        // Merchant profile not found, redirect to merchant signup
         toast({
           title: "Complete Your Profile",
           description: "Please complete your merchant profile first.",
@@ -261,7 +238,6 @@ const MerchantDashboard = () => {
         throw error;
       }
       
-      // Update the local state
       setBookings(prev => 
         prev.map(booking => 
           booking.id === bookingId ? { ...booking, status: newStatus } : booking
@@ -281,19 +257,6 @@ const MerchantDashboard = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return <Badge className="bg-green-500">Confirmed</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-500">Pending</Badge>;
-      case 'cancelled':
-        return <Badge className="bg-red-500">Cancelled</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -305,7 +268,6 @@ const MerchantDashboard = () => {
   };
 
   const formatTime = (timeString: string) => {
-    // Format time from 24-hour to 12-hour
     const timeParts = timeString.split(':');
     let hour = parseInt(timeParts[0]);
     const min = timeParts[1];
@@ -319,14 +281,12 @@ const MerchantDashboard = () => {
     return (
       <PageTransition>
         <div className="min-h-screen flex flex-col">
-          <Navbar />
-          <main className="flex-grow pt-24 pb-12 px-4 flex items-center justify-center">
+          <div className="flex-grow pt-24 pb-12 px-4 flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin mb-4 mx-auto h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
               <p>Loading your merchant dashboard...</p>
             </div>
-          </main>
-          <Footer />
+          </div>
         </div>
       </PageTransition>
     );
@@ -334,384 +294,49 @@ const MerchantDashboard = () => {
 
   return (
     <PageTransition>
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
+      <Helmet>
+        <title>Merchant Dashboard | PLYN</title>
+      </Helmet>
+      <div className="flex h-screen bg-black text-white overflow-hidden">
+        <MerchantSidebar />
         
-        <main className="flex-grow pt-24 pb-12 px-4">
-          <div className="container mx-auto max-w-7xl">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-              <div>
-                <h1 className="text-3xl md:text-4xl font-bold gradient-heading">Merchant Dashboard</h1>
-                <p className="text-muted-foreground mt-2">
-                  Manage your bookings, availability, and business profile
-                </p>
-              </div>
-              
-              <AnimatedButton 
-                variant="outline" 
-                onClick={() => loadMerchantData()}
-                icon={<Calendar className="w-4 h-4 mr-2" />}
-              >
-                Refresh Data
-              </AnimatedButton>
+        <div className="flex-1 overflow-auto bg-gradient-to-br from-black to-gray-900">
+          <div className="p-6 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">Merchant Dashboard</h1>
+              <p className="text-muted-foreground">
+                Welcome back, {userProfile?.username || 'Merchant'}
+              </p>
             </div>
             
-            {merchantData && (
-              <div className="mb-8">
-                <Card className="bg-salon-women/5 dark:bg-salon-women-light/5 border-salon-women/20 dark:border-salon-women-light/20">
-                  <CardHeader className="pb-3">
-                    <CardTitle>{merchantData.business_name}</CardTitle>
-                    <CardDescription>
-                      {merchantData.service_category.charAt(0).toUpperCase() + merchantData.service_category.slice(1)} Salon
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{userProfile?.username || 'Owner'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{slots.length} Time Slots Available</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Scissors className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{bookings.length} Total Bookings</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-            
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-              <TabsList className="grid grid-cols-1 md:grid-cols-3">
-                <TabsTrigger value="appointments">Appointments</TabsTrigger>
-                <TabsTrigger value="availability">Availability</TabsTrigger>
-                <TabsTrigger value="settings">Business Settings</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="appointments" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Upcoming Appointments</CardTitle>
-                    <CardDescription>
-                      Manage your scheduled appointments
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {bookings.length === 0 ? (
-                      <div className="text-center py-8">
-                        <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                          <Calendar className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                        <h3 className="font-medium text-lg mb-2">No Appointments Yet</h3>
-                        <p className="text-muted-foreground max-w-sm mx-auto">
-                          You don't have any bookings yet. Make sure you've added availability slots for customers to book.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        {bookings.map((booking) => (
-                          <Card key={booking.id} className="overflow-hidden">
-                            <div className={`h-1.5 w-full 
-                              ${booking.status === 'confirmed' ? 'bg-green-500' : 
-                                booking.status === 'pending' ? 'bg-yellow-500' : 
-                                'bg-red-500'}`}
-                            />
-                            <CardContent className="p-4">
-                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="space-y-1">
-                                  <p className="text-sm font-medium">Customer</p>
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                      <Users className="h-4 w-4 text-primary" />
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-medium">{booking.user_profile?.username || 'Customer'}</p>
-                                      <p className="text-xs text-muted-foreground">{booking.user_profile?.phone_number || 'No phone'}</p>
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                <div className="space-y-1">
-                                  <p className="text-sm font-medium">Date & Time</p>
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                      <CalendarDays className="h-4 w-4 text-primary" />
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-medium">
-                                        {booking.slot?.date ? formatDate(booking.slot.date) : 'N/A'}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {booking.slot?.start_time ? 
-                                          `${formatTime(booking.slot.start_time)} - ${formatTime(booking.slot.end_time)}` : 
-                                          'Time not specified'}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                <div className="space-y-1">
-                                  <p className="text-sm font-medium">Service & Status</p>
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                      <Scissors className="h-4 w-4 text-primary" />
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-medium">{booking.service_name || 'Service'}</p>
-                                      <div className="mt-1">
-                                        {getStatusBadge(booking.status)}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                <div className="space-y-1 md:text-right flex md:block gap-2">
-                                  <p className="text-sm font-medium md:mb-2">Actions</p>
-                                  <div className="flex gap-2 flex-wrap">
-                                    {booking.status === 'pending' && (
-                                      <>
-                                        <Button 
-                                          size="sm" 
-                                          variant="outline"
-                                          className="border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
-                                          onClick={() => handleUpdateBookingStatus(booking.id, 'confirmed')}
-                                        >
-                                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                                          Confirm
-                                        </Button>
-                                        <Button 
-                                          size="sm" 
-                                          variant="outline"
-                                          className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950" 
-                                          onClick={() => handleUpdateBookingStatus(booking.id, 'cancelled')}
-                                        >
-                                          <XCircle className="h-4 w-4 mr-1" />
-                                          Cancel
-                                        </Button>
-                                      </>
-                                    )}
-                                    {booking.status === 'confirmed' && (
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                                        onClick={() => handleUpdateBookingStatus(booking.id, 'cancelled')}
-                                      >
-                                        <XCircle className="h-4 w-4 mr-1" />
-                                        Cancel
-                                      </Button>
-                                    )}
-                                    {booking.status === 'cancelled' && (
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        className="border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
-                                        onClick={() => handleUpdateBookingStatus(booking.id, 'confirmed')}
-                                      >
-                                        <AlertCircle className="h-4 w-4 mr-1" />
-                                        Restore
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="availability" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Manage Availability</CardTitle>
-                    <CardDescription>
-                      Add and manage your available time slots
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="p-6 border rounded-lg bg-background">
-                      <h3 className="font-medium text-lg mb-4">Add New Time Slot</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <Label htmlFor="date">Date</Label>
-                          <Input 
-                            id="date" 
-                            name="date" 
-                            type="date" 
-                            value={newSlot.date}
-                            onChange={handleNewSlotChange}
-                            className="mt-1" 
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="startTime">Start Time</Label>
-                          <Input 
-                            id="startTime" 
-                            name="startTime" 
-                            type="time" 
-                            value={newSlot.startTime}
-                            onChange={handleNewSlotChange}
-                            className="mt-1" 
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="endTime">End Time</Label>
-                          <Input 
-                            id="endTime" 
-                            name="endTime" 
-                            type="time" 
-                            value={newSlot.endTime}
-                            onChange={handleNewSlotChange}
-                            className="mt-1" 
-                          />
-                        </div>
-                      </div>
-                      <Button 
-                        className="w-full mt-4"
-                        onClick={handleCreateSlot}
-                      >
-                        <PlusCircle className="h-4 w-4 mr-2" />
-                        Add Time Slot
-                      </Button>
-                    </div>
-                    
-                    <div>
-                      <h3 className="font-medium text-lg mb-4">Your Available Slots</h3>
-                      
-                      {slots.length === 0 ? (
-                        <div className="text-center py-8 border rounded-lg">
-                          <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                            <Clock className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                          <h3 className="font-medium text-lg mb-2">No Time Slots Added</h3>
-                          <p className="text-muted-foreground max-w-sm mx-auto">
-                            Add time slots above so customers can book appointments with you.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="border rounded-lg overflow-hidden">
-                          <div className="grid grid-cols-4 gap-4 bg-muted p-4 font-medium">
-                            <div>Date</div>
-                            <div>Start Time</div>
-                            <div>End Time</div>
-                            <div>Status</div>
-                          </div>
-                          <div className="divide-y">
-                            {slots.map((slot) => (
-                              <div key={slot.id} className="grid grid-cols-4 gap-4 p-4">
-                                <div>{formatDate(slot.date)}</div>
-                                <div>{formatTime(slot.start_time)}</div>
-                                <div>{formatTime(slot.end_time)}</div>
-                                <div>
-                                  {slot.is_booked ? (
-                                    <Badge>Booked</Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="border-green-500 text-green-600">
-                                      Available
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="settings" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Business Information</CardTitle>
-                    <CardDescription>
-                      Review and update your business details
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {merchantData && (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="business_name">Business Name</Label>
-                            <Input 
-                              id="business_name" 
-                              value={merchantData.business_name} 
-                              readOnly 
-                              className="mt-1 bg-muted" 
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="service_category">Service Category</Label>
-                            <Input 
-                              id="service_category" 
-                              value={`${merchantData.service_category.charAt(0).toUpperCase() + merchantData.service_category.slice(1)} Salon`} 
-                              readOnly 
-                              className="mt-1 bg-muted" 
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="business_address">Address</Label>
-                          <Input 
-                            id="business_address" 
-                            value={merchantData.business_address} 
-                            readOnly 
-                            className="mt-1 bg-muted" 
-                          />
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="business_email">Email</Label>
-                            <Input 
-                              id="business_email" 
-                              value={merchantData.business_email} 
-                              readOnly 
-                              className="mt-1 bg-muted" 
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="business_phone">Phone</Label>
-                            <Input 
-                              id="business_phone" 
-                              value={merchantData.business_phone} 
-                              readOnly 
-                              className="mt-1 bg-muted" 
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="pt-4">
-                          <p className="text-sm text-muted-foreground mb-4">
-                            To update your business information, please contact support.
-                          </p>
-                          
-                          <Button disabled variant="outline" className="w-full sm:w-auto">
-                            <Settings className="h-4 w-4 mr-2" />
-                            Request Information Update
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+            <Button className="bg-primary">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Appointment
+            </Button>
           </div>
-        </main>
-        
-        <Footer />
+          
+          <div className="p-6 space-y-6">
+            <DashboardMetrics 
+              totalAppointments={metrics.totalAppointments}
+              todayAppointments={metrics.todayAppointments}
+              totalClients={metrics.totalClients}
+              availableSlots={metrics.availableSlots}
+            />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <AppointmentsList 
+                appointments={processedAppointments}
+                onUpdateStatus={handleUpdateBookingStatus}
+              />
+              
+              <WorkingHoursGrid 
+                slots={processedSlots}
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </PageTransition>
   );
