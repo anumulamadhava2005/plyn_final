@@ -1,12 +1,10 @@
 
 export type UserProfile = {
   username: string | null;
-  phone_number?: string | null;
-  phoneNumber?: string | null;
-  is_merchant?: boolean;
-  isMerchant?: boolean;
+  phoneNumber?: string | null; // Standardized to camelCase
   age?: number;
   gender?: string;
+  isMerchant?: boolean; // Standardized to camelCase
 };
 
 export type MerchantData = {
@@ -36,7 +34,7 @@ export type BookingData = {
   created_at: string;
   user_profile?: {
     username: string;
-    phone_number?: string;
+    phoneNumber?: string; // Updated to camelCase
   } | null;
   slot?: {
     date: string;

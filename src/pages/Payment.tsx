@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -83,7 +82,7 @@ const Payment = () => {
     cardNumber: "",
     expiryDate: "",
     cvv: "",
-    phone: userProfile?.phoneNumber || userProfile?.phone_number || "",
+    phone: userProfile?.phoneNumber || "", // Fixed: removed phone_number reference
     email: user?.email || "",
     paymentMethod: "credit_card",
     notes: "",
