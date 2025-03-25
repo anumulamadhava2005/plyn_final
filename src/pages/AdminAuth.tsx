@@ -56,13 +56,17 @@ const AdminAuth = () => {
     try {
       // Direct credential check without using Supabase authentication
       if (values.email === ADMIN_EMAIL && values.password === ADMIN_PASSWORD) {
+        // Store admin login state in sessionStorage
+        sessionStorage.setItem('isAdminLoggedIn', 'true');
+        sessionStorage.setItem('adminEmail', ADMIN_EMAIL);
+        
         // Login successful
         toast({
           title: "Admin Login Successful",
           description: "Welcome to the admin dashboard!",
         });
         
-        // Redirect to admin dashboard immediately
+        // Redirect to admin dashboard immediately with replace: true to prevent back navigation
         navigate('/admin-dashboard', { replace: true });
       } else {
         throw new Error("Invalid admin credentials. Access denied.");

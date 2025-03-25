@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShieldAlert } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
@@ -15,6 +16,7 @@ import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('applications');
+  const navigate = useNavigate();
   const { 
     pendingApplications, 
     approvedMerchants, 
@@ -23,6 +25,17 @@ const AdminDashboard = () => {
     handleApprove, 
     handleReject 
   } = useAdminDashboard();
+
+  // Check if admin is logged in
+  useEffect(() => {
+    const isAdminLoggedIn = sessionStorage.getItem('isAdminLoggedIn') === 'true';
+    const adminEmail = sessionStorage.getItem('adminEmail');
+    
+    if (!isAdminLoggedIn || adminEmail !== 'srimanmudavath@gmail.com') {
+      // Redirect to admin login page if not logged in
+      navigate('/admin-login', { replace: true });
+    }
+  }, [navigate]);
 
   return (
     <PageTransition>
