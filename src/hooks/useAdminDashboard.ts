@@ -53,14 +53,14 @@ export const useAdminDashboard = () => {
       
       if (approvedError) throw approvedError;
       
-      // Process pending applications and fetch user profiles separately
+      // Process pending applications
       const enhancedPendingApplications: MerchantApplication[] = [];
       
       for (const merchant of pendingData || []) {
         // Get the user profile associated with this merchant
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('username, email')
+          .select('username')
           .eq('id', merchant.id)
           .single();
           
@@ -75,7 +75,7 @@ export const useAdminDashboard = () => {
           created_at: merchant.created_at,
           user_profile: profileData ? {
             username: profileData.username,
-            email: profileData.email
+            email: merchant.business_email // Use business_email from merchant record instead
           } : null
         });
       }
@@ -87,7 +87,7 @@ export const useAdminDashboard = () => {
         // Get the user profile associated with this merchant
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('username, email')
+          .select('username')
           .eq('id', merchant.id)
           .single();
           
@@ -102,7 +102,7 @@ export const useAdminDashboard = () => {
           created_at: merchant.created_at,
           user_profile: profileData ? {
             username: profileData.username,
-            email: profileData.email
+            email: merchant.business_email // Use business_email from merchant record instead
           } : null
         });
       }
