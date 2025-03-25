@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, Clock } from 'lucide-react';
+import { Plus, Calendar, Clock, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import PageTransition from '@/components/transitions/PageTransition';
@@ -44,6 +44,7 @@ const MerchantDashboard = () => {
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'dashboard';
   const [merchantData, setMerchantData] = useState<any>(null);
+  const [merchantStatus, setMerchantStatus] = useState<string | null>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [bookings, setBookings] = useState<BookingData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,24 +96,58 @@ const MerchantDashboard = () => {
   }, [bookings, slots]);
 
   useEffect(() => {
-    if (user === null) {
-      navigate('/auth');
-      return;
-    }
+    const checkAuth = async () => {
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+      
+      if (user && !isMerchant) {
+        toast({
+          title: "Access Denied",
+          description: "This page is only available to merchant accounts.",
+          variant: "destructive",
+        });
+        navigate('/');
+        return;
+      }
+      
+      if (user && isMerchant) {
+        // Check if merchant is approved
+        try {
+          const { data: merchantData, error } = await supabase
+            .from('merchants')
+            .select('status')
+            .eq('id', user.id)
+            .single();
+            
+          if (error) throw error;
+          
+          setMerchantStatus(merchantData?.status || null);
+          
+          if (merchantData?.status !== 'approved') {
+            toast({
+              title: "Access Restricted",
+              description: "Your merchant account has not been approved yet.",
+              variant: "destructive",
+            });
+            navigate('/merchant-pending');
+            return;
+          }
+          
+          loadMerchantData();
+        } catch (error) {
+          console.error("Error checking merchant status:", error);
+          toast({
+            title: "Error",
+            description: "Failed to verify merchant status. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
     
-    if (user && !isMerchant) {
-      toast({
-        title: "Access Denied",
-        description: "This page is only available to merchant accounts.",
-        variant: "destructive",
-      });
-      navigate('/');
-      return;
-    }
-    
-    if (user && isMerchant) {
-      loadMerchantData();
-    }
+    checkAuth();
   }, [user, isMerchant, navigate]);
 
   const loadMerchantData = async () => {
@@ -314,6 +349,23 @@ const MerchantDashboard = () => {
             <div className="text-center">
               <div className="animate-spin mb-4 mx-auto h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
               <p>Loading your merchant dashboard...</p>
+            </div>
+          </div>
+        </div>
+      </PageTransition>
+    );
+  }
+  
+  if (merchantStatus && merchantStatus !== 'approved') {
+    return (
+      <PageTransition>
+        <div className="min-h-screen flex flex-col">
+          <div className="flex-grow pt-24 pb-12 px-4 flex items-center justify-center">
+            <div className="text-center max-w-md">
+              <AlertTriangle className="mx-auto h-16 w-16 text-yellow-500 mb-4" />
+              <h2 className="text-2xl font-bold mb-4">Account Pending Approval</h2>
+              <p className="mb-6">Your merchant account is currently {merchantStatus}. You'll gain access to the dashboard once approved by an administrator.</p>
+              <Button onClick={() => navigate('/')}>Return to Home</Button>
             </div>
           </div>
         </div>

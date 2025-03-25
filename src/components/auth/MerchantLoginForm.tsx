@@ -11,6 +11,7 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const merchantLoginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -42,16 +43,38 @@ const MerchantLoginForm = () => {
       const loginResult = await merchantLogin(values.email, values.password);
       console.log("Merchant login completed with result:", loginResult);
       
-      // Short timeout to ensure state updates are processed
-      setTimeout(() => {
-        console.log("Navigating to merchant dashboard after login");
-        navigate('/merchant-dashboard', { replace: true });
+      if (loginResult && loginResult.user) {
+        // Check merchant approval status
+        const { data: merchantData, error: merchantError } = await supabase
+          .from('merchants')
+          .select('status')
+          .eq('id', loginResult.user.id)
+          .single();
+        
+        if (merchantError) {
+          console.error("Error checking merchant status:", merchantError);
+          throw new Error("Unable to verify merchant status. Please try again.");
+        }
         
         toast({
           title: "Login Successful",
-          description: "Welcome to your merchant dashboard!",
+          description: "Welcome back to your merchant account!",
         });
-      }, 100);
+        
+        // Redirect based on merchant status
+        if (merchantData && merchantData.status === 'approved') {
+          navigate('/merchant-dashboard', { replace: true });
+        } else if (merchantData && merchantData.status === 'pending') {
+          navigate('/merchant-pending', { replace: true });
+        } else {
+          // Rejected or unknown status
+          toast({
+            title: "Access Limited",
+            description: "Your merchant application status requires attention. Please contact support.",
+            variant: "destructive"
+          });
+        }
+      }
     } catch (error: any) {
       console.error('Merchant login error:', error);
       setError(error.message || 'Login failed. Please check your credentials and try again.');

@@ -10,6 +10,7 @@ import PageTransition from '@/components/transitions/PageTransition';
 import MerchantLoginForm from '@/components/auth/MerchantLoginForm';
 import MerchantSignupForm from '@/components/auth/MerchantSignupForm';
 import { Store } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const MerchantAuth = () => {
   const [activeTab, setActiveTab] = useState('login');
@@ -17,6 +18,7 @@ const MerchantAuth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [checkingMerchantStatus, setCheckingMerchantStatus] = useState(true);
 
   // This handles redirection when user logs in from another page
   useEffect(() => {
@@ -27,16 +29,63 @@ const MerchantAuth = () => {
       return; // Skip first render to prevent redirect flash
     }
     
-    console.log("Auth state in MerchantAuth:", { user, isMerchant, loading, path: location.pathname });
+    const checkMerchantApprovalStatus = async () => {
+      if (user && isMerchant) {
+        setCheckingMerchantStatus(true);
+        try {
+          // Check if merchant has been approved
+          const { data: merchantData, error } = await supabase
+            .from('merchants')
+            .select('status')
+            .eq('id', user.id)
+            .single();
+          
+          if (error) {
+            console.error("Error checking merchant status:", error);
+            return;
+          }
+          
+          if (merchantData && merchantData.status === 'approved') {
+            console.log("Merchant is approved, redirecting to dashboard");
+            navigate('/merchant-dashboard', { replace: true });
+          } else if (merchantData && merchantData.status === 'pending') {
+            console.log("Merchant application is pending");
+            navigate('/merchant-pending', { replace: true });
+          } else {
+            console.log("Merchant status unknown or rejected");
+          }
+        } catch (error) {
+          console.error("Error in merchant status check:", error);
+        } finally {
+          setCheckingMerchantStatus(false);
+        }
+      } else if (user && !isMerchant) {
+        console.log("User authenticated but not a merchant, redirecting to home");
+        navigate('/', { replace: true });
+      } else {
+        setCheckingMerchantStatus(false);
+      }
+    };
     
-    if (user && isMerchant) {
-      console.log("Merchant authenticated, redirecting to dashboard");
-      navigate('/merchant-dashboard', { replace: true });
-    } else if (user && !isMerchant) {
-      console.log("User authenticated but not a merchant, redirecting to home");
-      navigate('/', { replace: true });
-    }
+    checkMerchantApprovalStatus();
   }, [user, isMerchant, loading, navigate, initialLoadComplete, location.pathname]);
+
+  if (loading || checkingMerchantStatus) {
+    return (
+      <PageTransition>
+        <div className="min-h-screen flex flex-col">
+          <Navbar />
+          <main className="flex-grow pt-20 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full mx-auto mb-4"></div>
+              <p>Loading...</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>

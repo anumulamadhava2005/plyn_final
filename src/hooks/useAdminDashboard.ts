@@ -3,32 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/context/AuthContext';
-
-// Define types
-type UserProfile = {
-  username: string | null;
-  email: string | null;
-};
-
-type MerchantApplication = {
-  id: string;
-  business_name: string;
-  business_address: string;
-  business_email: string;
-  business_phone: string;
-  service_category: string;
-  status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-  user_profile: UserProfile | null;
-};
-
-type DashboardStats = {
-  totalMerchants: number;
-  totalUsers: number;
-  totalBookings: number;
-  pendingApplications: number;
-};
+import { MerchantApplication, DashboardStats } from '@/types/admin';
 
 export const useAdminDashboard = () => {
   const [pendingApplications, setPendingApplications] = useState<MerchantApplication[]>([]);
@@ -65,18 +40,7 @@ export const useAdminDashboard = () => {
       // Fetch pending merchant applications
       const { data: pendingData, error: pendingError } = await supabase
         .from('merchants')
-        .select(`
-          id,
-          business_name,
-          business_address,
-          business_email,
-          business_phone,
-          service_category,
-          created_at,
-          updated_at,
-          status,
-          user_profile:profiles(username, email)
-        `)
+        .select('*')
         .eq('status', 'pending');
       
       if (pendingError) throw pendingError;
@@ -84,75 +48,67 @@ export const useAdminDashboard = () => {
       // Fetch approved merchants
       const { data: approvedData, error: approvedError } = await supabase
         .from('merchants')
-        .select(`
-          id,
-          business_name,
-          business_address,
-          business_email,
-          business_phone,
-          service_category,
-          created_at,
-          updated_at,
-          status,
-          user_profile:profiles(username, email)
-        `)
+        .select('*')
         .eq('status', 'approved');
       
       if (approvedError) throw approvedError;
       
-      // Process and handle possible null user profiles with proper type checking
-      const pendingApplicationsTyped: MerchantApplication[] = pendingData ? pendingData.map(item => {
-        // Check if user_profile exists and is not a string
-        let processedUserProfile: UserProfile | null = null;
-        
-        if (item.user_profile && typeof item.user_profile === 'object') {
-          const profile = item.user_profile as Record<string, any>;
-          processedUserProfile = {
-            username: profile.username || null,
-            email: profile.email || null
-          };
-        }
-        
-        return {
-          id: item.id,
-          business_name: item.business_name,
-          business_address: item.business_address,
-          business_email: item.business_email,
-          business_phone: item.business_phone,
-          service_category: item.service_category,
+      // Process pending applications and fetch user profiles separately
+      const enhancedPendingApplications: MerchantApplication[] = [];
+      
+      for (const merchant of pendingData || []) {
+        // Get the user profile associated with this merchant
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username, email')
+          .eq('id', merchant.id)
+          .single();
+          
+        enhancedPendingApplications.push({
+          id: merchant.id,
+          business_name: merchant.business_name,
+          business_address: merchant.business_address,
+          business_email: merchant.business_email,
+          business_phone: merchant.business_phone,
+          service_category: merchant.service_category,
           status: 'pending',
-          created_at: item.created_at,
-          user_profile: processedUserProfile
-        };
-      }) : [];
+          created_at: merchant.created_at,
+          user_profile: profileData ? {
+            username: profileData.username,
+            email: profileData.email
+          } : null
+        });
+      }
       
-      const approvedMerchantsTyped: MerchantApplication[] = approvedData ? approvedData.map(item => {
-        // Check if user_profile exists and is not a string
-        let processedUserProfile: UserProfile | null = null;
-        
-        if (item.user_profile && typeof item.user_profile === 'object') {
-          const profile = item.user_profile as Record<string, any>;
-          processedUserProfile = {
-            username: profile.username || null,
-            email: profile.email || null
-          };
-        }
-        
-        return {
-          id: item.id,
-          business_name: item.business_name,
-          business_address: item.business_address,
-          business_email: item.business_email,
-          business_phone: item.business_phone,
-          service_category: item.service_category,
+      // Process approved merchants
+      const enhancedApprovedMerchants: MerchantApplication[] = [];
+      
+      for (const merchant of approvedData || []) {
+        // Get the user profile associated with this merchant
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username, email')
+          .eq('id', merchant.id)
+          .single();
+          
+        enhancedApprovedMerchants.push({
+          id: merchant.id,
+          business_name: merchant.business_name,
+          business_address: merchant.business_address,
+          business_email: merchant.business_email,
+          business_phone: merchant.business_phone,
+          service_category: merchant.service_category,
           status: 'approved',
-          created_at: item.created_at,
-          user_profile: processedUserProfile
-        };
-      }) : [];
+          created_at: merchant.created_at,
+          user_profile: profileData ? {
+            username: profileData.username,
+            email: profileData.email
+          } : null
+        });
+      }
       
-      setPendingApplications(pendingApplicationsTyped);
-      setApprovedMerchants(approvedMerchantsTyped);
+      setPendingApplications(enhancedPendingApplications);
+      setApprovedMerchants(enhancedApprovedMerchants);
       
       // Fetch dashboard stats
       const { data: merchantCount } = await supabase
@@ -172,7 +128,7 @@ export const useAdminDashboard = () => {
         totalMerchants: merchantCount?.length || 0,
         totalUsers: userCount?.length || 0,
         totalBookings: bookingCount?.length || 0,
-        pendingApplications: pendingApplicationsTyped.length
+        pendingApplications: enhancedPendingApplications.length
       });
       
     } catch (error) {
@@ -198,19 +154,14 @@ export const useAdminDashboard = () => {
       
       if (error) throw error;
       
-      // Find the merchant data from our local state
-      const merchantToApprove = pendingApplications.find(app => app.id === merchantId);
-      
-      if (merchantToApprove?.user_profile?.username) {
-        // Update profiles table using username for lookup
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ is_merchant: true })
-          .eq('username', merchantToApprove.user_profile.username);
+      // Update profiles table to set is_merchant to true
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ is_merchant: true })
+        .eq('id', merchantId);
           
-        if (profileError) {
-          console.error('Error updating profile:', profileError);
-        }
+      if (profileError) {
+        console.error('Error updating profile:', profileError);
       }
       
       // Update local state

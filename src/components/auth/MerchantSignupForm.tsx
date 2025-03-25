@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const merchantSignupSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -19,7 +20,9 @@ const merchantSignupSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
   businessName: z.string().min(2, 'Business name is required'),
-  phoneNumber: z.string().min(10, 'Phone number is required'),
+  businessAddress: z.string().min(5, 'Business address is required'),
+  businessPhone: z.string().min(10, 'Phone number is required'),
+  serviceCategory: z.string().min(1, 'Service category is required'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -42,7 +45,9 @@ const MerchantSignupForm = () => {
       password: '',
       confirmPassword: '',
       businessName: '',
-      phoneNumber: '',
+      businessAddress: '',
+      businessPhone: '',
+      serviceCategory: 'men', // Default to men's salon
     },
   });
 
@@ -51,25 +56,51 @@ const MerchantSignupForm = () => {
     setError(null);
     
     try {
-      // Set the isMerchant flag to true and include business data in metadata
-      await signUp(
+      // First, sign up the user
+      const signUpResult = await signUp(
         values.email, 
         values.password, 
         values.username, 
-        values.phoneNumber, 
+        values.businessPhone, 
         undefined, 
         undefined, 
         true // isMerchant flag
       );
       
+      // Get the user ID from the result
+      const userId = signUpResult?.user?.id;
+      
+      if (!userId) {
+        throw new Error("Failed to create user account. Please try again.");
+      }
+      
+      // Now create the merchant application
+      const { error: merchantError } = await supabase
+        .from('merchants')
+        .insert({
+          id: userId,
+          business_name: values.businessName,
+          business_address: values.businessAddress,
+          business_email: values.email,
+          business_phone: values.businessPhone,
+          service_category: values.serviceCategory,
+          status: 'pending'
+        });
+      
+      if (merchantError) {
+        throw merchantError;
+      }
+      
       toast({
-        title: "Merchant Account Created",
-        description: "Your account has been created and is pending admin approval. You'll be notified once approved.",
+        title: "Merchant Application Submitted",
+        description: "Your application has been submitted and is pending admin approval. You'll be notified once approved.",
       });
       
+      // Redirect to pending page
       setTimeout(() => {
-        navigate('/merchant-pending');
+        navigate('/merchant-pending', { replace: true });
       }, 1500);
+      
     } catch (error: any) {
       console.error('Merchant signup error:', error);
       setError(error.message || 'Failed to create merchant account. Please try again.');
@@ -89,26 +120,49 @@ const MerchantSignupForm = () => {
       )}
       
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="username"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Username</FormLabel>
-              <div className="relative">
-                <FormControl>
-                  <Input
-                    placeholder="johndoe"
-                    {...field}
-                    className="pl-10"
-                  />
-                </FormControl>
-                <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="username"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Username</FormLabel>
+                <div className="relative">
+                  <FormControl>
+                    <Input
+                      placeholder="johndoe"
+                      {...field}
+                      className="pl-10"
+                    />
+                  </FormControl>
+                  <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <div className="relative">
+                  <FormControl>
+                    <Input
+                      placeholder="business@example.com"
+                      {...field}
+                      className="pl-10"
+                    />
+                  </FormControl>
+                  <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         
         <FormField
           control={form.control}
@@ -131,34 +185,34 @@ const MerchantSignupForm = () => {
           )}
         />
         
+        <FormField
+          control={form.control}
+          name="businessAddress"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Business Address</FormLabel>
+              <div className="relative">
+                <FormControl>
+                  <Input
+                    placeholder="123 Main St, City, State"
+                    {...field}
+                    className="pl-10"
+                  />
+                </FormControl>
+                <Store className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="email"
+            name="businessPhone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
-                <div className="relative">
-                  <FormControl>
-                    <Input
-                      placeholder="business@example.com"
-                      {...field}
-                      className="pl-10"
-                    />
-                  </FormControl>
-                  <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="phoneNumber"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phone Number</FormLabel>
+                <FormLabel>Business Phone</FormLabel>
                 <div className="relative">
                   <FormControl>
                     <Input
@@ -168,6 +222,30 @@ const MerchantSignupForm = () => {
                     />
                   </FormControl>
                   <Phone className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="serviceCategory"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Service Category</FormLabel>
+                <div className="relative">
+                  <FormControl>
+                    <select 
+                      {...field}
+                      className="w-full pl-10 h-10 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="men">Men's Salon</option>
+                      <option value="women">Women's Salon</option>
+                      <option value="unisex">Unisex Salon</option>
+                    </select>
+                  </FormControl>
+                  <Store className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
                 </div>
                 <FormMessage />
               </FormItem>
@@ -225,8 +303,13 @@ const MerchantSignupForm = () => {
           className="w-full mt-6 bg-gradient-to-r from-salon-men to-salon-men-dark"
           disabled={isLoading}
         >
-          {isLoading ? 'Creating Account...' : 'Register as Merchant'}
+          {isLoading ? 'Creating Account...' : 'Submit Merchant Application'}
         </AnimatedButton>
+        
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          By submitting this application, you agree to our terms and conditions. 
+          Your application will be reviewed by our admin team.
+        </p>
       </form>
     </Form>
   );
