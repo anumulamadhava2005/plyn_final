@@ -11,9 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Lock, Mail, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/context/AuthContext';
 import PageTransition from '@/components/transitions/PageTransition';
-import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 
 // Define admin credentials - make sure these are exactly as specified
@@ -32,7 +30,6 @@ const AdminAuth = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
 
   // Redirect if already authenticated as admin
   useEffect(() => {
@@ -40,9 +37,9 @@ const AdminAuth = () => {
     const adminEmail = sessionStorage.getItem('adminEmail');
     
     if (isAdminLoggedIn && adminEmail === ADMIN_EMAIL) {
-      navigate('/admin-dashboard', { replace: true });
+      window.location.href = '/admin-dashboard';
     }
-  }, [navigate]);
+  }, []);
 
   const form = useForm<AdminLoginFormValues>({
     resolver: zodResolver(adminLoginSchema),
@@ -84,8 +81,15 @@ const AdminAuth = () => {
 
   return (
     <PageTransition>
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
+      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+        <header className="bg-background/80 backdrop-blur-md border-b border-border py-4">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-center">
+              <ShieldAlert className="h-8 w-8 text-red-500 mr-2" />
+              <h1 className="text-2xl font-bold">Admin Portal</h1>
+            </div>
+          </div>
+        </header>
         
         <main className="flex-grow pt-20">
           <section className="py-12 px-4">

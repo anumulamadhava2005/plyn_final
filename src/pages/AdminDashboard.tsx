@@ -5,14 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
 import DashboardStats from '@/components/admin/DashboardStats';
 import MerchantApplicationList from '@/components/admin/MerchantApplicationList';
 import ApprovedMerchantsList from '@/components/admin/ApprovedMerchantsList';
 import AnalyticsDashboard from '@/components/admin/AnalyticsDashboard';
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
+import AdminNavbar from '@/components/admin/AdminNavbar';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('applications');
@@ -26,7 +25,7 @@ const AdminDashboard = () => {
     handleReject 
   } = useAdminDashboard();
 
-  // Check if admin is logged in
+  // More strict check for admin authentication
   useEffect(() => {
     const isAdminLoggedIn = sessionStorage.getItem('isAdminLoggedIn') === 'true';
     const adminEmail = sessionStorage.getItem('adminEmail');
@@ -39,10 +38,10 @@ const AdminDashboard = () => {
 
   return (
     <PageTransition>
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
+      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+        <AdminNavbar />
         
-        <main className="flex-grow pt-24 pb-12 px-4">
+        <main className="flex-grow pt-20 pb-12 px-4">
           <div className="container mx-auto max-w-7xl">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
               <div>
@@ -95,8 +94,6 @@ const AdminDashboard = () => {
             </Tabs>
           </div>
         </main>
-        
-        <Footer />
       </div>
     </PageTransition>
   );
