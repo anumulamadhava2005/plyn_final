@@ -56,8 +56,8 @@ const MerchantSignupForm = () => {
     setError(null);
     
     try {
-      // First, sign up the user
-      const result = await signUp(
+      // First, create the user account
+      await signUp(
         values.email, 
         values.password, 
         values.username, 
@@ -67,12 +67,14 @@ const MerchantSignupForm = () => {
         true // isMerchant flag
       );
       
-      // Check if we have a valid result with user data
-      if (!result || !result.user || !result.user.id) {
+      // Get the current user session after signup
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user?.id;
+      
+      // Check if we have a valid session with user data
+      if (!userId) {
         throw new Error("Failed to create user account. Please try again.");
       }
-      
-      const userId = result.user.id;
       
       // Now create the merchant application
       const { error: merchantError } = await supabase
