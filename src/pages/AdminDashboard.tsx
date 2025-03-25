@@ -33,9 +33,9 @@ const AdminDashboard = () => {
     
     if (!isAdminLoggedIn || adminEmail !== 'srimanmudavath@gmail.com') {
       // Redirect to admin login page if not logged in
-      navigate('/admin-login', { replace: true });
+      window.location.href = '/admin-login';
     }
-  }, [navigate]);
+  }, []);
 
   return (
     <PageTransition>

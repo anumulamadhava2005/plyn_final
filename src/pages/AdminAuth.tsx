@@ -36,10 +36,13 @@ const AdminAuth = () => {
 
   // Redirect if already authenticated as admin
   useEffect(() => {
-    if (user && user.email === ADMIN_EMAIL) {
-      navigate('/admin-dashboard');
+    const isAdminLoggedIn = sessionStorage.getItem('isAdminLoggedIn') === 'true';
+    const adminEmail = sessionStorage.getItem('adminEmail');
+    
+    if (isAdminLoggedIn && adminEmail === ADMIN_EMAIL) {
+      navigate('/admin-dashboard', { replace: true });
     }
-  }, [user, navigate]);
+  }, [navigate]);
 
   const form = useForm<AdminLoginFormValues>({
     resolver: zodResolver(adminLoginSchema),
@@ -54,9 +57,9 @@ const AdminAuth = () => {
     setError(null);
     
     try {
-      // Direct credential check without using Supabase authentication
+      // Simple credential check without using Auth Context
       if (values.email === ADMIN_EMAIL && values.password === ADMIN_PASSWORD) {
-        // Store admin login state in sessionStorage
+        // Store admin login state in sessionStorage 
         sessionStorage.setItem('isAdminLoggedIn', 'true');
         sessionStorage.setItem('adminEmail', ADMIN_EMAIL);
         
@@ -66,8 +69,8 @@ const AdminAuth = () => {
           description: "Welcome to the admin dashboard!",
         });
         
-        // Redirect to admin dashboard immediately with replace: true to prevent back navigation
-        navigate('/admin-dashboard', { replace: true });
+        // Force redirect to admin dashboard
+        window.location.href = '/admin-dashboard';
       } else {
         throw new Error("Invalid admin credentials. Access denied.");
       }

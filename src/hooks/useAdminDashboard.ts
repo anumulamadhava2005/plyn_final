@@ -41,28 +41,16 @@ export const useAdminDashboard = () => {
     pendingApplications: 0
   });
 
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   // Check if user is admin
-  const checkAdminStatus = async () => {
-    if (!user) {
-      navigate('/auth');
-      return false;
-    }
-
-    // In a real application, you would check admin status from a database table
-    // For this example, we'll hardcode a check for a specific admin user
-    const isAdmin = user.email === 'admin@plyn.com';
+  const checkAdminStatus = () => {
+    const isAdminLoggedIn = sessionStorage.getItem('isAdminLoggedIn') === 'true';
+    const adminEmail = sessionStorage.getItem('adminEmail');
     
-    if (!isAdmin) {
-      toast({
-        title: "Access Denied",
-        description: "You don't have permission to access the admin dashboard.",
-        variant: "destructive",
-      });
-      navigate('/');
+    if (!isAdminLoggedIn || adminEmail !== 'srimanmudavath@gmail.com') {
+      window.location.href = '/admin-login';
       return false;
     }
     
@@ -276,15 +264,10 @@ export const useAdminDashboard = () => {
   };
 
   useEffect(() => {
-    const init = async () => {
-      const isAdmin = await checkAdminStatus();
-      if (isAdmin) {
-        fetchMerchantApplications();
-      }
-    };
-    
-    init();
-  }, [user]);
+    if (checkAdminStatus()) {
+      fetchMerchantApplications();
+    }
+  }, []);
 
   return {
     pendingApplications,
