@@ -18,6 +18,7 @@ import MerchantDashboard from "./pages/MerchantDashboard";
 import MerchantAuth from "./pages/MerchantAuth";
 import MerchantPending from "./pages/MerchantPending";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminAuth from "./pages/AdminAuth";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import About from "./pages/About";
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="/merchant-login" element={<MerchantAuth />} />
               <Route path="/merchant-pending" element={<MerchantPending />} />
               <Route path="/admin-dashboard" element={<AdminDashboard />} />
+              <Route path="/admin-login" element={<AdminAuth />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/about" element={<About />} />
