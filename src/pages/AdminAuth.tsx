@@ -15,9 +15,8 @@ import { useAuth } from '@/context/AuthContext';
 import PageTransition from '@/components/transitions/PageTransition';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-import { supabase } from '@/integrations/supabase/client';
 
-// Define admin credentials
+// Define admin credentials - make sure these are exactly as specified
 const ADMIN_EMAIL = "srimanmudavath@gmail.com";
 const ADMIN_PASSWORD = "chinnu@chintu@pandu";
 
@@ -33,9 +32,9 @@ const AdminAuth = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, signIn } = useAuth();
+  const { user } = useAuth();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated as admin
   useEffect(() => {
     if (user && user.email === ADMIN_EMAIL) {
       navigate('/admin-dashboard');
@@ -55,17 +54,15 @@ const AdminAuth = () => {
     setError(null);
     
     try {
-      // Check if credentials match the admin credentials
+      // Direct credential check without using Supabase authentication
       if (values.email === ADMIN_EMAIL && values.password === ADMIN_PASSWORD) {
-        // Use the standard login function since we're authenticating with Supabase
-        await signIn(values.email, values.password);
-        
-        // If login is successful, redirect to admin dashboard
+        // Login successful
         toast({
           title: "Admin Login Successful",
           description: "Welcome to the admin dashboard!",
         });
         
+        // Redirect to admin dashboard immediately
         navigate('/admin-dashboard', { replace: true });
       } else {
         throw new Error("Invalid admin credentials. Access denied.");
