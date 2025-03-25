@@ -57,7 +57,7 @@ const MerchantSignupForm = () => {
     
     try {
       // First, sign up the user
-      const signUpResult = await signUp(
+      const result = await signUp(
         values.email, 
         values.password, 
         values.username, 
@@ -67,12 +67,12 @@ const MerchantSignupForm = () => {
         true // isMerchant flag
       );
       
-      // Get the user ID from the result
-      const userId = signUpResult?.user?.id;
-      
-      if (!userId) {
+      // Check if we have a valid result with user data
+      if (!result || !result.user || !result.user.id) {
         throw new Error("Failed to create user account. Please try again.");
       }
+      
+      const userId = result.user.id;
       
       // Now create the merchant application
       const { error: merchantError } = await supabase
