@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 const merchantLoginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -41,8 +42,66 @@ const MerchantLoginForm = () => {
     
     try {
       console.log("Attempting merchant login for:", values.email);
+      // First, sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
+      
+      if (authError) {
+        console.error('Auth login error:', authError);
+        throw authError;
+      }
+      
+      if (!authData.user) {
+        throw new Error('Failed to authenticate. Please try again.');
+      }
+      
+      // Check if user is a merchant
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_merchant')
+        .eq('id', authData.user.id)
+        .single();
+        
+      if (profileError) {
+        console.error('Profile check error:', profileError);
+        throw profileError;
+      }
+      
+      if (!profileData.is_merchant) {
+        throw new Error('This account is not registered as a merchant. Please use a merchant account.');
+      }
+      
+      // Check merchant status
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('status')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+        
+      if (merchantError) {
+        console.error('Merchant status check error:', merchantError);
+        throw merchantError;
+      }
+      
+      // Now call the merchantLogin function from AuthContext to update the context state
       await merchantLogin(values.email, values.password);
-      // No need to navigate here, the useEffect in MerchantAuth component will handle the redirects
+      
+      // Redirect based on merchant status
+      if (merchantData && merchantData.status === 'approved') {
+        console.log("Merchant is approved, redirecting to dashboard");
+        navigate('/merchant-dashboard', { replace: true });
+      } else if (merchantData && merchantData.status === 'pending') {
+        console.log("Merchant application is pending");
+        navigate('/merchant-pending', { replace: true });
+      } else {
+        toast({
+          title: "Account Status Unknown",
+          description: "There was an issue determining your account status. Please contact support.",
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       console.error('Merchant login error:', error);
       setError(error.message || 'Login failed. Please check your credentials and try again.');

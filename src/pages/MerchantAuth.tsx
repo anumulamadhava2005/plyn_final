@@ -11,6 +11,7 @@ import MerchantLoginForm from '@/components/auth/MerchantLoginForm';
 import MerchantSignupForm from '@/components/auth/MerchantSignupForm';
 import { Store } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 const MerchantAuth = () => {
   const location = useLocation();
@@ -18,6 +19,7 @@ const MerchantAuth = () => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const { user, isMerchant, loading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [checkingMerchantStatus, setCheckingMerchantStatus] = useState(true);
 
@@ -31,6 +33,11 @@ const MerchantAuth = () => {
     }
     
     const checkMerchantApprovalStatus = async () => {
+      if (!user) {
+        setCheckingMerchantStatus(false);
+        return;
+      }
+      
       if (user && isMerchant) {
         console.log("User is logged in as merchant, checking status");
         setCheckingMerchantStatus(true);
@@ -44,6 +51,12 @@ const MerchantAuth = () => {
           
           if (error) {
             console.error("Error checking merchant status:", error);
+            toast({
+              title: "Error",
+              description: "Could not verify merchant status. Please try again.",
+              variant: "destructive",
+            });
+            setCheckingMerchantStatus(false);
             return;
           }
           
@@ -55,16 +68,27 @@ const MerchantAuth = () => {
           } else if (merchantData && merchantData.status === 'pending') {
             console.log("Merchant application is pending");
             navigate('/merchant-pending', { replace: true });
+          } else if (merchantData && merchantData.status === 'rejected') {
+            toast({
+              title: "Application Rejected",
+              description: "Your merchant application has been rejected. Please contact support for more information.",
+              variant: "destructive",
+            });
+            setCheckingMerchantStatus(false);
           } else {
             console.log("Merchant status unknown or rejected");
+            setCheckingMerchantStatus(false);
           }
         } catch (error) {
           console.error("Error in merchant status check:", error);
-        } finally {
           setCheckingMerchantStatus(false);
         }
       } else if (user && !isMerchant) {
         console.log("User authenticated but not a merchant, redirecting to home");
+        toast({
+          title: "Not a Merchant Account",
+          description: "This account is not registered as a merchant. Please sign up as a merchant.",
+        });
         navigate('/', { replace: true });
       } else {
         setCheckingMerchantStatus(false);
@@ -72,7 +96,7 @@ const MerchantAuth = () => {
     };
     
     checkMerchantApprovalStatus();
-  }, [user, isMerchant, loading, navigate, initialLoadComplete, location.pathname]);
+  }, [user, isMerchant, loading, navigate, initialLoadComplete, location.pathname, toast]);
 
   if (loading || checkingMerchantStatus) {
     return (
