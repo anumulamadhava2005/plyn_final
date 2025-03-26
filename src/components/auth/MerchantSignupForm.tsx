@@ -1,38 +1,18 @@
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Mail, Lock, User, Store, Phone, AlertTriangle } from 'lucide-react';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { useToast } from '@/components/ui/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { supabase } from '@/integrations/supabase/client';
-
-const merchantSignupSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters'),
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
-  businessName: z.string().min(2, 'Business name is required'),
-  businessAddress: z.string().min(5, 'Business address is required'),
-  businessPhone: z.string().min(10, 'Phone number is required'),
-  serviceCategory: z.string().min(1, 'Service category is required'),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
-
-type MerchantSignupFormValues = z.infer<typeof merchantSignupSchema>;
+import { Form } from '@/components/ui/form';
+import { merchantSignupSchema, MerchantSignupFormValues } from './merchant/types';
+import { useMerchantSignup } from './merchant/useMerchantSignup';
+import PersonalInfoFields from './merchant/PersonalInfoFields';
+import BusinessInfoFields from './merchant/BusinessInfoFields';
+import PasswordFields from './merchant/PasswordFields';
+import SubmitButton from './merchant/SubmitButton';
+import ErrorAlert from './merchant/ErrorAlert';
 
 const MerchantSignupForm = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  const { isLoading, error, handleSignup } = useMerchantSignup();
 
   const form = useForm<MerchantSignupFormValues>({
     resolver: zodResolver(merchantSignupSchema),
@@ -49,301 +29,18 @@ const MerchantSignupForm = () => {
   });
 
   const onSubmit = async (values: MerchantSignupFormValues) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      console.log("Starting merchant signup process");
-      
-      // First, check if the username already exists
-      const { data: existingUsers, error: checkError } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', values.username);
-        
-      if (checkError) {
-        console.error("Error checking username:", checkError);
-        throw checkError;
-      }
-      
-      if (existingUsers && existingUsers.length > 0) {
-        console.error("Username already exists");
-        throw new Error("Username already exists. Please choose a different username.");
-      }
-      
-      // Sign up with Supabase auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: values.email,
-        password: values.password,
-        options: {
-          data: {
-            username: values.username,
-            phone_number: values.businessPhone,
-            is_merchant: true,
-          },
-        },
-      });
-      
-      if (authError) {
-        console.error("Auth signup error:", authError);
-        throw authError;
-      }
-      
-      if (!authData.user) {
-        throw new Error("Failed to create user account. Please try again.");
-      }
-      
-      console.log("Auth signup complete, user created with ID:", authData.user.id);
-      
-      // Now create the merchant application with pending status
-      console.log("Creating merchant application");
-      const { error: merchantError } = await supabase
-        .from('merchants')
-        .insert({
-          id: authData.user.id,
-          business_name: values.businessName,
-          business_address: values.businessAddress,
-          business_email: values.email,
-          business_phone: values.businessPhone,
-          service_category: values.serviceCategory,
-          status: 'pending'
-        });
-      
-      if (merchantError) {
-        console.error("Error creating merchant profile:", merchantError);
-        throw merchantError;
-      }
-      
-      console.log("Merchant application submitted successfully for user ID:", authData.user.id);
-      
-      // Update the profile record to ensure is_merchant is true
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ is_merchant: true })
-        .eq('id', authData.user.id);
-        
-      if (profileError) {
-        console.error("Error updating profile merchant status:", profileError);
-        // Non-blocking error, continue with the flow
-      }
-      
-      toast({
-        title: "Merchant Application Submitted",
-        description: "Your application has been submitted and is pending admin approval. You'll be notified once approved.",
-      });
-      
-      // Redirect to pending page
-      navigate('/merchant-pending', { replace: true });
-      
-    } catch (error: any) {
-      console.error('Merchant signup error:', error);
-      setError(error.message || 'Failed to create merchant account. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    await handleSignup(values);
   };
 
   return (
     <Form {...form}>
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      <ErrorAlert error={error} />
       
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="username"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Username</FormLabel>
-                <div className="relative">
-                  <FormControl>
-                    <Input
-                      placeholder="johndoe"
-                      {...field}
-                      className="pl-10"
-                    />
-                  </FormControl>
-                  <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <div className="relative">
-                  <FormControl>
-                    <Input
-                      placeholder="business@example.com"
-                      {...field}
-                      className="pl-10"
-                    />
-                  </FormControl>
-                  <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        <FormField
-          control={form.control}
-          name="businessName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Business Name</FormLabel>
-              <div className="relative">
-                <FormControl>
-                  <Input
-                    placeholder="Your Salon Name"
-                    {...field}
-                    className="pl-10"
-                  />
-                </FormControl>
-                <Store className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="businessAddress"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Business Address</FormLabel>
-              <div className="relative">
-                <FormControl>
-                  <Input
-                    placeholder="123 Main St, City, State"
-                    {...field}
-                    className="pl-10"
-                  />
-                </FormControl>
-                <Store className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="businessPhone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Business Phone</FormLabel>
-                <div className="relative">
-                  <FormControl>
-                    <Input
-                      placeholder="+1 (123) 456-7890"
-                      {...field}
-                      className="pl-10"
-                    />
-                  </FormControl>
-                  <Phone className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="serviceCategory"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Service Category</FormLabel>
-                <div className="relative">
-                  <FormControl>
-                    <select 
-                      {...field}
-                      className="w-full pl-10 h-10 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <option value="men">Men's Salon</option>
-                      <option value="women">Women's Salon</option>
-                      <option value="unisex">Unisex Salon</option>
-                    </select>
-                  </FormControl>
-                  <Store className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <div className="relative">
-                <FormControl>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    {...field}
-                    className="pl-10"
-                  />
-                </FormControl>
-                <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="confirmPassword"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Confirm Password</FormLabel>
-              <div className="relative">
-                <FormControl>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    {...field}
-                    className="pl-10"
-                  />
-                </FormControl>
-                <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <AnimatedButton
-          variant="gradient"
-          type="submit"
-          className="w-full mt-6 bg-gradient-to-r from-salon-men to-salon-men-dark"
-          disabled={isLoading}
-        >
-          {isLoading ? 'Creating Account...' : 'Submit Merchant Application'}
-        </AnimatedButton>
-        
-        <p className="text-xs text-muted-foreground text-center mt-4">
-          By submitting this application, you agree to our terms and conditions. 
-          Your application will be reviewed by our admin team.
-        </p>
+        <PersonalInfoFields form={form} />
+        <BusinessInfoFields form={form} />
+        <PasswordFields form={form} />
+        <SubmitButton isLoading={isLoading} />
       </form>
     </Form>
   );
