@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +8,7 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string, phoneNumber?: string, age?: number, gender?: string, isMerchant?: boolean) => Promise<void>;
+  signUp: (email: string, password: string, username: string, phoneNumber?: string, age?: number, gender?: string, isMerchant?: boolean) => Promise<{ user: User | null; session: Session | null; } | undefined>;
   signOut: () => Promise<void>;
   userProfile: { 
     username: string; 
@@ -41,7 +40,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log("AuthContext mounted, setting up auth state change listener");
     
-    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log("Auth state changed:", event);
@@ -69,7 +67,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Initial session check
     supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
       console.log("Initial session check:", currentSession ? "Session found" : "No session");
       setSession(currentSession);
@@ -87,7 +84,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Function to fetch user profile including merchant status
   const fetchUserProfile = async (userId: string) => {
     try {
       console.log("Fetching user profile for ID:", userId);
@@ -134,7 +130,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Regular user login
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Attempting sign in for:", email);
@@ -160,12 +155,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Special merchant login with additional checks
   const merchantLogin = async (email: string, password: string) => {
     try {
       console.log("Attempting merchant login for:", email);
       
-      // Sign in with Supabase auth
       const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -178,11 +171,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Sign in successful, checking merchant status for ID:", data.user?.id);
       
-      // Immediately set the user and session to avoid race conditions
       setUser(data.user);
       setSession(data.session);
       
-      // Fetch profile data to check merchant status
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('is_merchant, username, phone_number, age, gender')
@@ -191,11 +182,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       if (profileError) {
         console.error("Error fetching profile data:", profileError);
-        // Don't sign out automatically, just throw an error
         throw new Error("Could not verify merchant status. Please try again.");
       }
       
-      // Check if this is actually a merchant account
       if (!profileData?.is_merchant) {
         console.error("Non-merchant attempted to log in as merchant");
         await supabase.auth.signOut();
@@ -206,7 +195,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("This account is not registered as a merchant. Please contact support if you believe this is an error.");
       }
       
-      // Update user profile and merchant status state
       console.log("Setting merchant status to true for user:", data.user?.id);
       setUserProfile({
         username: profileData.username,
@@ -218,7 +206,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setIsMerchant(true);
       
-      // Fetch merchant-specific data
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
@@ -227,7 +214,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       if (merchantError) {
         console.error("Error fetching merchant profile:", merchantError);
-        // Don't throw here, as the login was successful
       } else {
         console.log("Merchant data successfully fetched:", merchantData);
       }
@@ -237,7 +223,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "You've successfully signed in to your merchant account.",
       });
       
-      // Return the login data
       return data;
       
     } catch (error: any) {
