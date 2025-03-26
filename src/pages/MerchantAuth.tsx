@@ -31,6 +31,7 @@ const MerchantAuth = () => {
     
     const checkMerchantApprovalStatus = async () => {
       if (user && isMerchant) {
+        console.log("User is logged in as merchant, checking status");
         setCheckingMerchantStatus(true);
         try {
           // Check if merchant has been approved
@@ -38,12 +39,14 @@ const MerchantAuth = () => {
             .from('merchants')
             .select('status')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
           
           if (error) {
             console.error("Error checking merchant status:", error);
             return;
           }
+          
+          console.log("Merchant status check result:", merchantData);
           
           if (merchantData && merchantData.status === 'approved') {
             console.log("Merchant is approved, redirecting to dashboard");

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -120,7 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from('merchants')
           .select('*')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
         
         if (!merchantError && merchantData) {
           console.log('Merchant data found:', merchantData);
@@ -222,7 +223,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('merchants')
         .select('*')
         .eq('id', data.user?.id)
-        .single();
+        .maybeSingle();
         
       if (merchantError) {
         console.error("Error fetching merchant profile:", merchantError);
@@ -260,6 +261,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isMerchant: boolean = false
   ) => {
     try {
+      console.log("Starting signup process");
       console.log("Checking if username exists:", username);
       const { data: existingUsers, error: checkError } = await supabase
         .from('profiles')
@@ -279,6 +281,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const uniqueUsername = username;
       
       console.log("Signing up user with email:", email);
+      console.log("Is merchant flag:", isMerchant);
+      
       const { error, data } = await supabase.auth.signUp({
         email,
         password,
@@ -304,6 +308,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: "Account created",
         description: "Your account has been created successfully!",
       });
+      
+      return data;
     } catch (error: any) {
       console.error("Sign up error details:", error);
       toast({

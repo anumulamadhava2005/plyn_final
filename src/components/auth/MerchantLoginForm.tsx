@@ -40,20 +40,24 @@ const MerchantLoginForm = () => {
     setError(null);
     
     try {
-      // Attempt merchant login
-      const { data: authData, error: authError } = await merchantLogin(values.email, values.password);
+      console.log("Attempting merchant login");
       
-      if (authError || !authData?.user) {
-        throw new Error(authError?.message || "Login failed. Please check your credentials and try again.");
+      // Attempt merchant login
+      const result = await merchantLogin(values.email, values.password);
+      
+      if (!result || !result.user) {
+        console.error("Login failed, no user data returned");
+        throw new Error("Login failed. Please check your credentials and try again.");
       }
       
-      console.log("Merchant login successful for user ID:", authData.user.id);
+      console.log("Merchant login successful for user ID:", result.user.id);
       
       // Check merchant approval status
+      console.log("Checking merchant status");
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('status')
-        .eq('id', authData.user.id)
+        .eq('id', result.user.id)
         .maybeSingle();
       
       if (merchantError) {
@@ -70,11 +74,14 @@ const MerchantLoginForm = () => {
       
       // Redirect based on merchant status
       if (merchantData && merchantData.status === 'approved') {
+        console.log("Merchant is approved, redirecting to dashboard");
         navigate('/merchant-dashboard', { replace: true });
       } else if (merchantData && merchantData.status === 'pending') {
+        console.log("Merchant is pending approval, redirecting to pending page");
         navigate('/merchant-pending', { replace: true });
       } else {
         // Rejected or unknown status
+        console.log("Merchant has rejected or unknown status");
         toast({
           title: "Access Limited",
           description: "Your merchant application status requires attention. Please contact support.",

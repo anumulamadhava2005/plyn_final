@@ -25,13 +25,20 @@ const AdminDashboard = () => {
     handleReject 
   } = useAdminDashboard();
 
+  console.log("Admin Dashboard - Pending Applications:", pendingApplications);
+  console.log("Admin Dashboard - Is Loading:", isLoading);
+
   // More strict check for admin authentication
   useEffect(() => {
+    console.log("Checking admin authentication");
     const isAdminLoggedIn = sessionStorage.getItem('isAdminLoggedIn') === 'true';
     const adminEmail = sessionStorage.getItem('adminEmail');
     
+    console.log("Admin auth check:", { isAdminLoggedIn, adminEmail });
+    
     if (!isAdminLoggedIn || adminEmail !== 'srimanmudavath@gmail.com') {
       // Redirect to admin login page if not logged in
+      console.log("Not admin, redirecting to login");
       window.location.href = '/admin-login';
     }
   }, []);

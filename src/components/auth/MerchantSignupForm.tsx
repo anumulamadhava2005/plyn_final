@@ -56,8 +56,9 @@ const MerchantSignupForm = () => {
     setError(null);
     
     try {
-      // First, create the user account with the merchant flag set to true
-      // Do NOT directly use the return value from signUp - it's void
+      console.log("Starting merchant signup process");
+      
+      // First, signup with Supabase auth
       await signUp(
         values.email, 
         values.password, 
@@ -68,23 +69,26 @@ const MerchantSignupForm = () => {
         true // isMerchant flag
       );
       
+      console.log("Auth signup complete, fetching session");
+      
       // Get the current user session after signup
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
+        console.error("Session error:", sessionError);
         throw new Error(`Session error: ${sessionError.message}`);
       }
       
-      // Check if we have a valid session with user data
       if (!sessionData?.session?.user) {
+        console.error("No session or user data after signup");
         throw new Error("Failed to create user account. Please try again.");
       }
       
       const userId = sessionData.session.user.id;
-      
       console.log("User created with ID:", userId);
       
       // Now create the merchant application with pending status
+      console.log("Creating merchant application");
       const { error: merchantError } = await supabase
         .from('merchants')
         .insert({
@@ -103,6 +107,7 @@ const MerchantSignupForm = () => {
       }
       
       // Ensure the user profile is marked as a merchant
+      console.log("Updating user profile to mark as merchant");
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ is_merchant: true })
@@ -120,8 +125,10 @@ const MerchantSignupForm = () => {
         description: "Your application has been submitted and is pending admin approval. You'll be notified once approved.",
       });
       
-      // Redirect to pending page
-      navigate('/merchant-pending', { replace: true });
+      // Redirect to pending page - wait a brief moment to allow toast to be seen
+      setTimeout(() => {
+        navigate('/merchant-pending', { replace: true });
+      }, 1000);
       
     } catch (error: any) {
       console.error('Merchant signup error:', error);

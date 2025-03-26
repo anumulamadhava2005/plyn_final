@@ -25,6 +25,7 @@ export const useAdminDashboard = () => {
     const adminEmail = sessionStorage.getItem('adminEmail');
     
     if (!isAdminLoggedIn || adminEmail !== 'srimanmudavath@gmail.com') {
+      console.log("Not admin - redirecting to login");
       window.location.href = '/admin-login';
       return false;
     }
@@ -35,34 +36,50 @@ export const useAdminDashboard = () => {
   // Fetch merchant applications
   const fetchMerchantApplications = async () => {
     try {
+      console.log("Fetching merchant applications");
       setIsLoading(true);
       
       // Fetch pending merchant applications
+      console.log("Fetching pending applications");
       const { data: pendingData, error: pendingError } = await supabase
         .from('merchants')
         .select('*')
         .eq('status', 'pending');
       
-      if (pendingError) throw pendingError;
+      if (pendingError) {
+        console.error("Error fetching pending merchants:", pendingError);
+        throw pendingError;
+      }
+      
+      console.log("Pending merchants data:", pendingData);
       
       // Fetch approved merchants
+      console.log("Fetching approved merchants");
       const { data: approvedData, error: approvedError } = await supabase
         .from('merchants')
         .select('*')
         .eq('status', 'approved');
       
-      if (approvedError) throw approvedError;
+      if (approvedError) {
+        console.error("Error fetching approved merchants:", approvedError);
+        throw approvedError;
+      }
+      
+      console.log("Approved merchants data:", approvedData);
       
       // Process pending applications
       const enhancedPendingApplications: MerchantApplication[] = [];
       
       for (const merchant of pendingData || []) {
+        console.log("Processing pending merchant:", merchant.id);
         // Get the user profile associated with this merchant
         const { data: profileData } = await supabase
           .from('profiles')
           .select('username')
           .eq('id', merchant.id)
           .maybeSingle();
+          
+        console.log("Profile data for merchant:", profileData);
           
         enhancedPendingApplications.push({
           id: merchant.id,
@@ -79,6 +96,8 @@ export const useAdminDashboard = () => {
           }
         });
       }
+      
+      console.log("Enhanced pending applications:", enhancedPendingApplications);
       
       // Process approved merchants
       const enhancedApprovedMerchants: MerchantApplication[] = [];
@@ -146,13 +165,17 @@ export const useAdminDashboard = () => {
   // Handle merchant application approval
   const handleApprove = async (merchantId: string) => {
     try {
+      console.log("Approving merchant:", merchantId);
       // Update the merchant status in the database
       const { error } = await supabase
         .from('merchants')
         .update({ status: 'approved' })
         .eq('id', merchantId);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error approving merchant:", error);
+        throw error;
+      }
       
       // Update profiles table to set is_merchant to true
       const { error: profileError } = await supabase
@@ -188,13 +211,17 @@ export const useAdminDashboard = () => {
   // Handle merchant application rejection
   const handleReject = async (merchantId: string) => {
     try {
+      console.log("Rejecting merchant:", merchantId);
       // Update the merchant status in the database
       const { error } = await supabase
         .from('merchants')
         .update({ status: 'rejected' })
         .eq('id', merchantId);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error rejecting merchant:", error);
+        throw error;
+      }
       
       // Update local state
       setPendingApplications(prev => prev.filter(app => app.id !== merchantId));
@@ -203,6 +230,9 @@ export const useAdminDashboard = () => {
         title: "Merchant Rejected",
         description: "The merchant application has been rejected.",
       });
+      
+      // Refresh data
+      fetchMerchantApplications();
       
     } catch (error) {
       console.error('Error rejecting merchant:', error);
@@ -215,6 +245,7 @@ export const useAdminDashboard = () => {
   };
 
   useEffect(() => {
+    console.log("useAdminDashboard hook mounted");
     if (checkAdminStatus()) {
       fetchMerchantApplications();
     }
