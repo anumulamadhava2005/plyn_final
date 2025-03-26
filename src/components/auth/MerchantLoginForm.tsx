@@ -54,7 +54,7 @@ const MerchantLoginForm = () => {
         .from('merchants')
         .select('status')
         .eq('id', result.user.id)
-        .single();
+        .maybeSingle();
       
       if (merchantError) {
         console.error("Error checking merchant status:", merchantError);
