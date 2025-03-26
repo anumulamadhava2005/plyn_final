@@ -11,6 +11,7 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
 
 const merchantLoginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -48,6 +49,10 @@ const MerchantLoginForm = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSignupClick = () => {
+    navigate('/merchant-auth');
   };
 
   return (
@@ -103,15 +108,26 @@ const MerchantLoginForm = () => {
             </FormItem>
           )}
         />
-        
-        <AnimatedButton
-          variant="gradient"
-          type="submit"
-          className="w-full mt-6 bg-gradient-to-r from-salon-men to-salon-men-dark"
-          disabled={isLoading}
-        >
-          {isLoading ? 'Signing in...' : 'Sign In as Merchant'}
-        </AnimatedButton>
+
+        <div className="flex flex-col gap-3 mt-4">
+          <AnimatedButton
+            variant="gradient"
+            type="submit"
+            className="w-full bg-gradient-to-r from-salon-men to-salon-men-dark"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Signing in...' : 'Sign In as Merchant'}
+          </AnimatedButton>
+          
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSignupClick}
+            className="w-full"
+          >
+            Sign Up as Merchant
+          </Button>
+        </div>
       </form>
     </Form>
   );

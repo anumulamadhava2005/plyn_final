@@ -9,7 +9,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/context/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,7 +32,6 @@ type MerchantSignupFormValues = z.infer<typeof merchantSignupSchema>;
 const MerchantSignupForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -58,29 +56,36 @@ const MerchantSignupForm = () => {
     try {
       console.log("Starting merchant signup process");
       
-      // First, signup with Supabase auth
-      const result = await signUp(
-        values.email, 
-        values.password, 
-        values.username, 
-        values.businessPhone, 
-        undefined, 
-        undefined, 
-        true // isMerchant flag
-      );
+      // First, signup with Supabase auth directly instead of using our wrapped function
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: {
+          data: {
+            username: values.username,
+            phone_number: values.businessPhone,
+            is_merchant: true,
+          },
+        },
+      });
       
-      if (!result || !result.user || !result.session) {
+      if (authError) {
+        console.error("Auth signup error:", authError);
+        throw authError;
+      }
+      
+      if (!authData.user) {
         throw new Error("Failed to create user account. Please try again.");
       }
       
-      console.log("Auth signup complete, user created with ID:", result.user.id);
+      console.log("Auth signup complete, user created with ID:", authData.user.id);
       
       // Now create the merchant application with pending status
       console.log("Creating merchant application");
       const { error: merchantError } = await supabase
         .from('merchants')
         .insert({
-          id: result.user.id,
+          id: authData.user.id,
           business_name: values.businessName,
           business_address: values.businessAddress,
           business_email: values.email,
@@ -94,7 +99,18 @@ const MerchantSignupForm = () => {
         throw merchantError;
       }
       
-      console.log("Merchant application submitted successfully for user ID:", result.user.id);
+      console.log("Merchant application submitted successfully for user ID:", authData.user.id);
+      
+      // Update the profile record to ensure is_merchant is true
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ is_merchant: true })
+        .eq('id', authData.user.id);
+        
+      if (profileError) {
+        console.error("Error updating profile merchant status:", profileError);
+        // Non-blocking error, continue with the flow
+      }
       
       toast({
         title: "Merchant Application Submitted",
@@ -102,9 +118,7 @@ const MerchantSignupForm = () => {
       });
       
       // Redirect to pending page
-      setTimeout(() => {
-        navigate('/merchant-pending', { replace: true });
-      }, 1000);
+      navigate('/merchant-pending', { replace: true });
       
     } catch (error: any) {
       console.error('Merchant signup error:', error);
