@@ -59,7 +59,7 @@ const MerchantSignupForm = () => {
       console.log("Starting merchant signup process");
       
       // First, signup with Supabase auth
-      await signUp(
+      const result = await signUp(
         values.email, 
         values.password, 
         values.username, 
@@ -69,30 +69,18 @@ const MerchantSignupForm = () => {
         true // isMerchant flag
       );
       
-      console.log("Auth signup complete, fetching session");
-      
-      // Get the current user session after signup
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error("Session error:", sessionError);
-        throw new Error(`Session error: ${sessionError.message}`);
-      }
-      
-      if (!sessionData?.session?.user) {
-        console.error("No session or user data after signup");
+      if (!result || !result.user || !result.session) {
         throw new Error("Failed to create user account. Please try again.");
       }
       
-      const userId = sessionData.session.user.id;
-      console.log("User created with ID:", userId);
+      console.log("Auth signup complete, user created with ID:", result.user.id);
       
       // Now create the merchant application with pending status
       console.log("Creating merchant application");
       const { error: merchantError } = await supabase
         .from('merchants')
         .insert({
-          id: userId,
+          id: result.user.id,
           business_name: values.businessName,
           business_address: values.businessAddress,
           business_email: values.email,
@@ -106,26 +94,14 @@ const MerchantSignupForm = () => {
         throw merchantError;
       }
       
-      // Ensure the user profile is marked as a merchant
-      console.log("Updating user profile to mark as merchant");
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ is_merchant: true })
-        .eq('id', userId);
-        
-      if (profileError) {
-        console.error("Error updating profile merchant status:", profileError);
-        // Don't throw here as the main merchant record was already created
-      }
-      
-      console.log("Merchant application submitted successfully for user ID:", userId);
+      console.log("Merchant application submitted successfully for user ID:", result.user.id);
       
       toast({
         title: "Merchant Application Submitted",
         description: "Your application has been submitted and is pending admin approval. You'll be notified once approved.",
       });
       
-      // Redirect to pending page - wait a brief moment to allow toast to be seen
+      // Redirect to pending page
       setTimeout(() => {
         navigate('/merchant-pending', { replace: true });
       }, 1000);

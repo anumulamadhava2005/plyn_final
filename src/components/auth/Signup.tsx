@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { Mail, Lock, User, Phone, Calendar, Users } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { useToast } from '@/components/ui/use-toast';
@@ -23,7 +22,6 @@ const signupSchema = z.object({
     message: 'Age must be between 18 and 100',
   }).optional(),
   gender: z.string().optional(),
-  isMerchant: z.boolean().default(false),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -47,7 +45,6 @@ const Signup = () => {
       phoneNumber: '',
       age: '',
       gender: '',
-      isMerchant: false,
     },
   });
 
@@ -57,7 +54,6 @@ const Signup = () => {
       console.log("Signing up with values:", values);
       
       // Generate a unique username if needed (add a timestamp)
-      const timestamp = new Date().getTime();
       const username = values.username;
       
       await signUp(
@@ -67,23 +63,15 @@ const Signup = () => {
         values.phoneNumber, 
         values.age ? parseInt(values.age) : undefined, 
         values.gender,
-        values.isMerchant
+        false // Never create merchants from regular signup
       );
       
       toast({
         title: "Account Created",
-        description: values.isMerchant 
-          ? "Your merchant account has been created. You'll now be redirected to complete your profile." 
-          : "Your account has been created successfully!",
+        description: "Your account has been created successfully!"
       });
       
-      if (values.isMerchant) {
-        setTimeout(() => {
-          navigate('/merchant-signup');
-        }, 1500);
-      } else {
-        navigate('/');
-      }
+      navigate('/');
     } catch (error: any) {
       console.error('Signup error:', error);
       // Don't show toast here since it's already shown in the signUp function
@@ -255,28 +243,11 @@ const Signup = () => {
           )}
         />
         
-        <FormField
-          control={signupForm.control}
-          name="isMerchant"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md p-4 shadow">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>
-                  Sign up as a merchant
-                </FormLabel>
-                <p className="text-sm text-muted-foreground">
-                  You'll need to provide business details after signup
-                </p>
-              </div>
-            </FormItem>
-          )}
-        />
+        <div className="mt-2 text-center">
+          <p className="text-sm text-muted-foreground">
+            Are you a salon owner? <a href="/merchant-login" className="text-primary hover:underline">Sign up as a merchant</a>
+          </p>
+        </div>
         
         <AnimatedButton
           variant="gradient"

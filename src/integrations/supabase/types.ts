@@ -125,7 +125,7 @@ export type Database = {
           business_name: string
           business_phone: string
           created_at?: string
-          id: string
+          id?: string
           service_category: string
           status?: string
           updated_at?: string
