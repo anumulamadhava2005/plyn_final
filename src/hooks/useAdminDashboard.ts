@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -61,7 +62,7 @@ export const useAdminDashboard = () => {
           .from('profiles')
           .select('username')
           .eq('id', merchant.id)
-          .single();
+          .maybeSingle();
           
         enhancedPendingApplications.push({
           id: merchant.id,
@@ -88,7 +89,7 @@ export const useAdminDashboard = () => {
           .from('profiles')
           .select('username')
           .eq('id', merchant.id)
-          .single();
+          .maybeSingle();
           
         enhancedApprovedMerchants.push({
           id: merchant.id,

@@ -57,6 +57,7 @@ const MerchantSignupForm = () => {
     
     try {
       // First, create the user account with the merchant flag set to true
+      // Do NOT directly use the return value from signUp - it's void
       await signUp(
         values.email, 
         values.password, 
@@ -68,10 +69,14 @@ const MerchantSignupForm = () => {
       );
       
       // Get the current user session after signup
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        throw new Error(`Session error: ${sessionError.message}`);
+      }
       
       // Check if we have a valid session with user data
-      if (!sessionData || !sessionData.session || !sessionData.session.user) {
+      if (!sessionData?.session?.user) {
         throw new Error("Failed to create user account. Please try again.");
       }
       
@@ -116,9 +121,7 @@ const MerchantSignupForm = () => {
       });
       
       // Redirect to pending page
-      setTimeout(() => {
-        navigate('/merchant-pending', { replace: true });
-      }, 1500);
+      navigate('/merchant-pending', { replace: true });
       
     } catch (error: any) {
       console.error('Merchant signup error:', error);

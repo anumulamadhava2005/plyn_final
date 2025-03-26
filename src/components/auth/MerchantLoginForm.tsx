@@ -41,19 +41,19 @@ const MerchantLoginForm = () => {
     
     try {
       // Attempt merchant login
-      const result = await merchantLogin(values.email, values.password);
+      const { data: authData, error: authError } = await merchantLogin(values.email, values.password);
       
-      if (!result || !result.user) {
-        throw new Error("Login failed. Please check your credentials and try again.");
+      if (authError || !authData?.user) {
+        throw new Error(authError?.message || "Login failed. Please check your credentials and try again.");
       }
       
-      console.log("Merchant login successful for user ID:", result.user.id);
+      console.log("Merchant login successful for user ID:", authData.user.id);
       
       // Check merchant approval status
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('status')
-        .eq('id', result.user.id)
+        .eq('id', authData.user.id)
         .maybeSingle();
       
       if (merchantError) {
