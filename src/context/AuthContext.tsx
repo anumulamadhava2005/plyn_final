@@ -92,10 +92,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('username, phone_number, age, gender, is_merchant')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching user profile:', error);
+        return;
+      }
+
+      if (!data) {
+        console.error('No profile found for user:', userId);
         return;
       }
 
@@ -172,31 +177,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Sign in successful, checking merchant status for ID:", data.user?.id);
       
-      setUser(data.user);
-      setSession(data.session);
+      if (!data.user) {
+        throw new Error("Login failed. User data not available.");
+      }
       
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('is_merchant, username, phone_number, age, gender')
-        .eq('id', data.user?.id)
-        .single();
+        .eq('id', data.user.id)
+        .maybeSingle();
         
       if (profileError) {
         console.error("Error fetching profile data:", profileError);
         throw new Error("Could not verify merchant status. Please try again.");
       }
       
-      if (!profileData?.is_merchant) {
-        console.error("Non-merchant attempted to log in as merchant");
-        await supabase.auth.signOut();
-        setUser(null);
-        setSession(null);
-        setUserProfile(null);
-        setIsMerchant(false);
-        throw new Error("This account is not registered as a merchant. Please contact support if you believe this is an error.");
+      if (!profileData) {
+        console.error("No profile found for user:", data.user.id);
+        throw new Error("User profile not found. Please contact support.");
       }
       
-      console.log("Setting merchant status to true for user:", data.user?.id);
+      if (!profileData.is_merchant) {
+        console.error("Non-merchant attempted to log in as merchant");
+        await supabase.auth.signOut();
+        throw new Error("This account is not registered as a merchant. Please sign up as a merchant or use the regular login.");
+      }
+      
+      console.log("Setting merchant status to true for user:", data.user.id);
       setUserProfile({
         username: profileData.username,
         phoneNumber: profileData.phone_number,
@@ -210,11 +217,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
-        .eq('id', data.user?.id)
+        .eq('id', data.user.id)
         .maybeSingle();
         
       if (merchantError) {
         console.error("Error fetching merchant profile:", merchantError);
+      } else if (!merchantData) {
+        console.error("No merchant data found for user:", data.user.id);
       } else {
         console.log("Merchant data successfully fetched:", merchantData);
       }

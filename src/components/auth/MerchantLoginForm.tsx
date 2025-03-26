@@ -52,7 +52,9 @@ const MerchantLoginForm = () => {
   };
 
   const handleSignupClick = () => {
-    navigate('/merchant-auth');
+    navigate('/merchant-auth', {
+      state: { initialTab: 'signup' }
+    });
   };
 
   return (

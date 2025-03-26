@@ -13,10 +13,11 @@ import { Store } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const MerchantAuth = () => {
-  const [activeTab, setActiveTab] = useState('login');
+  const location = useLocation();
+  const initialTab = location.state?.initialTab || 'login';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const { user, isMerchant, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [checkingMerchantStatus, setCheckingMerchantStatus] = useState(true);
 

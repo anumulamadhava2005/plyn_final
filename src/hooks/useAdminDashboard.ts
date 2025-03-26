@@ -72,29 +72,38 @@ export const useAdminDashboard = () => {
       
       for (const merchant of pendingData || []) {
         console.log("Processing pending merchant:", merchant.id);
-        // Get the user profile associated with this merchant
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', merchant.id)
-          .maybeSingle();
+        try {
+          // Get the user profile associated with this merchant
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', merchant.id)
+            .maybeSingle();
           
-        console.log("Profile data for merchant:", profileData);
-          
-        enhancedPendingApplications.push({
-          id: merchant.id,
-          business_name: merchant.business_name,
-          business_address: merchant.business_address,
-          business_email: merchant.business_email,
-          business_phone: merchant.business_phone,
-          service_category: merchant.service_category,
-          status: 'pending',
-          created_at: merchant.created_at,
-          user_profile: {
-            username: profileData?.username || 'Unknown',
-            email: merchant.business_email // Use business_email from merchant record
+          if (profileError) {
+            console.error("Error fetching profile for merchant:", profileError);
+            continue;
           }
-        });
+          
+          console.log("Profile data for merchant:", profileData);
+          
+          enhancedPendingApplications.push({
+            id: merchant.id,
+            business_name: merchant.business_name,
+            business_address: merchant.business_address,
+            business_email: merchant.business_email,
+            business_phone: merchant.business_phone,
+            service_category: merchant.service_category,
+            status: 'pending',
+            created_at: merchant.created_at,
+            user_profile: {
+              username: profileData?.username || 'Unknown',
+              email: merchant.business_email // Use business_email from merchant record
+            }
+          });
+        } catch (err) {
+          console.error("Error processing merchant:", merchant.id, err);
+        }
       }
       
       console.log("Enhanced pending applications:", enhancedPendingApplications);
@@ -103,50 +112,59 @@ export const useAdminDashboard = () => {
       const enhancedApprovedMerchants: MerchantApplication[] = [];
       
       for (const merchant of approvedData || []) {
-        // Get the user profile associated with this merchant
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', merchant.id)
-          .maybeSingle();
-          
-        enhancedApprovedMerchants.push({
-          id: merchant.id,
-          business_name: merchant.business_name,
-          business_address: merchant.business_address,
-          business_email: merchant.business_email,
-          business_phone: merchant.business_phone,
-          service_category: merchant.service_category,
-          status: 'approved',
-          created_at: merchant.created_at,
-          user_profile: {
-            username: profileData?.username || 'Unknown',
-            email: merchant.business_email // Use business_email from merchant record
+        try {
+          // Get the user profile associated with this merchant
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', merchant.id)
+            .maybeSingle();
+            
+          if (profileError) {
+            console.error("Error fetching profile for approved merchant:", profileError);
+            continue;
           }
-        });
+          
+          enhancedApprovedMerchants.push({
+            id: merchant.id,
+            business_name: merchant.business_name,
+            business_address: merchant.business_address,
+            business_email: merchant.business_email,
+            business_phone: merchant.business_phone,
+            service_category: merchant.service_category,
+            status: 'approved',
+            created_at: merchant.created_at,
+            user_profile: {
+              username: profileData?.username || 'Unknown',
+              email: merchant.business_email // Use business_email from merchant record
+            }
+          });
+        } catch (err) {
+          console.error("Error processing approved merchant:", merchant.id, err);
+        }
       }
       
       setPendingApplications(enhancedPendingApplications);
       setApprovedMerchants(enhancedApprovedMerchants);
       
       // Fetch dashboard stats
-      const { data: merchantCount } = await supabase
+      const { count: merchantCount, error: merchantCountError } = await supabase
         .from('merchants')
-        .select('id', { count: 'exact' })
+        .select('id', { count: 'exact', head: true })
         .eq('status', 'approved');
       
-      const { data: userCount } = await supabase
+      const { count: userCount, error: userCountError } = await supabase
         .from('profiles')
-        .select('id', { count: 'exact' });
+        .select('id', { count: 'exact', head: true });
       
-      const { data: bookingCount } = await supabase
+      const { count: bookingCount, error: bookingCountError } = await supabase
         .from('bookings')
-        .select('id', { count: 'exact' });
+        .select('id', { count: 'exact', head: true });
       
       setStats({
-        totalMerchants: merchantCount?.length || 0,
-        totalUsers: userCount?.length || 0,
-        totalBookings: bookingCount?.length || 0,
+        totalMerchants: merchantCount || 0,
+        totalUsers: userCount || 0,
+        totalBookings: bookingCount || 0,
         pendingApplications: enhancedPendingApplications.length
       });
       

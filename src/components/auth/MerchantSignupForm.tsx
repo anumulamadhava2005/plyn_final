@@ -4,13 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail, Lock, User, Store, Phone } from 'lucide-react';
+import { Mail, Lock, User, Store, Phone, AlertTriangle } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const merchantSignupSchema = z.object({
@@ -56,7 +55,23 @@ const MerchantSignupForm = () => {
     try {
       console.log("Starting merchant signup process");
       
-      // First, signup with Supabase auth directly instead of using our wrapped function
+      // First, check if the username already exists
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', values.username);
+        
+      if (checkError) {
+        console.error("Error checking username:", checkError);
+        throw checkError;
+      }
+      
+      if (existingUsers && existingUsers.length > 0) {
+        console.error("Username already exists");
+        throw new Error("Username already exists. Please choose a different username.");
+      }
+      
+      // Sign up with Supabase auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
