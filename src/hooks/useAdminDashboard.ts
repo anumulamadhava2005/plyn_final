@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -73,10 +72,10 @@ export const useAdminDashboard = () => {
           service_category: merchant.service_category,
           status: 'pending',
           created_at: merchant.created_at,
-          user_profile: profileData ? {
-            username: profileData.username,
-            email: merchant.business_email // Use business_email from merchant record instead
-          } : null
+          user_profile: {
+            username: profileData?.username || 'Unknown',
+            email: merchant.business_email // Use business_email from merchant record
+          }
         });
       }
       
@@ -100,10 +99,10 @@ export const useAdminDashboard = () => {
           service_category: merchant.service_category,
           status: 'approved',
           created_at: merchant.created_at,
-          user_profile: profileData ? {
-            username: profileData.username,
-            email: merchant.business_email // Use business_email from merchant record instead
-          } : null
+          user_profile: {
+            username: profileData?.username || 'Unknown',
+            email: merchant.business_email // Use business_email from merchant record
+          }
         });
       }
       

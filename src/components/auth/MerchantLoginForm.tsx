@@ -40,40 +40,46 @@ const MerchantLoginForm = () => {
     setError(null);
     
     try {
-      const loginResult = await merchantLogin(values.email, values.password);
-      console.log("Merchant login completed with result:", loginResult);
+      // Attempt merchant login
+      const result = await merchantLogin(values.email, values.password);
       
-      if (loginResult && loginResult.user) {
-        // Check merchant approval status
-        const { data: merchantData, error: merchantError } = await supabase
-          .from('merchants')
-          .select('status')
-          .eq('id', loginResult.user.id)
-          .single();
-        
-        if (merchantError) {
-          console.error("Error checking merchant status:", merchantError);
-          throw new Error("Unable to verify merchant status. Please try again.");
-        }
-        
+      if (!result || !result.user) {
+        throw new Error("Login failed. Please check your credentials and try again.");
+      }
+      
+      console.log("Merchant login successful for user ID:", result.user.id);
+      
+      // Check merchant approval status
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('status')
+        .eq('id', result.user.id)
+        .single();
+      
+      if (merchantError) {
+        console.error("Error checking merchant status:", merchantError);
+        throw new Error("Unable to verify merchant status. Please try again.");
+      }
+      
+      toast({
+        title: "Login Successful",
+        description: "Welcome back to your merchant account!",
+      });
+      
+      console.log("Merchant status:", merchantData?.status);
+      
+      // Redirect based on merchant status
+      if (merchantData && merchantData.status === 'approved') {
+        navigate('/merchant-dashboard', { replace: true });
+      } else if (merchantData && merchantData.status === 'pending') {
+        navigate('/merchant-pending', { replace: true });
+      } else {
+        // Rejected or unknown status
         toast({
-          title: "Login Successful",
-          description: "Welcome back to your merchant account!",
+          title: "Access Limited",
+          description: "Your merchant application status requires attention. Please contact support.",
+          variant: "destructive"
         });
-        
-        // Redirect based on merchant status
-        if (merchantData && merchantData.status === 'approved') {
-          navigate('/merchant-dashboard', { replace: true });
-        } else if (merchantData && merchantData.status === 'pending') {
-          navigate('/merchant-pending', { replace: true });
-        } else {
-          // Rejected or unknown status
-          toast({
-            title: "Access Limited",
-            description: "Your merchant application status requires attention. Please contact support.",
-            variant: "destructive"
-          });
-        }
       }
     } catch (error: any) {
       console.error('Merchant login error:', error);

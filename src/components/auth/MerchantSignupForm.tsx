@@ -56,7 +56,7 @@ const MerchantSignupForm = () => {
     setError(null);
     
     try {
-      // First, create the user account
+      // First, create the user account with the merchant flag set to true
       await signUp(
         values.email, 
         values.password, 
@@ -69,14 +69,17 @@ const MerchantSignupForm = () => {
       
       // Get the current user session after signup
       const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user?.id;
       
       // Check if we have a valid session with user data
-      if (!userId) {
+      if (!sessionData || !sessionData.session || !sessionData.session.user) {
         throw new Error("Failed to create user account. Please try again.");
       }
       
-      // Now create the merchant application
+      const userId = sessionData.session.user.id;
+      
+      console.log("User created with ID:", userId);
+      
+      // Now create the merchant application with pending status
       const { error: merchantError } = await supabase
         .from('merchants')
         .insert({
@@ -90,8 +93,22 @@ const MerchantSignupForm = () => {
         });
       
       if (merchantError) {
+        console.error("Error creating merchant profile:", merchantError);
         throw merchantError;
       }
+      
+      // Ensure the user profile is marked as a merchant
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ is_merchant: true })
+        .eq('id', userId);
+        
+      if (profileError) {
+        console.error("Error updating profile merchant status:", profileError);
+        // Don't throw here as the main merchant record was already created
+      }
+      
+      console.log("Merchant application submitted successfully for user ID:", userId);
       
       toast({
         title: "Merchant Application Submitted",
