@@ -58,43 +58,31 @@ export const useMerchantSignup = () => {
       
       console.log("Auth signup complete, user created with ID:", authData.user.id);
       
-      // Create the merchant application with pending status
-      // Important: Using the anon key which respects RLS policies
-      console.log("Creating merchant application with user ID:", authData.user.id);
+      // Create the merchant record - tried with RPC to bypass RLS
+      const merchantData = {
+        id: authData.user.id,
+        business_name: values.businessName,
+        business_address: values.businessAddress,
+        business_email: values.email,
+        business_phone: values.businessPhone,
+        service_category: values.serviceCategory,
+        status: 'pending'
+      };
       
-      // Try to create merchant profile without RLS using direct SQL
-      const { data: merchantData, error: merchantError } = await supabase
+      console.log("Creating merchant record:", merchantData);
+      
+      // Try first approach - direct insert with explicit ID
+      const { data: insertedMerchant, error: merchantError } = await supabase
         .from('merchants')
-        .insert({
-          id: authData.user.id,
-          business_name: values.businessName,
-          business_address: values.businessAddress,
-          business_email: values.email,
-          business_phone: values.businessPhone,
-          service_category: values.serviceCategory,
-          status: 'pending'
-        })
+        .insert(merchantData)
         .select();
       
-      // Log the result for debugging
-      console.log("Merchant insert attempt result:", { merchantData, merchantError });
-      
       if (merchantError) {
-        console.error("Error creating merchant profile:", merchantError);
+        console.error("Error inserting merchant record:", merchantError);
         
-        // Attempt a second approach - using function that bypasses RLS
-        interface InsertMerchantParams {
-          user_id: string;
-          b_name: string;
-          b_address: string;
-          b_email: string;
-          b_phone: string;
-          s_category: string;
-          merchant_status: string;
-        }
-        
-        const { data: insertResult, error: functionError } = await supabase
-          .rpc<any, InsertMerchantParams>('insert_merchant_record', {
+        // Try second approach - call RPC function to insert merchant
+        const { data: rpcResult, error: rpcError } = await supabase
+          .rpc('insert_merchant_record', {
             user_id: authData.user.id,
             b_name: values.businessName,
             b_address: values.businessAddress,
@@ -103,42 +91,29 @@ export const useMerchantSignup = () => {
             s_category: values.serviceCategory,
             merchant_status: 'pending'
           });
-          
-        console.log("Fallback insert attempt result:", { insertResult, functionError });
         
-        if (functionError) {
-          console.error("Error with fallback merchant creation:", functionError);
+        if (rpcError) {
+          console.error("RPC error creating merchant record:", rpcError);
           
-          // Non-blocking error, continue with the flow
+          // If both approaches fail, notify but continue
           toast({
             title: "Account Created With Issues",
             description: "Your account was created but we had trouble setting up your merchant profile. Please contact support.",
             variant: "destructive"
           });
         } else {
+          console.log("Merchant record created via RPC:", rpcResult);
           toast({
             title: "Merchant Application Submitted",
             description: "Your application has been submitted and is pending admin approval.",
           });
         }
       } else {
-        console.log("Merchant application submitted successfully:", merchantData);
-        
+        console.log("Merchant record created successfully:", insertedMerchant);
         toast({
           title: "Merchant Application Submitted",
-          description: "Your application has been submitted and is pending admin approval. You'll be notified once approved.",
+          description: "Your application has been submitted and is pending admin approval.",
         });
-      }
-      
-      // Update the profile record to ensure is_merchant is true
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ is_merchant: true })
-        .eq('id', authData.user.id);
-        
-      if (profileError) {
-        console.error("Error updating profile merchant status:", profileError);
-        // Non-blocking error, continue with the flow
       }
       
       // Always redirect to the pending page
