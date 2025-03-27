@@ -12,10 +12,14 @@ import ApprovedMerchantsList from '@/components/admin/ApprovedMerchantsList';
 import AnalyticsDashboard from '@/components/admin/AnalyticsDashboard';
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 import AdminNavbar from '@/components/admin/AdminNavbar';
+import { Button } from '@/components/ui/button'; 
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('applications');
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { 
     pendingApplications, 
     approvedMerchants, 
@@ -43,6 +47,34 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  // Debug function to view raw database data
+  const checkRawData = async () => {
+    try {
+      const { data: merchants, error } = await supabase
+        .from('merchants')
+        .select('*');
+        
+      if (error) {
+        console.error("Error fetching raw merchant data:", error);
+        toast({
+          title: "Error",
+          description: "Could not fetch raw database data",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      console.log("RAW Merchants Data:", merchants);
+      toast({
+        title: "Database Check",
+        description: `Found ${merchants?.length || 0} merchant records in database.`,
+      });
+      
+    } catch (e) {
+      console.error("Exception during raw data check:", e);
+    }
+  };
+
   return (
     <PageTransition>
       <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -61,7 +93,12 @@ const AdminDashboard = () => {
                 </p>
               </div>
               
-              <Badge className="bg-red-500">Admin Portal</Badge>
+              <div className="flex items-center gap-3">
+                <Badge className="bg-red-500">Admin Portal</Badge>
+                <Button variant="outline" size="sm" onClick={checkRawData}>
+                  Check Database
+                </Button>
+              </div>
             </div>
             
             {/* Dashboard Stats */}

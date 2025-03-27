@@ -61,33 +61,20 @@ export const useMerchantSignup = () => {
       // Create the merchant application with pending status
       console.log("Creating merchant application with user ID:", authData.user.id);
       
-      // Try with rls bypass approach first
-      let merchantError = null;
-      try {
-        // Create a new merchant application record
-        const { error: insertError } = await supabase
-          .from('merchants')
-          .insert({
-            id: authData.user.id,
-            business_name: values.businessName,
-            business_address: values.businessAddress,
-            business_email: values.email,
-            business_phone: values.businessPhone,
-            service_category: values.serviceCategory,
-            status: 'pending'
-          });
-          
-        merchantError = insertError;
+      // Explicitly inserting merchant record
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .insert({
+          id: authData.user.id,
+          business_name: values.businessName,
+          business_address: values.businessAddress,
+          business_email: values.email,
+          business_phone: values.businessPhone,
+          service_category: values.serviceCategory,
+          status: 'pending'
+        })
+        .select();
         
-        if (insertError) {
-          console.error("Error creating merchant profile with regular method:", insertError);
-          throw insertError;
-        }
-      } catch (err) {
-        console.error("Exception during merchant creation:", err);
-        merchantError = err as any;
-      }
-      
       if (merchantError) {
         console.error("Error creating merchant profile:", merchantError);
         
@@ -98,7 +85,7 @@ export const useMerchantSignup = () => {
           variant: "destructive"
         });
       } else {
-        console.log("Merchant application submitted successfully for user ID:", authData.user.id);
+        console.log("Merchant application submitted successfully:", merchantData);
         
         toast({
           title: "Merchant Application Submitted",

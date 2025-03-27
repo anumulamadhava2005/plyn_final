@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -38,8 +39,26 @@ export const useAdminDashboard = () => {
       console.log("Fetching merchant applications");
       setIsLoading(true);
       
-      // Fetch pending merchant applications - using service role or direct connection
-      // to bypass RLS for admin operations
+      // First set admin status in profile to ensure RLS policies work
+      const adminEmail = sessionStorage.getItem('adminEmail');
+      if (adminEmail === 'srimanmudavath@gmail.com') {
+        // Find the admin user and ensure is_admin is set to true
+        const { data: adminUser } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', 'admin')
+          .maybeSingle();
+          
+        if (adminUser?.id) {
+          // Update admin status
+          await supabase
+            .from('profiles')
+            .update({ is_admin: true })
+            .eq('id', adminUser.id);
+        }
+      }
+      
+      // Fetch pending merchant applications
       console.log("Fetching pending applications");
       const { data: pendingData, error: pendingError } = await supabase
         .from('merchants')
