@@ -300,7 +300,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      insert_merchant_record: {
+        Args: {
+          user_id: string
+          b_name: string
+          b_address: string
+          b_email: string
+          b_phone: string
+          s_category: string
+          merchant_status?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

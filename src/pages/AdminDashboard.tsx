@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -16,8 +15,6 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { MerchantData } from '@/types/admin';
-
-type EmptyRPCParams = Record<string, never>;
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('applications');
@@ -96,7 +93,7 @@ const AdminDashboard = () => {
         }
         
         const { data: rpcData, error: rpcError } = await supabase
-          .rpc<MerchantData[]>('get_all_merchants', {});
+          .rpc<MerchantData[]>('get_all_merchants');
           
         if (rpcError) {
           console.error("Error fetching merchant data via RPC:", rpcError);
@@ -199,6 +196,9 @@ const AdminDashboard = () => {
               totalUsers={stats.totalUsers}
               totalBookings={stats.totalBookings}
               pendingApplications={stats.pendingApplications}
+              rejectedApplications={stats.rejectedApplications}
+              totalServices={stats.totalServices}
+              totalRevenue={stats.totalRevenue}
             />
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
