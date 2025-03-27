@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -43,7 +44,7 @@ export const useAdminDashboard = () => {
       // First try the RPC method to fetch all merchants directly
       console.log("Fetching merchant applications using direct RPC method");
       const { data: allMerchants, error: rpcError } = await supabase
-        .rpc('get_all_merchants', {} as any); // Using 'as any' to bypass the type error
+        .rpc('get_all_merchants', {} as Record<string, any>); // Use Record<string, any> for typing
       
       if (rpcError) {
         console.error("Error fetching merchants via RPC:", rpcError);

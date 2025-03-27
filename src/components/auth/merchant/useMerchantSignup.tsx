@@ -83,7 +83,7 @@ export const useMerchantSignup = () => {
         console.error("Error creating merchant profile:", merchantError);
         
         // Attempt a second approach - using function that bypasses RLS
-        // Here we need to fix the type error - we need to properly type the parameters
+        // Fix the type by using type assertion for the function parameters
         const { data: insertResult, error: functionError } = await supabase
           .rpc('insert_merchant_record', {
             user_id: authData.user.id,
@@ -93,7 +93,7 @@ export const useMerchantSignup = () => {
             b_phone: values.businessPhone,
             s_category: values.serviceCategory,
             merchant_status: 'pending'
-          } as any); // Using 'as any' to bypass the type error
+          } as Record<string, any>); // Using Record<string, any> for proper typing
           
         console.log("Fallback insert attempt result:", { insertResult, functionError });
         

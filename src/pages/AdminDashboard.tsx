@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +70,7 @@ const AdminDashboard = () => {
         });
         
         const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_all_merchants', {} as any);
+          .rpc('get_all_merchants', {} as Record<string, any>); // Use Record<string, any> for proper typing
           
         if (rpcError) {
           console.error("Error fetching merchant data via RPC:", rpcError);
@@ -85,12 +86,12 @@ const AdminDashboard = () => {
         setDebugInfo({
           method: "RPC",
           data: rpcData,
-          count: rpcData ? rpcData.length : 0
+          count: rpcData ? (rpcData as any[]).length : 0 // Use type assertion for null check and length
         });
         
         toast({
           title: "Database Check (RPC)",
-          description: `Found ${rpcData ? rpcData.length : 0} merchant records using RPC method.`,
+          description: `Found ${rpcData ? (rpcData as any[]).length : 0} merchant records using RPC method.`,
         });
         return;
       }
