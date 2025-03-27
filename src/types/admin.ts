@@ -6,14 +6,14 @@ export type UserProfile = {
 
 export type MerchantApplication = {
   id: string;
-  businessName: string;
-  businessAddress?: string;
-  businessEmail: string;
-  businessPhone: string;
-  serviceCategory: string;
+  business_name: string;
+  business_address: string;
+  business_email: string;
+  business_phone: string;
+  service_category: string;
   status: 'pending' | 'approved' | 'rejected';
-  submittedAt: string;
-  user_profile?: UserProfile | null;
+  created_at: string;
+  user_profile: UserProfile | null;
 };
 
 export type DashboardStats = {
@@ -21,9 +21,6 @@ export type DashboardStats = {
   totalUsers: number;
   totalBookings: number;
   pendingApplications: number;
-  rejectedApplications: number;
-  totalServices: number;
-  totalRevenue: number;
 };
 
 export type MerchantData = {
