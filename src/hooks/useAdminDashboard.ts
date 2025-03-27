@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -27,7 +28,6 @@ export const useAdminDashboard = () => {
     pendingApplications: 0,
     rejectedApplications: 0,
     totalServices: 0,
-    totalBookings: 0,
     totalRevenue: 0
   });
 
@@ -72,7 +72,7 @@ export const useAdminDashboard = () => {
       // First try the RPC method to fetch all merchants directly
       console.log("Fetching merchant applications using direct RPC method");
       const { data: allMerchants, error: rpcError } = await supabase
-        .rpc<MerchantData[], Record<string, never>>('get_all_merchants', {});
+        .rpc<MerchantData[]>('get_all_merchants', {});
       
       if (rpcError) {
         console.error("Error fetching merchants via RPC:", rpcError);
@@ -90,7 +90,7 @@ export const useAdminDashboard = () => {
           businessPhone: merchant.business_phone,
           serviceCategory: merchant.service_category,
           submittedAt: new Date(merchant.created_at).toLocaleDateString(),
-          status: merchant.status
+          status: 'pending' as 'pending' | 'approved' | 'rejected'
         }));
         
         const approved = allMerchants.filter(m => m.status === 'approved').map(merchant => ({
@@ -100,7 +100,7 @@ export const useAdminDashboard = () => {
           businessPhone: merchant.business_phone,
           serviceCategory: merchant.service_category,
           submittedAt: new Date(merchant.created_at).toLocaleDateString(),
-          status: merchant.status
+          status: 'approved' as 'pending' | 'approved' | 'rejected'
         }));
         
         const rejected = allMerchants.filter(m => m.status === 'rejected').map(merchant => ({
@@ -110,7 +110,7 @@ export const useAdminDashboard = () => {
           businessPhone: merchant.business_phone,
           serviceCategory: merchant.service_category,
           submittedAt: new Date(merchant.created_at).toLocaleDateString(),
-          status: merchant.status
+          status: 'rejected' as 'pending' | 'approved' | 'rejected'
         }));
         
         setPendingApplications(pending);
@@ -122,6 +122,7 @@ export const useAdminDashboard = () => {
           totalMerchants: approved.length,
           pendingApplications: pending.length,
           rejectedApplications: rejected.length,
+          totalUsers: 0,
           totalServices: 0,
           totalBookings: 0,
           totalRevenue: 0
@@ -175,7 +176,7 @@ export const useAdminDashboard = () => {
       // Refresh merchant applications
       fetchMerchantApplications();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error approving merchant:', error);
       toast({
         title: "Error",
@@ -211,7 +212,7 @@ export const useAdminDashboard = () => {
       // Refresh data
       fetchMerchantApplications();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error rejecting merchant:', error);
       toast({
         title: "Error",

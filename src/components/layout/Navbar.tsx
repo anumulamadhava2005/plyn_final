@@ -18,6 +18,7 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import LogoAnimation from '@/components/ui/LogoAnimation';
 import NavLink from '@/components/layout/NavLink';
 import NotificationsPopover from '@/components/notifications/NotificationsPopover';
+import { useToast } from '@/components/ui/use-toast';
 
 const navLinks = [
   { label: 'Home', path: '/' },
@@ -25,7 +26,7 @@ const navLinks = [
   { label: 'Find Salons', path: '/book-now' },
   { label: 'Hair Recommendation', path: '/hair-recommendation' },
   { label: 'My Bookings', path: '/my-bookings' },
-  { label: 'For Merchants', path: '/merchant-login' },  // Update this link to point to merchant login
+  { label: 'For Merchants', path: '/merchant-login' },
 ];
 
 export const ProfileDropdown = ({ user, onLogout }: { user: any; onLogout: () => void }) => {
@@ -84,6 +85,7 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const handleLogout = async () => {
     try {

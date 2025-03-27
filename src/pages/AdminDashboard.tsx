@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -14,18 +15,9 @@ import AdminNavbar from '@/components/admin/AdminNavbar';
 import { Button } from '@/components/ui/button'; 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { MerchantData } from '@/types/admin';
 
 type EmptyRPCParams = Record<string, never>;
-
-interface MerchantData {
-  id: string;
-  business_name: string;
-  business_email: string;
-  business_phone: string;
-  status: string;
-  created_at: string;
-  [key: string]: any; // For any additional fields
-}
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('applications');
@@ -36,7 +28,7 @@ const AdminDashboard = () => {
   const { toast } = useToast();
   const { 
     pendingApplications, 
-    approvedMerchants, 
+    approvedApplications, 
     isLoading, 
     stats, 
     handleApprove, 
@@ -104,7 +96,7 @@ const AdminDashboard = () => {
         }
         
         const { data: rpcData, error: rpcError } = await supabase
-          .rpc<MerchantData[], Record<string, never>>('get_all_merchants', {});
+          .rpc<MerchantData[]>('get_all_merchants', {});
           
         if (rpcError) {
           console.error("Error fetching merchant data via RPC:", rpcError);
@@ -227,7 +219,7 @@ const AdminDashboard = () => {
               
               <TabsContent value="merchants" className="space-y-6">
                 <ApprovedMerchantsList 
-                  merchants={approvedMerchants}
+                  merchants={approvedApplications}
                   isLoading={isLoading}
                 />
               </TabsContent>
