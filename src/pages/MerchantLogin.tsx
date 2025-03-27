@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
@@ -15,6 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
+import { supabase } from '@/integrations/supabase/client';
 
 const merchantLoginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -30,12 +31,8 @@ const MerchantLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Redirect if the user is already logged in as a merchant
-    if (user && isMerchant) {
-      navigate('/merchant-dashboard');
-    }
-  }, [user, isMerchant, navigate]);
+  // We're removing the useEffect hook that was causing redirect loops
+  // and handling navigation directly in the onSubmit function
 
   const form = useForm<MerchantLoginFormValues>({
     resolver: zodResolver(merchantLoginSchema),
@@ -50,15 +47,78 @@ const MerchantLogin = () => {
     setError(null);
     
     try {
+      // First, sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
+      
+      if (authError) {
+        console.error('Auth login error:', authError);
+        throw authError;
+      }
+      
+      if (!authData.user) {
+        throw new Error('Failed to authenticate. Please try again.');
+      }
+      
+      // Check if user is a merchant
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_merchant')
+        .eq('id', authData.user.id)
+        .single();
+        
+      if (profileError) {
+        console.error('Profile check error:', profileError);
+        throw profileError;
+      }
+      
+      if (!profileData.is_merchant) {
+        throw new Error('This account is not registered as a merchant. Please use a merchant account.');
+      }
+      
+      // Update auth context with merchantLogin
       await merchantLogin(values.email, values.password);
-      // The navigation will happen automatically due to the useEffect hook
-      // after the user state and isMerchant state are updated
+      
+      // Check merchant status
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('status')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+        
+      if (merchantError) {
+        console.error('Merchant status check error:', merchantError);
+        throw merchantError;
+      }
+      
+      // Redirect based on merchant status
+      if (merchantData && merchantData.status === 'approved') {
+        console.log("Merchant is approved, redirecting to dashboard");
+        navigate('/merchant-dashboard', { replace: true });
+      } else if (merchantData && merchantData.status === 'pending') {
+        console.log("Merchant application is pending");
+        navigate('/merchant-pending', { replace: true });
+      } else {
+        toast({
+          title: "Account Status Unknown",
+          description: "There was an issue determining your account status. Please contact support.",
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       console.error('Merchant login error:', error);
       setError(error.message || 'Login failed. Please check your credentials and try again.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSignupClick = () => {
+    navigate('/merchant-auth', {
+      state: { initialTab: 'signup' }
+    });
   };
 
   return (
@@ -154,9 +214,15 @@ const MerchantLogin = () => {
                       </p>
                     </div>
                     
+                    <div className="mt-4 text-center">
+                      <Button variant="link" onClick={handleSignupClick} className="text-salon-men p-0">
+                        Don't have a merchant account? Sign up here
+                      </Button>
+                    </div>
+                    
                     <div className="mt-6 p-4 bg-muted/50 rounded-lg text-sm">
                       <p className="text-center text-muted-foreground">
-                        Don't have a merchant account? Contact PLYN support team for merchant registration.
+                        Need help? Contact PLYN support team for assistance.
                       </p>
                     </div>
                   </form>

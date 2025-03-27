@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
@@ -90,8 +91,14 @@ const Navbar = () => {
   const handleLogout = async () => {
     try {
       await signOut();
+      // Clearing localStorage items related to auth
       window.localStorage.removeItem('supabase.auth.token');
       navigate('/auth', { replace: true });
+      
+      toast({
+        title: "Sign out successful",
+        description: "You have been logged out successfully.",
+      });
     } catch (error) {
       console.error('Error signing out:', error);
       toast({
@@ -100,6 +107,10 @@ const Navbar = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleMerchantClick = () => {
+    navigate('/merchant-login');
   };
 
   return (
@@ -113,7 +124,7 @@ const Navbar = () => {
           </div>
 
           <nav className="hidden md:flex items-center space-x-1">
-            {navLinks.map((link) => (
+            {navLinks.filter(link => link.label !== 'For Merchants').map((link) => (
               <NavLink key={link.path} to={link.path} className="nav-link">
                 {link.label}
               </NavLink>
@@ -132,7 +143,7 @@ const Navbar = () => {
                   Sign In
                 </Button>
                 <div className="hidden md:block">
-                  <Button variant="outline" size="sm" onClick={() => navigate('/merchant-login')}>
+                  <Button variant="outline" size="sm" onClick={handleMerchantClick}>
                     For Merchants
                   </Button>
                 </div>
@@ -153,7 +164,7 @@ const Navbar = () => {
       {/* Mobile menu */}
       <div className={`md:hidden fixed left-0 top-16 w-full bg-background border-b border-border z-50 transition-all duration-300 ${mobileMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}>
         <nav className="flex flex-col p-4 space-y-2">
-          {navLinks.map((link) => (
+          {navLinks.filter(link => link.label !== 'For Merchants').map((link) => (
             <NavLink
               key={link.path}
               to={link.path}
@@ -163,6 +174,17 @@ const Navbar = () => {
               {link.label}
             </NavLink>
           ))}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full justify-start" 
+            onClick={() => {
+              navigate('/merchant-login');
+              setMobileMenuOpen(false);
+            }}
+          >
+            For Merchants
+          </Button>
           {user ? (
             <>
               <Link
@@ -179,11 +201,11 @@ const Navbar = () => {
             </>
           ) : (
             <>
-              <Button variant="default" size="sm" className="w-full" onClick={() => navigate('/auth')}>
+              <Button variant="default" size="sm" className="w-full" onClick={() => {
+                navigate('/auth');
+                setMobileMenuOpen(false);
+              }}>
                 Sign In
-              </Button>
-              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => navigate('/merchant-login')}>
-                For Merchants
               </Button>
             </>
           )}
