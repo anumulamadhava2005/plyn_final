@@ -5,6 +5,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { MerchantApplication, DashboardStats } from '@/types/admin';
 
+// Define a type for our RPC params
+type EmptyRPCParams = Record<string, never>;
+
 export const useAdminDashboard = () => {
   const [pendingApplications, setPendingApplications] = useState<MerchantApplication[]>([]);
   const [approvedMerchants, setApprovedMerchants] = useState<MerchantApplication[]>([]);
@@ -44,7 +47,7 @@ export const useAdminDashboard = () => {
       // First try the RPC method to fetch all merchants directly
       console.log("Fetching merchant applications using direct RPC method");
       const { data: allMerchants, error: rpcError } = await supabase
-        .rpc('get_all_merchants', {} as Record<string, any>); // Use Record<string, any> for typing
+        .rpc<any[]>('get_all_merchants', {});
       
       if (rpcError) {
         console.error("Error fetching merchants via RPC:", rpcError);
@@ -54,7 +57,7 @@ export const useAdminDashboard = () => {
         
         // Process merchants by status
         // We need to specify the type to avoid "never" type errors
-        const typedMerchants = allMerchants as any[];
+        const typedMerchants = allMerchants;
         
         const pending = typedMerchants.filter(m => m.status === 'pending').map(merchant => ({
           id: merchant.id,

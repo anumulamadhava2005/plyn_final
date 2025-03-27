@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +14,8 @@ import AdminNavbar from '@/components/admin/AdminNavbar';
 import { Button } from '@/components/ui/button'; 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+
+type EmptyRPCParams = Record<string, never>;
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('applications');
@@ -70,7 +71,7 @@ const AdminDashboard = () => {
         });
         
         const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_all_merchants', {} as Record<string, any>); // Use Record<string, any> for proper typing
+          .rpc<any[] | null>('get_all_merchants', {});
           
         if (rpcError) {
           console.error("Error fetching merchant data via RPC:", rpcError);
@@ -86,12 +87,12 @@ const AdminDashboard = () => {
         setDebugInfo({
           method: "RPC",
           data: rpcData,
-          count: rpcData ? (rpcData as any[]).length : 0 // Use type assertion for null check and length
+          count: rpcData ? rpcData.length : 0
         });
         
         toast({
           title: "Database Check (RPC)",
-          description: `Found ${rpcData ? (rpcData as any[]).length : 0} merchant records using RPC method.`,
+          description: `Found ${rpcData ? rpcData.length : 0} merchant records using RPC method.`,
         });
         return;
       }
