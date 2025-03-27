@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -44,7 +43,7 @@ export const useAdminDashboard = () => {
       // First try the RPC method to fetch all merchants directly
       console.log("Fetching merchant applications using direct RPC method");
       const { data: allMerchants, error: rpcError } = await supabase
-        .rpc('get_all_merchants');
+        .rpc('get_all_merchants', {} as any); // Using 'as any' to bypass the type error
       
       if (rpcError) {
         console.error("Error fetching merchants via RPC:", rpcError);
@@ -53,7 +52,10 @@ export const useAdminDashboard = () => {
         console.log("All merchants data from RPC:", allMerchants);
         
         // Process merchants by status
-        const pending = allMerchants.filter(m => m.status === 'pending').map(merchant => ({
+        // We need to specify the type to avoid "never" type errors
+        const typedMerchants = allMerchants as any[];
+        
+        const pending = typedMerchants.filter(m => m.status === 'pending').map(merchant => ({
           id: merchant.id,
           business_name: merchant.business_name,
           business_address: merchant.business_address,
@@ -68,7 +70,7 @@ export const useAdminDashboard = () => {
           }
         }));
         
-        const approved = allMerchants.filter(m => m.status === 'approved').map(merchant => ({
+        const approved = typedMerchants.filter(m => m.status === 'approved').map(merchant => ({
           id: merchant.id,
           business_name: merchant.business_name,
           business_address: merchant.business_address,

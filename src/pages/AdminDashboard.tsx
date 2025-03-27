@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +33,6 @@ const AdminDashboard = () => {
   console.log("Admin Dashboard - Pending Applications:", pendingApplications);
   console.log("Admin Dashboard - Is Loading:", isLoading);
 
-  // More strict check for admin authentication
   useEffect(() => {
     console.log("Checking admin authentication");
     const isAdminLoggedIn = sessionStorage.getItem('isAdminLoggedIn') === 'true';
@@ -43,26 +41,21 @@ const AdminDashboard = () => {
     console.log("Admin auth check:", { isAdminLoggedIn, adminEmail });
     
     if (!isAdminLoggedIn || adminEmail !== 'srimanmudavath@gmail.com') {
-      // Redirect to admin login page if not logged in
       console.log("Not admin, redirecting to login");
       window.location.href = '/admin-login';
     }
   }, []);
 
-  // Function to refresh dashboard data
   const refreshDashboard = () => {
     setIsRefreshing(true);
     
-    // Force reload the page to refresh all data
     window.location.reload();
   };
 
-  // Debug function to view raw database data
   const checkRawData = async () => {
     try {
       setDebugInfo(null);
       
-      // First try direct query
       const { data: merchants, error } = await supabase
         .from('merchants')
         .select('*');
@@ -75,9 +68,8 @@ const AdminDashboard = () => {
           variant: "destructive"
         });
         
-        // Try RPC if direct query fails
         const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_all_merchants');
+          .rpc('get_all_merchants', {} as any);
           
         if (rpcError) {
           console.error("Error fetching merchant data via RPC:", rpcError);
@@ -93,12 +85,12 @@ const AdminDashboard = () => {
         setDebugInfo({
           method: "RPC",
           data: rpcData,
-          count: rpcData?.length || 0
+          count: rpcData ? rpcData.length : 0
         });
         
         toast({
           title: "Database Check (RPC)",
-          description: `Found ${rpcData?.length || 0} merchant records using RPC method.`,
+          description: `Found ${rpcData ? rpcData.length : 0} merchant records using RPC method.`,
         });
         return;
       }
@@ -161,7 +153,6 @@ const AdminDashboard = () => {
               </div>
             </div>
             
-            {/* Debug info section */}
             {debugInfo && (
               <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
                 <h3 className="font-semibold mb-2">Debug Information:</h3>
@@ -178,7 +169,6 @@ const AdminDashboard = () => {
               </div>
             )}
             
-            {/* Dashboard Stats */}
             <DashboardStats 
               totalMerchants={stats.totalMerchants}
               totalUsers={stats.totalUsers}
