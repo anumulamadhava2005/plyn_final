@@ -16,7 +16,6 @@ import BookingConfirmation from "./pages/BookingConfirmation";
 import MerchantSignup from "./pages/MerchantSignup";
 import MerchantDashboard from "./pages/MerchantDashboard";
 import MerchantAuth from "./pages/MerchantAuth";
-import MerchantLogin from "./pages/MerchantLogin";
 import MerchantPending from "./pages/MerchantPending";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminAuth from "./pages/AdminAuth";
@@ -45,8 +44,7 @@ const App = () => (
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
               <Route path="/merchant-signup" element={<MerchantSignup />} />
               <Route path="/merchant-dashboard" element={<MerchantDashboard />} />
-              <Route path="/merchant-login" element={<MerchantLogin />} />
-              <Route path="/merchant-auth" element={<MerchantAuth />} />
+              <Route path="/merchant-login" element={<MerchantAuth />} />
               <Route path="/merchant-pending" element={<MerchantPending />} />
               <Route path="/admin-dashboard" element={<AdminDashboard />} />
               <Route path="/admin-login" element={<AdminAuth />} />
