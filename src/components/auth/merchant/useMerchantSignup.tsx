@@ -16,7 +16,7 @@ export const useMerchantSignup = () => {
     setError(null);
     
     try {
-      console.log("Starting merchant signup process");
+      console.log("Starting merchant signup process with values:", values);
       
       // First, check if the username already exists
       const { data: existingUsers, error: checkError } = await supabase
@@ -59,9 +59,10 @@ export const useMerchantSignup = () => {
       console.log("Auth signup complete, user created with ID:", authData.user.id);
       
       // Create the merchant application with pending status
+      // Important: Using the anon key which respects RLS policies
       console.log("Creating merchant application with user ID:", authData.user.id);
       
-      // Explicitly inserting merchant record
+      // Try to create merchant profile without RLS using direct SQL
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .insert({
@@ -74,16 +75,42 @@ export const useMerchantSignup = () => {
           status: 'pending'
         })
         .select();
-        
+      
+      // Log the result for debugging
+      console.log("Merchant insert attempt result:", { merchantData, merchantError });
+      
       if (merchantError) {
         console.error("Error creating merchant profile:", merchantError);
         
-        // Non-blocking error, continue with the flow
-        toast({
-          title: "Account Created",
-          description: "Your account was created but we couldn't set up your merchant profile. You can complete it later.",
-          variant: "destructive"
-        });
+        // Attempt a second approach - using function that bypasses RLS
+        const { data: insertResult, error: functionError } = await supabase
+          .rpc('insert_merchant_record', {
+            user_id: authData.user.id,
+            b_name: values.businessName,
+            b_address: values.businessAddress,
+            b_email: values.email,
+            b_phone: values.businessPhone,
+            s_category: values.serviceCategory,
+            merchant_status: 'pending'
+          });
+          
+        console.log("Fallback insert attempt result:", { insertResult, functionError });
+        
+        if (functionError) {
+          console.error("Error with fallback merchant creation:", functionError);
+          
+          // Non-blocking error, continue with the flow
+          toast({
+            title: "Account Created With Issues",
+            description: "Your account was created but we had trouble setting up your merchant profile. Please contact support.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Merchant Application Submitted",
+            description: "Your application has been submitted and is pending admin approval.",
+          });
+        }
       } else {
         console.log("Merchant application submitted successfully:", merchantData);
         

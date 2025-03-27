@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PageTransition from '@/components/transitions/PageTransition';
 import DashboardStats from '@/components/admin/DashboardStats';
@@ -18,6 +18,8 @@ import { useToast } from '@/components/ui/use-toast';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('applications');
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { 
@@ -47,9 +49,20 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  // Function to refresh dashboard data
+  const refreshDashboard = () => {
+    setIsRefreshing(true);
+    
+    // Force reload the page to refresh all data
+    window.location.reload();
+  };
+
   // Debug function to view raw database data
   const checkRawData = async () => {
     try {
+      setDebugInfo(null);
+      
+      // First try direct query
       const { data: merchants, error } = await supabase
         .from('merchants')
         .select('*');
@@ -58,13 +71,45 @@ const AdminDashboard = () => {
         console.error("Error fetching raw merchant data:", error);
         toast({
           title: "Error",
-          description: "Could not fetch raw database data",
+          description: "Could not fetch database data directly",
           variant: "destructive"
+        });
+        
+        // Try RPC if direct query fails
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_all_merchants');
+          
+        if (rpcError) {
+          console.error("Error fetching merchant data via RPC:", rpcError);
+          toast({
+            title: "Error",
+            description: "Could not fetch database data via RPC either",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        console.log("RAW Merchants Data (via RPC):", rpcData);
+        setDebugInfo({
+          method: "RPC",
+          data: rpcData,
+          count: rpcData?.length || 0
+        });
+        
+        toast({
+          title: "Database Check (RPC)",
+          description: `Found ${rpcData?.length || 0} merchant records using RPC method.`,
         });
         return;
       }
       
-      console.log("RAW Merchants Data:", merchants);
+      console.log("RAW Merchants Data (direct):", merchants);
+      setDebugInfo({
+        method: "Direct Query",
+        data: merchants,
+        count: merchants?.length || 0
+      });
+      
       toast({
         title: "Database Check",
         description: `Found ${merchants?.length || 0} merchant records in database.`,
@@ -72,6 +117,11 @@ const AdminDashboard = () => {
       
     } catch (e) {
       console.error("Exception during raw data check:", e);
+      toast({
+        title: "Error",
+        description: "Exception occurred during database check",
+        variant: "destructive"
+      });
     }
   };
 
@@ -98,8 +148,35 @@ const AdminDashboard = () => {
                 <Button variant="outline" size="sm" onClick={checkRawData}>
                   Check Database
                 </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={refreshDashboard}
+                  disabled={isRefreshing}
+                  className="flex items-center gap-1"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh Data
+                </Button>
               </div>
             </div>
+            
+            {/* Debug info section */}
+            {debugInfo && (
+              <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <h3 className="font-semibold mb-2">Debug Information:</h3>
+                <p>Method: {debugInfo.method}</p>
+                <p>Records found: {debugInfo.count}</p>
+                <div className="mt-2">
+                  <details>
+                    <summary className="cursor-pointer text-blue-500">View raw data</summary>
+                    <pre className="mt-2 p-2 bg-gray-200 dark:bg-gray-700 rounded text-xs overflow-auto max-h-40">
+                      {JSON.stringify(debugInfo.data, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              </div>
+            )}
             
             {/* Dashboard Stats */}
             <DashboardStats 

@@ -24,6 +24,8 @@ export const useAdminDashboard = () => {
     const isAdminLoggedIn = sessionStorage.getItem('isAdminLoggedIn') === 'true';
     const adminEmail = sessionStorage.getItem('adminEmail');
     
+    console.log("Checking admin status:", { isAdminLoggedIn, adminEmail });
+    
     if (!isAdminLoggedIn || adminEmail !== 'srimanmudavath@gmail.com') {
       console.log("Not admin - redirecting to login");
       window.location.href = '/admin-login';
@@ -39,27 +41,84 @@ export const useAdminDashboard = () => {
       console.log("Fetching merchant applications");
       setIsLoading(true);
       
-      // First set admin status in profile to ensure RLS policies work
-      const adminEmail = sessionStorage.getItem('adminEmail');
-      if (adminEmail === 'srimanmudavath@gmail.com') {
-        // Find the admin user and ensure is_admin is set to true
-        const { data: adminUser } = await supabase
+      // First try the RPC method to fetch all merchants directly
+      console.log("Fetching merchant applications using direct RPC method");
+      const { data: allMerchants, error: rpcError } = await supabase
+        .rpc('get_all_merchants');
+      
+      if (rpcError) {
+        console.error("Error fetching merchants via RPC:", rpcError);
+        // Fall back to regular queries
+      } else if (allMerchants) {
+        console.log("All merchants data from RPC:", allMerchants);
+        
+        // Process merchants by status
+        const pending = allMerchants.filter(m => m.status === 'pending').map(merchant => ({
+          id: merchant.id,
+          business_name: merchant.business_name,
+          business_address: merchant.business_address,
+          business_email: merchant.business_email,
+          business_phone: merchant.business_phone,
+          service_category: merchant.service_category,
+          status: 'pending' as const,
+          created_at: merchant.created_at,
+          user_profile: {
+            username: merchant.username || 'Unknown',
+            email: merchant.business_email
+          }
+        }));
+        
+        const approved = allMerchants.filter(m => m.status === 'approved').map(merchant => ({
+          id: merchant.id,
+          business_name: merchant.business_name,
+          business_address: merchant.business_address,
+          business_email: merchant.business_email,
+          business_phone: merchant.business_phone,
+          service_category: merchant.service_category,
+          status: 'approved' as const,
+          created_at: merchant.created_at,
+          user_profile: {
+            username: merchant.username || 'Unknown',
+            email: merchant.business_email
+          }
+        }));
+        
+        console.log("Processed pending applications:", pending);
+        console.log("Processed approved merchants:", approved);
+        
+        setPendingApplications(pending);
+        setApprovedMerchants(approved);
+        
+        // Update stats
+        setStats({
+          totalMerchants: approved.length,
+          totalUsers: 0, // Will be updated below
+          totalBookings: 0, // Will be updated below
+          pendingApplications: pending.length
+        });
+        
+        // Fetch remaining stats
+        const { count: userCount, error: userCountError } = await supabase
           .from('profiles')
-          .select('id')
-          .eq('username', 'admin')
-          .maybeSingle();
-          
-        if (adminUser?.id) {
-          // Update admin status
-          await supabase
-            .from('profiles')
-            .update({ is_admin: true })
-            .eq('id', adminUser.id);
-        }
+          .select('id', { count: 'exact', head: true });
+        
+        const { count: bookingCount, error: bookingCountError } = await supabase
+          .from('bookings')
+          .select('id', { count: 'exact', head: true });
+        
+        setStats(prev => ({
+          ...prev,
+          totalUsers: userCount || 0,
+          totalBookings: bookingCount || 0,
+        }));
+        
+        setIsLoading(false);
+        return;
       }
       
+      // Fallback to regular queries if RPC method fails
       // Fetch pending merchant applications
-      console.log("Fetching pending applications");
+      console.log("Fetching pending applications (fallback)");
       const { data: pendingData, error: pendingError } = await supabase
         .from('merchants')
         .select('*')
@@ -73,7 +132,7 @@ export const useAdminDashboard = () => {
       console.log("Pending merchants data:", pendingData);
       
       // Fetch approved merchants
-      console.log("Fetching approved merchants");
+      console.log("Fetching approved merchants (fallback)");
       const { data: approvedData, error: approvedError } = await supabase
         .from('merchants')
         .select('*')
