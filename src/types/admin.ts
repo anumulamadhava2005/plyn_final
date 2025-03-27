@@ -6,13 +6,13 @@ export type UserProfile = {
 
 export type MerchantApplication = {
   id: string;
-  business_name: string;
-  business_address: string;
-  business_email: string;
-  business_phone: string;
-  service_category: string;
+  businessName: string;
+  businessAddress?: string;
+  businessEmail: string;
+  businessPhone: string;
+  serviceCategory: string;
   status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
+  submittedAt: string;
   user_profile?: UserProfile | null;
 };
 
