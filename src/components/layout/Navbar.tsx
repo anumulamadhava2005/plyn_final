@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
@@ -87,8 +86,18 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await signOut();
-    navigate('/auth');
+    try {
+      await signOut();
+      window.localStorage.removeItem('supabase.auth.token');
+      navigate('/auth', { replace: true });
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Sign out failed",
+        description: "There was an error signing you out. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

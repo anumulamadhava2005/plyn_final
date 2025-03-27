@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -320,11 +319,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log("Attempting to sign out...");
       
-      setUser(null);
-      setSession(null);
-      setUserProfile(null);
-      setIsMerchant(false);
-      
+      // Important: Call supabase signOut first before clearing state
       const { error } = await supabase.auth.signOut();
       
       if (error) {
@@ -333,6 +328,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       console.log("Sign out successful");
+      
+      // Clear all auth state after successful signOut from Supabase
+      setUser(null);
+      setSession(null);
+      setUserProfile(null);
+      setIsMerchant(false);
+      
+      // Force clear any localStorage items that might be persisting the session
+      window.localStorage.removeItem('supabase.auth.token');
       
       toast({
         title: "Signed out",

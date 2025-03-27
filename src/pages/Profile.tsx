@@ -43,6 +43,8 @@ const Profile = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
+      // Force clear any lingering session data
+      window.localStorage.removeItem('supabase.auth.token');
       // Force navigate to auth page after signout
       navigate('/auth', { replace: true });
     } catch (error) {

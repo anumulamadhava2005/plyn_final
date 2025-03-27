@@ -19,7 +19,6 @@ const AuthNav = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Get first letter of username for avatar fallback
   const getInitial = () => {
     if (userProfile?.username) {
       return userProfile.username.charAt(0).toUpperCase();
@@ -32,7 +31,8 @@ const AuthNav = () => {
       console.log("Sign out initiated from AuthNav");
       await signOut();
       console.log("Sign out successful, navigating to auth page");
-      // Force navigate to auth page after signout
+      
+      window.localStorage.removeItem('supabase.auth.token');
       navigate('/auth', { replace: true });
     } catch (error) {
       console.error('Error signing out:', error);

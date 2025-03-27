@@ -17,10 +17,21 @@ import { useToast } from '@/components/ui/use-toast';
 
 type EmptyRPCParams = Record<string, never>;
 
+interface MerchantData {
+  id: string;
+  business_name: string;
+  business_email: string;
+  business_phone: string;
+  status: string;
+  created_at: string;
+  [key: string]: any; // For any additional fields
+}
+
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('applications');
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { 
@@ -54,36 +65,63 @@ const AdminDashboard = () => {
     window.location.reload();
   };
 
-  const checkRawData = async () => {
+  const checkDatabase = async () => {
     try {
-      setDebugInfo(null);
+      setIsChecking(true);
       
-      const { data: merchants, error } = await supabase
-        .from('merchants')
-        .select('*');
+      try {
+        console.log("Testing direct table access");
         
-      if (error) {
-        console.error("Error fetching raw merchant data:", error);
-        toast({
-          title: "Error",
-          description: "Could not fetch database data directly",
-          variant: "destructive"
-        });
-        
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc<any[] | null>('get_all_merchants', {});
+        const { data: directData, error: directError } = await supabase
+          .from('merchants')
+          .select('*');
           
-        if (rpcError) {
-          console.error("Error fetching merchant data via RPC:", rpcError);
+        if (directError) {
+          console.error("Error fetching merchant data via direct access:", directError);
+          setDebugInfo({
+            method: "Direct",
+            error: directError,
+            message: "Direct table access failed. RLS policies may be preventing access."
+          });
+          
           toast({
-            title: "Error",
-            description: "Could not fetch database data via RPC either",
-            variant: "destructive"
+            title: "Database Check (Direct)",
+            description: "Failed to access merchant data directly. This is expected if RLS policies are active.",
+            variant: "default",
+          });
+        } else {
+          setDebugInfo({
+            method: "Direct",
+            data: directData,
+            count: directData?.length || 0
+          });
+          
+          toast({
+            title: "Database Check (Direct)",
+            description: `Found ${directData?.length || 0} merchant records with direct access.`,
           });
           return;
         }
         
-        console.log("RAW Merchants Data (via RPC):", rpcData);
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc<MerchantData[], Record<string, never>>('get_all_merchants', {});
+          
+        if (rpcError) {
+          console.error("Error fetching merchant data via RPC:", rpcError);
+          setDebugInfo({
+            method: "RPC",
+            error: rpcError,
+            message: "RPC method failed. Function may not be installed or has incorrect permissions."
+          });
+          
+          toast({
+            title: "Database Check (RPC)",
+            description: "Failed to access merchant data via RPC function.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
         setDebugInfo({
           method: "RPC",
           data: rpcData,
@@ -95,27 +133,20 @@ const AdminDashboard = () => {
           description: `Found ${rpcData ? rpcData.length : 0} merchant records using RPC method.`,
         });
         return;
+      } catch (error) {
+        console.error("Error checking database:", error);
+        setDebugInfo({
+          error
+        });
+        
+        toast({
+          title: "Database Check Failed",
+          description: "An unexpected error occurred while checking the database.",
+          variant: "destructive",
+        });
       }
-      
-      console.log("RAW Merchants Data (direct):", merchants);
-      setDebugInfo({
-        method: "Direct Query",
-        data: merchants,
-        count: merchants?.length || 0
-      });
-      
-      toast({
-        title: "Database Check",
-        description: `Found ${merchants?.length || 0} merchant records in database.`,
-      });
-      
-    } catch (e) {
-      console.error("Exception during raw data check:", e);
-      toast({
-        title: "Error",
-        description: "Exception occurred during database check",
-        variant: "destructive"
-      });
+    } finally {
+      setIsChecking(false);
     }
   };
 
@@ -139,7 +170,7 @@ const AdminDashboard = () => {
               
               <div className="flex items-center gap-3">
                 <Badge className="bg-red-500">Admin Portal</Badge>
-                <Button variant="outline" size="sm" onClick={checkRawData}>
+                <Button variant="outline" size="sm" onClick={checkDatabase}>
                   Check Database
                 </Button>
                 <Button 

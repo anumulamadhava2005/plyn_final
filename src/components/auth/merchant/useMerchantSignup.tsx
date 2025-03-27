@@ -83,7 +83,7 @@ export const useMerchantSignup = () => {
         console.error("Error creating merchant profile:", merchantError);
         
         // Attempt a second approach - using function that bypasses RLS
-        type InsertMerchantParams = {
+        interface InsertMerchantParams {
           user_id: string;
           b_name: string;
           b_address: string;
@@ -91,10 +91,10 @@ export const useMerchantSignup = () => {
           b_phone: string;
           s_category: string;
           merchant_status: string;
-        };
+        }
         
         const { data: insertResult, error: functionError } = await supabase
-          .rpc<any>('insert_merchant_record', {
+          .rpc<any, InsertMerchantParams>('insert_merchant_record', {
             user_id: authData.user.id,
             b_name: values.businessName,
             b_address: values.businessAddress,
@@ -102,7 +102,7 @@ export const useMerchantSignup = () => {
             b_phone: values.businessPhone,
             s_category: values.serviceCategory,
             merchant_status: 'pending'
-          } as InsertMerchantParams);
+          });
           
         console.log("Fallback insert attempt result:", { insertResult, functionError });
         

@@ -1,22 +1,34 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { MerchantApplication, DashboardStats } from '@/types/admin';
 
-// Define a type for our RPC params
-type EmptyRPCParams = Record<string, never>;
+// Define interface for merchant data from RPC
+interface MerchantData {
+  id: string;
+  business_name: string;
+  business_email: string;
+  business_phone: string;
+  status: string;
+  created_at: string;
+  [key: string]: any; // For any additional fields
+}
 
 export const useAdminDashboard = () => {
   const [pendingApplications, setPendingApplications] = useState<MerchantApplication[]>([]);
-  const [approvedMerchants, setApprovedMerchants] = useState<MerchantApplication[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [approvedApplications, setApprovedApplications] = useState<MerchantApplication[]>([]);
+  const [rejectedApplications, setRejectedApplications] = useState<MerchantApplication[]>([]);
+  const [isLoading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
     totalMerchants: 0,
     totalUsers: 0,
     totalBookings: 0,
-    pendingApplications: 0
+    pendingApplications: 0,
+    rejectedApplications: 0,
+    totalServices: 0,
+    totalBookings: 0,
+    totalRevenue: 0
   });
 
   const navigate = useNavigate();
@@ -40,227 +52,90 @@ export const useAdminDashboard = () => {
 
   // Fetch merchant applications
   const fetchMerchantApplications = async () => {
+    setLoading(true);
+    
     try {
-      console.log("Fetching merchant applications");
-      setIsLoading(true);
+      // Check if admin is authenticated through session data
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData.session) {
+        console.log("No authenticated session found for admin dashboard access");
+        toast({
+          title: "Authentication Required",
+          description: "You must be logged in as an admin to access this dashboard.",
+          variant: "destructive",
+        });
+        navigate('/admin-login');
+        return;
+      }
       
       // First try the RPC method to fetch all merchants directly
       console.log("Fetching merchant applications using direct RPC method");
       const { data: allMerchants, error: rpcError } = await supabase
-        .rpc<any[]>('get_all_merchants', {});
+        .rpc<MerchantData[], Record<string, never>>('get_all_merchants', {});
       
       if (rpcError) {
         console.error("Error fetching merchants via RPC:", rpcError);
-        // Fall back to regular queries
-      } else if (allMerchants) {
-        console.log("All merchants data from RPC:", allMerchants);
+        throw rpcError;
+      }
+      
+      if (allMerchants) {
+        console.log("Merchants data retrieved:", allMerchants);
         
         // Process merchants by status
-        // We need to specify the type to avoid "never" type errors
-        const typedMerchants = allMerchants;
-        
-        const pending = typedMerchants.filter(m => m.status === 'pending').map(merchant => ({
+        const pending = allMerchants.filter(m => m.status === 'pending').map(merchant => ({
           id: merchant.id,
-          business_name: merchant.business_name,
-          business_address: merchant.business_address,
-          business_email: merchant.business_email,
-          business_phone: merchant.business_phone,
-          service_category: merchant.service_category,
-          status: 'pending' as const,
-          created_at: merchant.created_at,
-          user_profile: {
-            username: merchant.username || 'Unknown',
-            email: merchant.business_email
-          }
+          businessName: merchant.business_name,
+          businessEmail: merchant.business_email,
+          businessPhone: merchant.business_phone,
+          serviceCategory: merchant.service_category,
+          submittedAt: new Date(merchant.created_at).toLocaleDateString(),
+          status: merchant.status
         }));
         
-        const approved = typedMerchants.filter(m => m.status === 'approved').map(merchant => ({
+        const approved = allMerchants.filter(m => m.status === 'approved').map(merchant => ({
           id: merchant.id,
-          business_name: merchant.business_name,
-          business_address: merchant.business_address,
-          business_email: merchant.business_email,
-          business_phone: merchant.business_phone,
-          service_category: merchant.service_category,
-          status: 'approved' as const,
-          created_at: merchant.created_at,
-          user_profile: {
-            username: merchant.username || 'Unknown',
-            email: merchant.business_email
-          }
+          businessName: merchant.business_name,
+          businessEmail: merchant.business_email,
+          businessPhone: merchant.business_phone,
+          serviceCategory: merchant.service_category,
+          submittedAt: new Date(merchant.created_at).toLocaleDateString(),
+          status: merchant.status
         }));
         
-        console.log("Processed pending applications:", pending);
-        console.log("Processed approved merchants:", approved);
+        const rejected = allMerchants.filter(m => m.status === 'rejected').map(merchant => ({
+          id: merchant.id,
+          businessName: merchant.business_name,
+          businessEmail: merchant.business_email,
+          businessPhone: merchant.business_phone,
+          serviceCategory: merchant.service_category,
+          submittedAt: new Date(merchant.created_at).toLocaleDateString(),
+          status: merchant.status
+        }));
         
         setPendingApplications(pending);
-        setApprovedMerchants(approved);
+        setApprovedApplications(approved);
+        setRejectedApplications(rejected);
         
         // Update stats
         setStats({
           totalMerchants: approved.length,
-          totalUsers: 0, // Will be updated below
-          totalBookings: 0, // Will be updated below
-          pendingApplications: pending.length
+          pendingApplications: pending.length,
+          rejectedApplications: rejected.length,
+          totalServices: 0,
+          totalBookings: 0,
+          totalRevenue: 0
         });
-        
-        // Fetch remaining stats
-        const { count: userCount, error: userCountError } = await supabase
-          .from('profiles')
-          .select('id', { count: 'exact', head: true });
-        
-        const { count: bookingCount, error: bookingCountError } = await supabase
-          .from('bookings')
-          .select('id', { count: 'exact', head: true });
-        
-        setStats(prev => ({
-          ...prev,
-          totalUsers: userCount || 0,
-          totalBookings: bookingCount || 0,
-        }));
-        
-        setIsLoading(false);
-        return;
       }
-      
-      // Fallback to regular queries if RPC method fails
-      // Fetch pending merchant applications
-      console.log("Fetching pending applications (fallback)");
-      const { data: pendingData, error: pendingError } = await supabase
-        .from('merchants')
-        .select('*')
-        .eq('status', 'pending');
-      
-      if (pendingError) {
-        console.error("Error fetching pending merchants:", pendingError);
-        throw pendingError;
-      }
-      
-      console.log("Pending merchants data:", pendingData);
-      
-      // Fetch approved merchants
-      console.log("Fetching approved merchants (fallback)");
-      const { data: approvedData, error: approvedError } = await supabase
-        .from('merchants')
-        .select('*')
-        .eq('status', 'approved');
-      
-      if (approvedError) {
-        console.error("Error fetching approved merchants:", approvedError);
-        throw approvedError;
-      }
-      
-      console.log("Approved merchants data:", approvedData);
-      
-      // Process pending applications
-      const enhancedPendingApplications: MerchantApplication[] = [];
-      
-      for (const merchant of pendingData || []) {
-        console.log("Processing pending merchant:", merchant.id);
-        try {
-          // Get the user profile associated with this merchant
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('username')
-            .eq('id', merchant.id)
-            .maybeSingle();
-          
-          if (profileError) {
-            console.error("Error fetching profile for merchant:", profileError);
-            continue;
-          }
-          
-          console.log("Profile data for merchant:", profileData);
-          
-          enhancedPendingApplications.push({
-            id: merchant.id,
-            business_name: merchant.business_name,
-            business_address: merchant.business_address,
-            business_email: merchant.business_email,
-            business_phone: merchant.business_phone,
-            service_category: merchant.service_category,
-            status: 'pending',
-            created_at: merchant.created_at,
-            user_profile: {
-              username: profileData?.username || 'Unknown',
-              email: merchant.business_email // Use business_email from merchant record
-            }
-          });
-        } catch (err) {
-          console.error("Error processing merchant:", merchant.id, err);
-        }
-      }
-      
-      console.log("Enhanced pending applications:", enhancedPendingApplications);
-      
-      // Process approved merchants
-      const enhancedApprovedMerchants: MerchantApplication[] = [];
-      
-      for (const merchant of approvedData || []) {
-        try {
-          // Get the user profile associated with this merchant
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('username')
-            .eq('id', merchant.id)
-            .maybeSingle();
-            
-          if (profileError) {
-            console.error("Error fetching profile for approved merchant:", profileError);
-            continue;
-          }
-          
-          enhancedApprovedMerchants.push({
-            id: merchant.id,
-            business_name: merchant.business_name,
-            business_address: merchant.business_address,
-            business_email: merchant.business_email,
-            business_phone: merchant.business_phone,
-            service_category: merchant.service_category,
-            status: 'approved',
-            created_at: merchant.created_at,
-            user_profile: {
-              username: profileData?.username || 'Unknown',
-              email: merchant.business_email // Use business_email from merchant record
-            }
-          });
-        } catch (err) {
-          console.error("Error processing approved merchant:", merchant.id, err);
-        }
-      }
-      
-      setPendingApplications(enhancedPendingApplications);
-      setApprovedMerchants(enhancedApprovedMerchants);
-      
-      // Fetch dashboard stats
-      const { count: merchantCount, error: merchantCountError } = await supabase
-        .from('merchants')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'approved');
-      
-      const { count: userCount, error: userCountError } = await supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true });
-      
-      const { count: bookingCount, error: bookingCountError } = await supabase
-        .from('bookings')
-        .select('id', { count: 'exact', head: true });
-      
-      setStats({
-        totalMerchants: merchantCount || 0,
-        totalUsers: userCount || 0,
-        totalBookings: bookingCount || 0,
-        pendingApplications: enhancedPendingApplications.length
-      });
-      
     } catch (error) {
       console.error('Error fetching merchant applications:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch merchant applications.",
+        description: "Failed to load merchant applications. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -355,7 +230,8 @@ export const useAdminDashboard = () => {
 
   return {
     pendingApplications,
-    approvedMerchants,
+    approvedApplications,
+    rejectedApplications,
     isLoading,
     stats,
     handleApprove,
