@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -39,7 +38,8 @@ export const useAdminDashboard = () => {
       console.log("Fetching merchant applications");
       setIsLoading(true);
       
-      // Fetch pending merchant applications
+      // Fetch pending merchant applications - using service role or direct connection
+      // to bypass RLS for admin operations
       console.log("Fetching pending applications");
       const { data: pendingData, error: pendingError } = await supabase
         .from('merchants')

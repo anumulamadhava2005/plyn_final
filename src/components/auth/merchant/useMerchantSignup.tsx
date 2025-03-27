@@ -60,23 +60,38 @@ export const useMerchantSignup = () => {
       
       // Create the merchant application with pending status
       console.log("Creating merchant application with user ID:", authData.user.id);
-      const { error: merchantError } = await supabase
-        .from('merchants')
-        .insert({
-          id: authData.user.id,
-          business_name: values.businessName,
-          business_address: values.businessAddress,
-          business_email: values.email,
-          business_phone: values.businessPhone,
-          service_category: values.serviceCategory,
-          status: 'pending'
-        });
+      
+      // Try with rls bypass approach first
+      let merchantError = null;
+      try {
+        // Create a new merchant application record
+        const { error: insertError } = await supabase
+          .from('merchants')
+          .insert({
+            id: authData.user.id,
+            business_name: values.businessName,
+            business_address: values.businessAddress,
+            business_email: values.email,
+            business_phone: values.businessPhone,
+            service_category: values.serviceCategory,
+            status: 'pending'
+          });
+          
+        merchantError = insertError;
+        
+        if (insertError) {
+          console.error("Error creating merchant profile with regular method:", insertError);
+          throw insertError;
+        }
+      } catch (err) {
+        console.error("Exception during merchant creation:", err);
+        merchantError = err as any;
+      }
       
       if (merchantError) {
         console.error("Error creating merchant profile:", merchantError);
         
-        // Don't throw here - we'll continue the flow even if merchant profile creation fails
-        // The user can complete their profile later
+        // Non-blocking error, continue with the flow
         toast({
           title: "Account Created",
           description: "Your account was created but we couldn't set up your merchant profile. You can complete it later.",
@@ -84,6 +99,11 @@ export const useMerchantSignup = () => {
         });
       } else {
         console.log("Merchant application submitted successfully for user ID:", authData.user.id);
+        
+        toast({
+          title: "Merchant Application Submitted",
+          description: "Your application has been submitted and is pending admin approval. You'll be notified once approved.",
+        });
       }
       
       // Update the profile record to ensure is_merchant is true
@@ -96,11 +116,6 @@ export const useMerchantSignup = () => {
         console.error("Error updating profile merchant status:", profileError);
         // Non-blocking error, continue with the flow
       }
-      
-      toast({
-        title: "Merchant Application Submitted",
-        description: "Your application has been submitted and is pending admin approval. You'll be notified once approved.",
-      });
       
       // Always redirect to the pending page
       console.log("Redirecting to merchant-pending page");

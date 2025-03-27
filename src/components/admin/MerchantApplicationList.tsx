@@ -34,6 +34,9 @@ const MerchantApplicationList: React.FC<MerchantApplicationListProps> = ({
   onApprove,
   onReject
 }) => {
+  console.log("MerchantApplicationList - Applications:", applications);
+  console.log("MerchantApplicationList - Is Loading:", isLoading);
+  
   return (
     <Card>
       <CardHeader>
