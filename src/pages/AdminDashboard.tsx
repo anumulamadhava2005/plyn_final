@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,7 @@ import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import { Button } from '@/components/ui/button'; 
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 type EmptyRPCParams = Record<string, never>;
 
@@ -27,7 +28,22 @@ interface MerchantData {
   [key: string]: any; // For any additional fields
 }
 
+interface DebugInfo {
+  method?: string;
+  error?: any;
+  message?: string;
+  data?: any;
+  count?: number;
+}
+
 const AdminDashboard = () => {
+  const [activeTab, setActiveTab] = useState<string>('applications');
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
+  
+  const { toast } = useToast();
+  
   const { 
     pendingApplications, 
     approvedApplications,
@@ -99,7 +115,7 @@ const AdminDashboard = () => {
         }
         
         const { data: rpcData, error: rpcError } = await supabase
-          .rpc<MerchantData[], Record<string, never>>('get_all_merchants', {});
+          .rpc('get_all_merchants', {});
           
         if (rpcError) {
           console.error("Error fetching merchant data via RPC:", rpcError);
@@ -120,12 +136,12 @@ const AdminDashboard = () => {
         setDebugInfo({
           method: "RPC",
           data: rpcData,
-          count: rpcData ? rpcData.length : 0
+          count: rpcData ? (rpcData as any).length : 0
         });
         
         toast({
           title: "Database Check (RPC)",
-          description: `Found ${rpcData ? rpcData.length : 0} merchant records using RPC method.`,
+          description: `Found ${rpcData ? (rpcData as any).length : 0} merchant records using RPC method.`,
         });
         return;
       } catch (error) {

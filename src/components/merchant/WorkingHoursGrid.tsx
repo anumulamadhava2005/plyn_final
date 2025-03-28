@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,9 +41,15 @@ export const WorkingHoursGrid = ({
 
   const renderStatusBadge = (status: TimeSlot['status']) => {
     const styles = {
-      available: "bg-green-500/20 text-green-500 hover:bg-green-500/30",
-      booked: "bg-primary text-white",
-      unavailable: "bg-gray-800 text-gray-500"
+      available: "bg-green-500/20 text-green-500 hover:bg-green-500/30 cursor-pointer",
+      booked: "bg-primary/90 text-white",
+      unavailable: "bg-gray-800/50 text-gray-500"
+    };
+
+    const labels = {
+      available: "Available",
+      booked: "Booked",
+      unavailable: "Unavailable"
     };
 
     return (
@@ -50,7 +57,7 @@ export const WorkingHoursGrid = ({
         "w-full py-2 text-center text-sm rounded transition-colors",
         styles[status]
       )}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {labels[status]}
       </div>
     );
   };
