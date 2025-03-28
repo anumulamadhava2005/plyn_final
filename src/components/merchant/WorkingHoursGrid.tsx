@@ -1,10 +1,13 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock } from 'lucide-react';
-import { format } from 'date-fns';
+import { Calendar, Clock, RefreshCw } from 'lucide-react';
+import { format, addDays, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Badge } from '@/components/ui/badge';
 
 type TimeSlot = {
   id: string;
@@ -17,9 +20,19 @@ type WorkingHoursGridProps = {
   slots: TimeSlot[];
   selectedDate: Date;
   onDateChange: (date: Date) => void;
+  onRefresh?: () => void;
+  isLoading?: boolean;
 };
 
-export const WorkingHoursGrid = ({ slots, selectedDate, onDateChange }: WorkingHoursGridProps) => {
+export const WorkingHoursGrid = ({ 
+  slots, 
+  selectedDate, 
+  onDateChange,
+  onRefresh,
+  isLoading = false
+}: WorkingHoursGridProps) => {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const hours = [
     '9:00', '10:00', '11:00', '12:00', '13:00', 
@@ -52,22 +65,73 @@ export const WorkingHoursGrid = ({ slots, selectedDate, onDateChange }: WorkingH
     };
   };
 
+  const navigateDate = (direction: 'prev' | 'next') => {
+    const newDate = direction === 'prev' 
+      ? subDays(selectedDate, 1)
+      : addDays(selectedDate, 1);
+    onDateChange(newDate);
+  };
+
+  const summarizeAvailability = () => {
+    const available = slots.filter(slot => slot.status === 'available').length;
+    const booked = slots.filter(slot => slot.status === 'booked').length;
+    return { available, booked };
+  };
+
+  const { available, booked } = summarizeAvailability();
+
   return (
     <Card className="bg-black/80 border-border/20">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Working Hours</CardTitle>
-          <p className="text-muted-foreground text-sm mt-1">
-            {format(selectedDate, 'MMM dd, yyyy')}
-          </p>
+          <div className="text-muted-foreground text-sm mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
+            <span>{format(selectedDate, 'MMM dd, yyyy')}</span>
+            <div className="flex gap-2">
+              <Badge variant="outline">{available} Available</Badge>
+              <Badge variant="default">{booked} Booked</Badge>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon">
-            <Calendar className="h-4 w-4" />
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon">
+                <Calendar className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <CalendarComponent
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (date) {
+                    onDateChange(date);
+                    setCalendarOpen(false);
+                  }
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          <Button variant="outline" size="icon" onClick={() => navigateDate('prev')}>
+            <span className="sr-only">Previous day</span>
+            &lt;
           </Button>
-          <Button variant="outline" size="icon">
-            <Clock className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={() => navigateDate('next')}>
+            <span className="sr-only">Next day</span>
+            &gt;
           </Button>
+          {onRefresh && (
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={onRefresh} 
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>

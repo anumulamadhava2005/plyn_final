@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { format, addMinutes, addDays, parseISO, subDays } from "date-fns";
+import { TimeSlot, SlotAvailability } from "@/types/admin";
 
 // Generate time slots for a salon
 export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
@@ -283,5 +284,101 @@ export const enableRealtimeForSlots = async () => {
     console.error("Error enabling realtime:", error);
     // Don't throw the error, just log it as this is not critical
     return null;
+  }
+};
+
+// New function for bulk creating time slots
+export const createBulkTimeSlots = async (
+  merchantId: string,
+  date: string,
+  slots: { startTime: string; endTime: string }[]
+): Promise<TimeSlot[]> => {
+  try {
+    const slotsToCreate = slots.map(slot => {
+      // Calculate duration in minutes
+      const [startHour, startMinute] = slot.startTime.split(':').map(Number);
+      const [endHour, endMinute] = slot.endTime.split(':').map(Number);
+      
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = endHour * 60 + endMinute;
+      
+      const duration = endMinutes - startMinutes;
+      
+      return {
+        merchant_id: merchantId,
+        date,
+        start_time: slot.startTime,
+        end_time: slot.endTime,
+        is_booked: false,
+        service_duration: duration
+      };
+    });
+    
+    const { data, error } = await supabase
+      .from("slots")
+      .insert(slotsToCreate)
+      .select();
+    
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error creating bulk time slots:", error);
+    throw error;
+  }
+};
+
+// Get slot availability summary by date
+export const getSlotAvailabilitySummary = async (
+  merchantId: string, 
+  startDate: Date, 
+  endDate: Date
+): Promise<SlotAvailability[]> => {
+  try {
+    const formattedStartDate = format(startDate, "yyyy-MM-dd");
+    const formattedEndDate = format(endDate, "yyyy-MM-dd");
+    
+    const { data, error } = await supabase
+      .from("slots")
+      .select("date, is_booked")
+      .eq("merchant_id", merchantId)
+      .gte("date", formattedStartDate)
+      .lte("date", formattedEndDate);
+    
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      return [];
+    }
+    
+    // Group by date and count available/booked slots
+    const dateMap = new Map<string, { available: number; booked: number }>();
+    
+    data.forEach(slot => {
+      if (!dateMap.has(slot.date)) {
+        dateMap.set(slot.date, { available: 0, booked: 0 });
+      }
+      
+      const dateStats = dateMap.get(slot.date)!;
+      if (slot.is_booked) {
+        dateStats.booked += 1;
+      } else {
+        dateStats.available += 1;
+      }
+    });
+    
+    // Convert map to array
+    const result: SlotAvailability[] = Array.from(dateMap.entries()).map(([date, slots]) => ({
+      date,
+      slots
+    }));
+    
+    // Sort by date
+    result.sort((a, b) => a.date.localeCompare(b.date));
+    
+    return result;
+  } catch (error) {
+    console.error("Error getting slot availability summary:", error);
+    throw error;
   }
 };

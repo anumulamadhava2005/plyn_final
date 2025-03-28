@@ -50,3 +50,23 @@ export type ServiceDistribution = {
   name: string;
   value: number;
 };
+
+export type TimeSlot = {
+  id: string;
+  merchant_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  is_booked: boolean;
+  service_duration?: number;
+  service_name?: string;
+  service_price?: number;
+};
+
+export type SlotAvailability = {
+  date: string;
+  slots: {
+    available: number;
+    booked: number;
+  };
+};
