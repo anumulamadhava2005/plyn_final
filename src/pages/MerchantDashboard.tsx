@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -15,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Calendar, Clock, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import PageTransition from '@/components/transitions/PageTransition';
 import { format } from 'date-fns';
 
@@ -237,6 +238,8 @@ const MerchantDashboard = () => {
       if (slotsError) {
         throw slotsError;
       }
+      
+      console.log("Fetched slots:", slotsData);
       
       setSlots(prevSlots => {
         const otherSlots = prevSlots.filter(slot => slot.date !== formattedDate);

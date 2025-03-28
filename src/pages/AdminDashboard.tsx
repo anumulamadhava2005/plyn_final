@@ -28,15 +28,10 @@ interface MerchantData {
 }
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('applications');
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isChecking, setIsChecking] = useState(false);
-  const navigate = useNavigate();
-  const { toast } = useToast();
   const { 
     pendingApplications, 
-    approvedMerchants, 
+    approvedApplications,
+    rejectedApplications,
     isLoading, 
     stats, 
     handleApprove, 
@@ -227,7 +222,7 @@ const AdminDashboard = () => {
               
               <TabsContent value="merchants" className="space-y-6">
                 <ApprovedMerchantsList 
-                  merchants={approvedMerchants}
+                  merchants={approvedApplications}
                   isLoading={isLoading}
                 />
               </TabsContent>

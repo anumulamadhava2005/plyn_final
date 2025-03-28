@@ -18,6 +18,7 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import LogoAnimation from '@/components/ui/LogoAnimation';
 import NavLink from '@/components/layout/NavLink';
 import NotificationsPopover from '@/components/notifications/NotificationsPopover';
+import { useToast } from "@/hooks/use-toast";
 
 const navLinks = [
   { label: 'Home', path: '/' },
@@ -84,6 +85,7 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const handleLogout = async () => {
     try {
