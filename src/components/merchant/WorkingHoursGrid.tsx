@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,7 +56,13 @@ export const WorkingHoursGrid = ({
   };
 
   const getSlotForDayAndTime = (day: string, time: string) => {
-    return slots.find(slot => slot.day === day && slot.time === time) || {
+    const matchingSlot = slots.find(slot => slot.day === day && slot.time === time);
+    
+    if (matchingSlot) {
+      return matchingSlot;
+    }
+    
+    return {
       id: `${day}-${time}`,
       day,
       time,
