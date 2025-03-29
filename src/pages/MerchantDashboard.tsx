@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -42,7 +41,7 @@ interface BookingData {
 }
 
 const MerchantDashboard = () => {
-  const { user, userProfile, isMerchant } = useAuth();
+  const { user, userProfile, isMerchant, session } = useAuth();
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'dashboard';
   const [merchantData, setMerchantData] = useState<any>(null);
@@ -98,22 +97,66 @@ const MerchantDashboard = () => {
   useEffect(() => {
     const checkAuth = async () => {
       if (!user) {
-        navigate('/auth');
-        return;
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          navigate('/auth');
+          return;
+        }
+        
+        if (isLoading) {
+          return;
+        }
       }
+      
+      const storedMerchantStatus = window.localStorage.getItem('merchant_status');
       
       if (user && !isMerchant) {
-        toast({
-          title: "Access Denied",
-          description: "This page is only available to merchant accounts.",
-          variant: "destructive",
-        });
-        navigate('/');
-        return;
+        try {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('is_merchant')
+            .eq('id', user.id)
+            .single();
+            
+          if (!profileData?.is_merchant) {
+            toast({
+              title: "Access Denied",
+              description: "This page is only available to merchant accounts.",
+              variant: "destructive",
+            });
+            navigate('/');
+            return;
+          }
+        } catch (error) {
+          toast({
+            title: "Access Denied",
+            description: "This page is only available to merchant accounts.",
+            variant: "destructive",
+          });
+          navigate('/');
+          return;
+        }
       }
       
-      if (user && isMerchant) {
+      if (user) {
         try {
+          let status = null;
+          
+          if (storedMerchantStatus) {
+            status = storedMerchantStatus;
+            setMerchantStatus(status);
+            
+            if (status !== 'approved') {
+              toast({
+                title: "Access Restricted",
+                description: "Your merchant account has not been approved yet.",
+                variant: "destructive",
+              });
+              navigate('/merchant-pending');
+              return;
+            }
+          }
+          
           const { data: merchantData, error } = await supabase
             .from('merchants')
             .select('status')
@@ -122,9 +165,14 @@ const MerchantDashboard = () => {
             
           if (error) throw error;
           
-          setMerchantStatus(merchantData?.status || null);
+          status = merchantData?.status || null;
+          setMerchantStatus(status);
           
-          if (merchantData?.status !== 'approved') {
+          if (status) {
+            window.localStorage.setItem('merchant_status', status);
+          }
+          
+          if (status !== 'approved') {
             toast({
               title: "Access Restricted",
               description: "Your merchant account has not been approved yet.",
@@ -147,7 +195,7 @@ const MerchantDashboard = () => {
     };
     
     checkAuth();
-  }, [user, isMerchant, navigate]);
+  }, [user, isMerchant, navigate, session, isLoading]);
 
   const loadMerchantData = async () => {
     if (!user) return;

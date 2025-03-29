@@ -43,11 +43,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log("Auth state changed:", event);
+        
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
         if (currentSession?.user) {
-          await fetchUserProfile(currentSession.user.id);
+          setTimeout(async () => {
+            await fetchUserProfile(currentSession.user.id);
+          }, 0);
         } else {
           setUserProfile(null);
           setIsMerchant(false);
@@ -69,6 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
       console.log("Initial session check:", currentSession ? "Session found" : "No session");
+      
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       
@@ -118,17 +122,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Set isMerchant state to:", isMerchantStatus);
       
       if (isMerchantStatus) {
-        const { data: merchantData, error: merchantError } = await supabase
-          .from('merchants')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-        
-        if (!merchantError && merchantData) {
-          console.log('Merchant data found:', merchantData);
-        } else {
-          console.log('No merchant data found or error:', merchantError);
-        }
+        setTimeout(async () => {
+          try {
+            const { data: merchantData, error: merchantError } = await supabase
+              .from('merchants')
+              .select('*')
+              .eq('id', userId)
+              .maybeSingle();
+            
+            if (!merchantError && merchantData) {
+              console.log('Merchant data found:', merchantData);
+              window.localStorage.setItem('merchant_status', merchantData.status || 'pending');
+            } else {
+              console.log('No merchant data found or error:', merchantError);
+            }
+          } catch (merchantFetchError) {
+            console.error('Error fetching merchant data:', merchantFetchError);
+          }
+        }, 0);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -225,6 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("No merchant data found for user:", data.user.id);
       } else {
         console.log("Merchant data successfully fetched:", merchantData);
+        window.localStorage.setItem('merchant_status', merchantData.status || 'pending');
       }
       
       toast({
@@ -319,7 +331,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log("Attempting to sign out...");
       
-      // Important: Call supabase signOut first before clearing state
+      window.localStorage.removeItem('merchant_status');
+      
       const { error } = await supabase.auth.signOut();
       
       if (error) {
@@ -329,13 +342,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Sign out successful");
       
-      // Clear all auth state after successful signOut from Supabase
       setUser(null);
       setSession(null);
       setUserProfile(null);
       setIsMerchant(false);
       
-      // Force clear any localStorage items that might be persisting the session
       window.localStorage.removeItem('supabase.auth.token');
       
       toast({

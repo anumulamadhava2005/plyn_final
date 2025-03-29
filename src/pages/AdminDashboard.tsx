@@ -1,16 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
+import { 
+  Card, 
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle 
+} from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ShieldAlert, RefreshCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import PageTransition from '@/components/transitions/PageTransition';
-import DashboardStats from '@/components/admin/DashboardStats';
-import MerchantApplicationList from '@/components/admin/MerchantApplicationList';
-import ApprovedMerchantsList from '@/components/admin/ApprovedMerchantsList';
-import AnalyticsDashboard from '@/components/admin/AnalyticsDashboard';
-import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import { Button } from '@/components/ui/button'; 
 import { supabase } from '@/integrations/supabase/client';
@@ -21,10 +20,10 @@ type EmptyRPCParams = Record<string, never>;
 interface MerchantData {
   id: string;
   business_name: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
   business_email: string;
   business_phone: string;
-  status: string;
-  created_at: string;
   [key: string]: any; // For any additional fields
 }
 
@@ -47,210 +46,273 @@ const AdminDashboard = () => {
   const { 
     pendingApplications, 
     approvedApplications,
-    rejectedApplications,
-    isLoading, 
-    stats, 
-    handleApprove, 
-    handleReject 
+    fetchApplications,
+    handleApprove,
+    handleReject,
+    isLoading
   } = useAdminDashboard();
 
-  console.log("Admin Dashboard - Pending Applications:", pendingApplications);
-  console.log("Admin Dashboard - Is Loading:", isLoading);
-
-  useEffect(() => {
-    console.log("Checking admin authentication");
-    const isAdminLoggedIn = sessionStorage.getItem('isAdminLoggedIn') === 'true';
-    const adminEmail = sessionStorage.getItem('adminEmail');
-    
-    console.log("Admin auth check:", { isAdminLoggedIn, adminEmail });
-    
-    if (!isAdminLoggedIn || adminEmail !== 'srimanmudavath@gmail.com') {
-      console.log("Not admin, redirecting to login");
-      window.location.href = '/admin-login';
+  const handleCheckDatabase = async () => {
+    try {
+      setIsRefreshing(true);
+      
+      if (!window.confirm("This will execute a database function directly. Continue?")) {
+        setIsRefreshing(false);
+        return;
+      }
+      
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('*');
+        
+      if (merchantError) {
+        console.error("Error fetching merchant data:", merchantError);
+        setDebugInfo({
+          method: "Direct Select",
+          error: merchantError,
+          message: merchantError.message,
+        });
+        
+        toast({
+          title: "Database Error",
+          description: merchantError.message,
+          variant: "destructive",
+        });
+        setIsRefreshing(false);
+        return;
+      }
+      
+      console.log("Merchant Data:", merchantData);
+      
+      setDebugInfo({
+        method: "Direct Select",
+        data: merchantData,
+        count: merchantData ? merchantData.length : 0
+      });
+      
+      toast({
+        title: "Database Check (Direct)",
+        description: `Found ${merchantData ? merchantData.length : 0} merchant records using direct select.`,
+      });
+      return;
+    } catch (error) {
+      console.error("Unexpected error during database check:", error);
+      setDebugInfo({
+        method: "Direct Select",
+        error: error,
+        message: (error as any).message || "An unexpected error occurred.",
+      });
+      
+      toast({
+        title: "Unexpected Error",
+        description: (error as any).message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
     }
-  }, []);
-
-  const refreshDashboard = () => {
-    setIsRefreshing(true);
-    
-    window.location.reload();
   };
 
-  const checkDatabase = async () => {
+  const fetchMerchantsWithRPC = async () => {
     try {
       setIsChecking(true);
       
-      try {
-        console.log("Testing direct table access");
+      if (!window.confirm("This will execute a database function directly. Continue?")) {
+        setIsChecking(false);
+        return;
+      }
+      
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_all_merchants', {} as EmptyRPCParams);
         
-        const { data: directData, error: directError } = await supabase
-          .from('merchants')
-          .select('*');
-          
-        if (directError) {
-          console.error("Error fetching merchant data via direct access:", directError);
-          setDebugInfo({
-            method: "Direct",
-            error: directError,
-            message: "Direct table access failed. RLS policies may be preventing access."
-          });
-          
-          toast({
-            title: "Database Check (Direct)",
-            description: "Failed to access merchant data directly. This is expected if RLS policies are active.",
-            variant: "default",
-          });
-        } else {
-          setDebugInfo({
-            method: "Direct",
-            data: directData,
-            count: directData?.length || 0
-          });
-          
-          toast({
-            title: "Database Check (Direct)",
-            description: `Found ${directData?.length || 0} merchant records with direct access.`,
-          });
-          return;
-        }
-        
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_all_merchants', {});
-          
-        if (rpcError) {
-          console.error("Error fetching merchant data via RPC:", rpcError);
-          setDebugInfo({
-            method: "RPC",
-            error: rpcError,
-            message: "RPC method failed. Function may not be installed or has incorrect permissions."
-          });
-          
-          toast({
-            title: "Database Check (RPC)",
-            description: "Failed to access merchant data via RPC function.",
-            variant: "destructive",
-          });
-          return;
-        }
-        
+      if (rpcError) {
+        console.error("Error fetching merchant data via RPC:", rpcError);
         setDebugInfo({
           method: "RPC",
-          data: rpcData,
-          count: rpcData ? (rpcData as any).length : 0
+          error: rpcError,
+          message: rpcError.message,
         });
         
         toast({
-          title: "Database Check (RPC)",
-          description: `Found ${rpcData ? (rpcData as any).length : 0} merchant records using RPC method.`,
-        });
-        return;
-      } catch (error) {
-        console.error("Error checking database:", error);
-        setDebugInfo({
-          error
-        });
-        
-        toast({
-          title: "Database Check Failed",
-          description: "An unexpected error occurred while checking the database.",
+          title: "RPC Error",
+          description: rpcError.message,
           variant: "destructive",
         });
+        setIsChecking(false);
+        return;
       }
+      
+      console.log("RPC Result:", rpcData);
+      
+      setDebugInfo({
+        method: "RPC",
+        data: rpcData,
+        count: rpcData ? (rpcData as any[]).length : 0
+      });
+      
+      toast({
+        title: "Database Check (RPC)",
+        description: `Found ${rpcData ? (rpcData as any[]).length : 0} merchant records using RPC method.`,
+      });
+      return;
+    } catch (error) {
+      console.error("Unexpected error during RPC call:", error);
+      setDebugInfo({
+        method: "RPC",
+        error: error,
+        message: (error as any).message || "An unexpected error occurred during the RPC call.",
+      });
+      
+      toast({
+        title: "Unexpected RPC Error",
+        description: (error as any).message || "An unexpected error occurred during the RPC call.",
+        variant: "destructive",
+      });
     } finally {
       setIsChecking(false);
     }
   };
 
   return (
-    <PageTransition>
-      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-        <AdminNavbar />
-        
-        <main className="flex-grow pt-20 pb-12 px-4">
-          <div className="container mx-auto max-w-7xl">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <ShieldAlert className="h-6 w-6 text-red-500" />
-                  <h1 className="text-3xl md:text-4xl font-bold">Admin Dashboard</h1>
-                </div>
+    <div className="min-h-screen bg-gray-100">
+      <AdminNavbar />
+      
+      <div className="container mx-auto py-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7 }}
+        >
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+            <p className="text-muted-foreground">Manage merchant applications and system settings.</p>
+          </div>
+          
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-6">
+              <TabsTrigger value="applications">Merchant Applications</TabsTrigger>
+              <TabsTrigger value="settings">System Settings</TabsTrigger>
+              <TabsTrigger value="debug">Debug</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="applications" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {pendingApplications.map((app: MerchantData) => (
+                  <Card key={app.id} className="bg-white shadow-md rounded-md">
+                    <CardHeader>
+                      <CardTitle>{app.business_name}</CardTitle>
+                      <CardDescription>
+                        Submitted on {new Date(app.created_at).toLocaleDateString()}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Email: {app.business_email}</p>
+                      <p>Phone: {app.business_phone}</p>
+                      <Badge variant="secondary">Pending</Badge>
+                    </CardContent>
+                    <CardFooter className="flex justify-between">
+                      <Button onClick={() => handleApprove(app.id)} variant="ghost">Approve</Button>
+                      <Button onClick={() => handleReject(app.id)} variant="destructive">Reject</Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+              
+              {approvedApplications.length > 0 && (
+                <>
+                  <h2 className="text-xl font-semibold mt-8">Approved Merchants</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {approvedApplications.map((app: MerchantData) => (
+                      <Card key={app.id} className="bg-white shadow-md rounded-md">
+                        <CardHeader>
+                          <CardTitle>{app.business_name}</CardTitle>
+                          <CardDescription>
+                            Approved on {new Date(app.created_at).toLocaleDateString()}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <p>Email: {app.business_email}</p>
+                          <p>Phone: {app.business_phone}</p>
+                          <Badge variant="success">Approved</Badge>
+                        </CardContent>
+                      </Card>
+                    </Card>
+                    ))}
+                  </div>
+                </>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="settings">
+              <div className="bg-white shadow-md rounded-md p-6">
+                <h2 className="text-xl font-semibold mb-4">System Settings</h2>
                 <p className="text-muted-foreground">
-                  Manage merchant applications, users, and platform settings
+                  Here you can manage various system settings.
                 </p>
               </div>
-              
-              <div className="flex items-center gap-3">
-                <Badge className="bg-red-500">Admin Portal</Badge>
-                <Button variant="outline" size="sm" onClick={checkDatabase}>
-                  Check Database
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={refreshDashboard}
-                  disabled={isRefreshing}
-                  className="flex items-center gap-1"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  Refresh Data
-                </Button>
-              </div>
-            </div>
+            </TabsContent>
             
-            {debugInfo && (
-              <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <h3 className="font-semibold mb-2">Debug Information:</h3>
-                <p>Method: {debugInfo.method}</p>
-                <p>Records found: {debugInfo.count}</p>
-                <div className="mt-2">
-                  <details>
-                    <summary className="cursor-pointer text-blue-500">View raw data</summary>
-                    <pre className="mt-2 p-2 bg-gray-200 dark:bg-gray-700 rounded text-xs overflow-auto max-h-40">
-                      {JSON.stringify(debugInfo.data, null, 2)}
-                    </pre>
-                  </details>
+            <TabsContent value="debug">
+              <div className="bg-white shadow-md rounded-md p-6">
+                <h2 className="text-xl font-semibold mb-4">Database Debug</h2>
+                <p className="text-muted-foreground">
+                  Tools for debugging database connections and data retrieval.
+                </p>
+                
+                <div className="mt-4 space-y-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleCheckDatabase}
+                    disabled={isRefreshing}
+                  >
+                    {isRefreshing ? "Checking..." : "Check Database (Direct)"}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={fetchMerchantsWithRPC}
+                    disabled={isChecking}
+                  >
+                    {isChecking ? "Checking..." : "Check Database (RPC)"}
+                  </Button>
+                  
+                  {debugInfo && (
+                    <Card className="mt-4">
+                      <CardHeader>
+                        <CardTitle>Debug Information</CardTitle>
+                        <CardDescription>Details from the last database operation.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <p><strong>Method:</strong> {debugInfo.method || 'N/A'}</p>
+                        {debugInfo.error && (
+                          <>
+                            <p><strong>Error:</strong> {debugInfo.error.message || 'N/A'}</p>
+                            <pre className="mt-2 p-2 bg-gray-100 rounded-md overflow-auto">
+                              {JSON.stringify(debugInfo.error, null, 2)}
+                            </pre>
+                          </>
+                        )}
+                        {debugInfo.data && (
+                          <>
+                            <p><strong>Data Count:</strong> {debugInfo.count || 0}</p>
+                            <pre className="mt-2 p-2 bg-gray-100 rounded-md overflow-auto">
+                              {JSON.stringify(debugInfo.data, null, 2)}
+                            </pre>
+                          </>
+                        )}
+                        {debugInfo.message && (
+                          <p><strong>Message:</strong> {debugInfo.message}</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </div>
-            )}
-            
-            <DashboardStats 
-              totalMerchants={stats.totalMerchants}
-              totalUsers={stats.totalUsers}
-              totalBookings={stats.totalBookings}
-              pendingApplications={stats.pendingApplications}
-            />
-            
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-              <TabsList className="grid grid-cols-2 md:grid-cols-3 w-full md:w-auto">
-                <TabsTrigger value="applications">Merchant Applications</TabsTrigger>
-                <TabsTrigger value="merchants">Approved Merchants</TabsTrigger>
-                <TabsTrigger value="analytics">Platform Analytics</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="applications" className="space-y-6">
-                <MerchantApplicationList 
-                  applications={pendingApplications}
-                  isLoading={isLoading}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                />
-              </TabsContent>
-              
-              <TabsContent value="merchants" className="space-y-6">
-                <ApprovedMerchantsList 
-                  merchants={approvedApplications}
-                  isLoading={isLoading}
-                />
-              </TabsContent>
-              
-              <TabsContent value="analytics" className="space-y-6">
-                <AnalyticsDashboard />
-              </TabsContent>
-            </Tabs>
-          </div>
-        </main>
+            </TabsContent>
+          </Tabs>
+        </motion.div>
       </div>
-    </PageTransition>
+    </div>
   );
 };
 
