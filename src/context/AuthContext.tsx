@@ -40,6 +40,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log("AuthContext mounted, setting up auth state change listener");
     
+    const fetchUserAndMerchantData = async (userId: string) => {
+      console.log("Fetching user profile for ID:", userId);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username, phone_number, age, gender, is_merchant')
+          .eq('id', userId)
+          .maybeSingle();
+  
+        if (error) {
+          console.error('Error fetching user profile:', error);
+          return;
+        }
+  
+        if (!data) {
+          console.error('No profile found for user:', userId);
+          return;
+        }
+  
+        console.log("User profile data:", data);
+        const isMerchantStatus = data.is_merchant || false;
+        
+        setUserProfile({
+          username: data.username,
+          phoneNumber: data.phone_number,
+          age: data.age,
+          gender: data.gender,
+          isMerchant: isMerchantStatus
+        });
+        
+        setIsMerchant(isMerchantStatus);
+        console.log("Set isMerchant state to:", isMerchantStatus);
+        
+        if (isMerchantStatus) {
+          try {
+            const { data: merchantData, error: merchantError } = await supabase
+              .from('merchants')
+              .select('*')
+              .eq('id', userId)
+              .maybeSingle();
+            
+            if (!merchantError && merchantData) {
+              console.log('Merchant data found:', merchantData);
+              window.localStorage.setItem('merchant_status', merchantData.status || 'pending');
+            } else {
+              console.log('No merchant data found or error:', merchantError);
+            }
+          } catch (merchantFetchError) {
+            console.error('Error fetching merchant data:', merchantFetchError);
+          }
+        }
+      } catch (error) {
+        console.error('Error in fetchUserAndMerchantData:', error);
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log("Auth state changed:", event);
@@ -49,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (currentSession?.user) {
           setTimeout(async () => {
-            await fetchUserProfile(currentSession.user.id);
+            await fetchUserAndMerchantData(currentSession.user.id);
           }, 0);
         } else {
           setUserProfile(null);
@@ -70,81 +126,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
-      console.log("Initial session check:", currentSession ? "Session found" : "No session");
-      
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      
-      if (currentSession?.user) {
-        await fetchUserProfile(currentSession.user.id);
+    (async () => {
+      try {
+        console.log("Initial session check");
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        
+        console.log("Initial session check result:", currentSession ? "Session found" : "No session");
+        
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        
+        if (currentSession?.user) {
+          await fetchUserAndMerchantData(currentSession.user.id);
+        }
+      } catch (error) {
+        console.error("Error checking initial session:", error);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
-    });
+    })();
 
     return () => {
+      console.log("Cleaning up auth state change listener");
       subscription.unsubscribe();
     };
-  }, []);
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      console.log("Fetching user profile for ID:", userId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, phone_number, age, gender, is_merchant')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        return;
-      }
-
-      if (!data) {
-        console.error('No profile found for user:', userId);
-        return;
-      }
-
-      console.log("User profile data:", data);
-      const isMerchantStatus = data.is_merchant || false;
-      
-      setUserProfile({
-        username: data.username,
-        phoneNumber: data.phone_number,
-        age: data.age,
-        gender: data.gender,
-        isMerchant: isMerchantStatus
-      });
-      
-      setIsMerchant(isMerchantStatus);
-      console.log("Set isMerchant state to:", isMerchantStatus);
-      
-      if (isMerchantStatus) {
-        setTimeout(async () => {
-          try {
-            const { data: merchantData, error: merchantError } = await supabase
-              .from('merchants')
-              .select('*')
-              .eq('id', userId)
-              .maybeSingle();
-            
-            if (!merchantError && merchantData) {
-              console.log('Merchant data found:', merchantData);
-              window.localStorage.setItem('merchant_status', merchantData.status || 'pending');
-            } else {
-              console.log('No merchant data found or error:', merchantError);
-            }
-          } catch (merchantFetchError) {
-            console.error('Error fetching merchant data:', merchantFetchError);
-          }
-        }, 0);
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-    }
-  };
+  }, [toast]);
 
   const signIn = async (email: string, password: string) => {
     try {
