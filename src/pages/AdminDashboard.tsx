@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,7 @@ import AdminNavbar from '@/components/admin/AdminNavbar';
 import { Button } from '@/components/ui/button'; 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 
 type EmptyRPCParams = Record<string, never>;
 
@@ -236,7 +238,6 @@ const AdminDashboard = () => {
                           <Badge variant="success">Approved</Badge>
                         </CardContent>
                       </Card>
-                    </Card>
                     ))}
                   </div>
                 </>
