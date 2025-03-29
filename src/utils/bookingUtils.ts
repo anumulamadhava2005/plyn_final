@@ -1,9 +1,38 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 
+// Interface for booking data
+export interface BookingData {
+  userId: string;
+  salonId: string;
+  salonName: string;
+  serviceName: string;
+  date: string;
+  timeSlot: string;
+  email: string;
+  phone: string;
+  totalPrice: number;
+  totalDuration: number;
+  slotId: string;
+  notes?: string;
+  coinsUsed?: number;
+  coinsEarned?: number;
+}
+
+// Interface for payment data
+export interface PaymentData {
+  bookingId: string;
+  userId: string;
+  amount: number;
+  paymentMethod: string;
+  coinsUsed?: number;
+  coinsEarned?: number;
+}
+
 // Function to create a new booking in the database
-export const createBooking = async (bookingData: any) => {
+export const createBooking = async (bookingData: BookingData) => {
   try {
     const { data: newBooking, error: bookingError } = await supabase
       .from("bookings")
@@ -38,7 +67,7 @@ export const createBooking = async (bookingData: any) => {
 };
 
 // Function to create a payment record
-export const createPayment = async (paymentData: any) => {
+export const createPayment = async (paymentData: PaymentData) => {
   try {
     // For development purposes, always create a successful payment
     const { data: newPayment, error: paymentError } = await supabase
@@ -109,10 +138,9 @@ export const updateUserCoins = async (userId: string, coinsEarned: number, coins
     const newCoinsBalance = currentCoins + coinsEarned - coinsUsed;
     
     // Update the user's coin balance
-    // Use type assertion to bypass TypeScript's type checking
     const { data, error: updateError } = await supabase
       .from("profiles")
-      .update({ coins: newCoinsBalance } as any)
+      .update({ coins: newCoinsBalance })
       .eq("id", userId)
       .select()
       .single();
@@ -238,14 +266,69 @@ export const bookSlot = async (slotId: string) => {
   }
 };
 
-// Initialize the database with default data for development
-export const initializeDatabase = async () => {
+// Function to fetch available slots for a salon on a specific date
+export const fetchAvailableSlots = async (salonId: string, date: string) => {
   try {
-    const { seedDefaultData } = await import('./slotUtils');
-    return await seedDefaultData();
+    const { data, error } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", salonId)
+      .eq("date", date)
+      .eq("is_booked", false)
+      .order("start_time");
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
-    console.error("Error initializing database:", error);
-    return { success: false, message: "Error initializing database", error };
+    console.error("Error fetching available slots:", error);
+    throw error;
+  }
+};
+
+// Function to fetch all slots for a merchant (for admin/merchant view)
+export const fetchMerchantSlots = async (merchantId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching merchant slots:", error);
+    throw error;
+  }
+};
+
+// Function to delete a slot (for merchant use)
+export const deleteSlot = async (slotId: string) => {
+  try {
+    // Check if the slot is already booked
+    const { data: slotData, error: checkError } = await supabase
+      .from("slots")
+      .select("is_booked")
+      .eq("id", slotId)
+      .single();
+      
+    if (checkError) throw checkError;
+    
+    if (slotData.is_booked) {
+      throw new Error("Cannot delete a slot that has already been booked.");
+    }
+    
+    const { error } = await supabase
+      .from("slots")
+      .delete()
+      .eq("id", slotId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error("Error deleting slot:", error);
+    throw error;
   }
 };
 
