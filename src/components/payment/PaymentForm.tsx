@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -54,7 +54,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   isSubmitting,
   totalPrice,
   userCoins = 0,
-  plyCoinsEnabled = true
+  plyCoinsEnabled = false
 }) => {
   const [paymentMethod, setPaymentMethod] = React.useState(defaultValues.paymentMethod || 'credit_card');
   const [showQRCode, setShowQRCode] = React.useState(false);
@@ -66,6 +66,14 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       paymentMethod: defaultValues.paymentMethod || 'credit_card'
     }
   });
+
+  // If PLYN Coins are enabled and sufficient, select it by default
+  useEffect(() => {
+    if (plyCoinsEnabled && userCoins >= totalPrice * 2) {
+      form.setValue('paymentMethod', 'plyn_coins');
+      setPaymentMethod('plyn_coins');
+    }
+  }, [plyCoinsEnabled, userCoins, totalPrice, form]);
 
   const formatCardNumber = (value: string) => {
     const digits = value.replace(/\D/g, '');
@@ -97,8 +105,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   <FormControl>
                     <PaymentMethodSelector
                       selectedMethod={field.value}
-                      plyCoinsEnabled={plyCoinsEnabled && userCoins > 0}
+                      plyCoinsEnabled={plyCoinsEnabled}
                       onMethodChange={(value) => {
+                        console.log("Payment method changed to:", value);
                         field.onChange(value);
                         setPaymentMethod(value);
                         if (value === 'qr_code') {

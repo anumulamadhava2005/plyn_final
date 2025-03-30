@@ -100,7 +100,8 @@ const Payment = () => {
 
   const getCoinsToEarn = () => {
     const paymentAmount = getAmountAfterCoins();
-    return Math.round(paymentAmount / 10);
+    // Don't earn coins when paying fully with coins
+    return values?.paymentMethod === 'plyn_coins' ? 0 : Math.round(paymentAmount / 10);
   };
   
   const handlePayment = async (values: PaymentFormValues) => {
@@ -130,13 +131,16 @@ const Payment = () => {
         return;
       }
 
-      // Calculate the final payment amount (after using coins)
+      // Calculate the final payment amount and coins applied
       let finalPaymentAmount = bookingData.totalPrice;
       let coinsApplied = 0;
+      
+      console.log("Payment method selected:", values.paymentMethod);
       
       // Handle payment with PLYN coins
       if (values.paymentMethod === 'plyn_coins') {
         const requiredCoins = bookingData.totalPrice * 2;
+        console.log("Required coins:", requiredCoins, "User coins:", userCoins);
         
         if (userCoins < requiredCoins) {
           // If not enough coins, show error message
@@ -153,7 +157,15 @@ const Payment = () => {
         finalPaymentAmount = getAmountAfterCoins();
       }
       
-      const coinsEarned = values.paymentMethod === 'plyn_coins' ? 0 : getCoinsToEarn();
+      // Calculate coins earned (none if paying with coins)
+      const coinsEarned = values.paymentMethod === 'plyn_coins' ? 0 : Math.round(finalPaymentAmount / 10);
+      
+      console.log("Creating booking with:", {
+        finalPaymentAmount,
+        coinsApplied,
+        coinsEarned,
+        paymentMethod: values.paymentMethod
+      });
       
       const newBooking = await createBooking({
         userId: user.id,
@@ -183,7 +195,9 @@ const Payment = () => {
       
       await bookSlot(slotCheck.slotId);
 
+      // Update user's coin balance
       const newCoinsBalance = await updateUserCoins(user.id, coinsEarned, coinsApplied);
+      console.log("New coins balance:", newCoinsBalance);
       
       // Show appropriate message based on payment method
       const successMessage = values.paymentMethod === 'plyn_coins' 
@@ -344,7 +358,7 @@ const Payment = () => {
                       isSubmitting={isSubmitting}
                       totalPrice={getAmountAfterCoins()}
                       userCoins={userCoins}
-                      plyCoinsEnabled={true}
+                      plyCoinsEnabled={userCoins >= bookingData.totalPrice * 2}
                     />
                   </div>
                 </motion.div>

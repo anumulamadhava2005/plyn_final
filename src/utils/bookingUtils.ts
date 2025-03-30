@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
@@ -40,6 +39,8 @@ export const initializeDatabase = async () => {
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData) => {
   try {
+    console.log("Creating booking with data:", bookingData);
+    
     const { data: newBooking, error: bookingError } = await supabase
       .from("bookings")
       .insert({
@@ -64,8 +65,12 @@ export const createBooking = async (bookingData: BookingData) => {
       .select()
       .single();
 
-    if (bookingError) throw bookingError;
+    if (bookingError) {
+      console.error("Error in createBooking:", bookingError);
+      throw bookingError;
+    }
 
+    console.log("Booking created successfully:", newBooking);
     return newBooking;
   } catch (error) {
     console.error("Error creating booking:", error);
@@ -76,6 +81,8 @@ export const createBooking = async (bookingData: BookingData) => {
 // Function to create a payment record
 export const createPayment = async (paymentData: PaymentData) => {
   try {
+    console.log("Creating payment with data:", paymentData);
+    
     // For development purposes, always create a successful payment
     const { data: newPayment, error: paymentError } = await supabase
       .from("payments")
@@ -92,7 +99,10 @@ export const createPayment = async (paymentData: PaymentData) => {
       .select()
       .single();
 
-    if (paymentError) throw paymentError;
+    if (paymentError) {
+      console.error("Error in createPayment:", paymentError);
+      throw paymentError;
+    }
 
     // Update the booking with the payment ID
     const { error: updateError } = await supabase
@@ -100,8 +110,12 @@ export const createPayment = async (paymentData: PaymentData) => {
       .update({ payment_id: newPayment.id })
       .eq("id", paymentData.bookingId);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error("Error updating booking with payment_id:", updateError);
+      throw updateError;
+    }
 
+    console.log("Payment created successfully:", newPayment);
     return newPayment;
   } catch (error) {
     console.error("Error processing payment:", error);
@@ -112,16 +126,23 @@ export const createPayment = async (paymentData: PaymentData) => {
 // Function to get user's PLYN coins
 export const getUserCoins = async (userId: string) => {
   try {
+    console.log("Fetching coins for user:", userId);
+    
     const { data, error } = await supabase
       .from("profiles")
       .select("coins")
       .eq("id", userId)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error in getUserCoins:", error);
+      throw error;
+    }
     
     // Handle the coins property safely
-    return data?.coins || 0;
+    const coins = data?.coins || 0;
+    console.log("User coins retrieved:", coins);
+    return coins;
   } catch (error) {
     console.error("Error fetching user coins:", error);
     return 0; // Default to 0 coins if there's an error
@@ -131,6 +152,8 @@ export const getUserCoins = async (userId: string) => {
 // Function to update user's PLYN coins
 export const updateUserCoins = async (userId: string, coinsEarned: number, coinsUsed: number) => {
   try {
+    console.log(`Updating coins for user ${userId}: earned ${coinsEarned}, used ${coinsUsed}`);
+    
     // First get current coin balance
     const { data: userData, error: fetchError } = await supabase
       .from("profiles")
@@ -138,11 +161,16 @@ export const updateUserCoins = async (userId: string, coinsEarned: number, coins
       .eq("id", userId)
       .single();
 
-    if (fetchError) throw fetchError;
+    if (fetchError) {
+      console.error("Error fetching current coin balance:", fetchError);
+      throw fetchError;
+    }
     
     // Safely access the coins property
     const currentCoins = userData?.coins || 0;
     const newCoinsBalance = currentCoins + coinsEarned - coinsUsed;
+    
+    console.log(`Current coins: ${currentCoins}, New balance: ${newCoinsBalance}`);
     
     // Update the user's coin balance
     const { data, error: updateError } = await supabase
@@ -152,8 +180,12 @@ export const updateUserCoins = async (userId: string, coinsEarned: number, coins
       .select()
       .single();
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error("Error updating coin balance:", updateError);
+      throw updateError;
+    }
     
+    console.log("Coins updated successfully. New balance:", newCoinsBalance);
     return newCoinsBalance;
   } catch (error) {
     console.error("Error updating user coins:", error);
@@ -202,6 +234,8 @@ export const updateBookingStatus = async (bookingId: string, status: string) => 
 // Enhanced function to check slot availability with database locking
 export const checkSlotAvailability = async (salonId: string, date: string, timeSlot: string) => {
   try {
+    console.log(`Checking slot availability for salon ${salonId} on ${date} at ${timeSlot}`);
+    
     // Begin transaction
     const { data, error } = await supabase
       .from("slots")
@@ -212,16 +246,21 @@ export const checkSlotAvailability = async (salonId: string, date: string, timeS
       .eq("is_booked", false)
       .limit(1);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error checking slot availability:", error);
+      throw error;
+    }
     
     // If no slots are found, or if the slot is already booked
     if (!data || data.length === 0) {
+      console.log("No available slots found");
       return {
         available: false,
         slotId: null
       };
     }
     
+    console.log("Available slot found:", data[0]);
     return {
       available: true,
       slotId: data[0].id
@@ -235,6 +274,8 @@ export const checkSlotAvailability = async (salonId: string, date: string, timeS
 // Enhanced function to mark a slot as booked with atomic update
 export const bookSlot = async (slotId: string) => {
   try {
+    console.log("Booking slot:", slotId);
+    
     // First check if slot is still available
     const { data: checkData, error: checkError } = await supabase
       .from("slots")
@@ -246,8 +287,10 @@ export const bookSlot = async (slotId: string) => {
     if (checkError) {
       if (checkError.code === "PGRST116") { 
         // No rows returned, slot is already booked
+        console.error("Slot is already booked");
         throw new Error("This slot has already been booked by another customer.");
       }
+      console.error("Error checking slot availability:", checkError);
       throw checkError;
     }
 
@@ -260,12 +303,17 @@ export const bookSlot = async (slotId: string) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error booking slot:", error);
+      throw error;
+    }
     
     if (!data) {
+      console.error("Slot was booked by someone else");
       throw new Error("Slot was booked by someone else while processing your request.");
     }
     
+    console.log("Slot booked successfully:", data);
     return data;
   } catch (error) {
     console.error("Error booking slot:", error);

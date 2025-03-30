@@ -71,7 +71,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   
   // Combine payment methods based on whether PLYN Coins are enabled
   const paymentMethods = plyCoinsEnabled 
-    ? [basicPaymentMethods[0], plyCoinsMethod, ...basicPaymentMethods.slice(1)]
+    ? [plyCoinsMethod, ...basicPaymentMethods]
     : basicPaymentMethods;
 
   return (
