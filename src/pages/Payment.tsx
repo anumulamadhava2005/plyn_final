@@ -34,6 +34,7 @@ const Payment = () => {
   const [userCoins, setUserCoins] = useState(0);
   const [useCoins, setUseCoins] = useState(false);
   const [coinsToUse, setCoinsToUse] = useState(0);
+  const [currentPaymentMethod, setCurrentPaymentMethod] = useState("credit_card");
   
   const bookingData = location.state;
   
@@ -101,13 +102,16 @@ const Payment = () => {
   const getCoinsToEarn = () => {
     const paymentAmount = getAmountAfterCoins();
     // Don't earn coins when paying fully with coins
-    return values?.paymentMethod === 'plyn_coins' ? 0 : Math.round(paymentAmount / 10);
+    return currentPaymentMethod === 'plyn_coins' ? 0 : Math.round(paymentAmount / 10);
   };
   
   const handlePayment = async (values: PaymentFormValues) => {
     try {
       setIsSubmitting(true);
       setPaymentError(null);
+      
+      // Update the current payment method for coin earning calculation
+      setCurrentPaymentMethod(values.paymentMethod);
       
       if (!user) {
         toast({
