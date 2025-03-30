@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +12,7 @@ import SlotManager from '@/components/merchant/SlotManager';
 import PageTransition from '@/components/transitions/PageTransition';
 import { format } from 'date-fns';
 import { updateBookingStatus, fetchMerchantSlots } from '@/utils/bookingUtils';
+import { Appointment } from '@/types/admin';
 
 const MerchantDashboard = () => {
   const [searchParams] = useSearchParams();
@@ -27,7 +27,6 @@ const MerchantDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Check authentication and merchant status on load
   useEffect(() => {
     const checkAuth = async () => {
       if (loading) return;
@@ -40,7 +39,6 @@ const MerchantDashboard = () => {
         }
       }
       
-      // Check merchant status from localStorage or database
       const storedMerchantStatus = window.localStorage.getItem('merchant_status');
       
       if (storedMerchantStatus === 'pending') {
@@ -62,7 +60,6 @@ const MerchantDashboard = () => {
     checkAuth();
   }, [user, loading, navigate, toast]);
   
-  // Load merchant data
   const loadMerchantData = async () => {
     setIsLoading(true);
     
@@ -72,7 +69,6 @@ const MerchantDashboard = () => {
         return;
       }
       
-      // Load merchant profile data
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
@@ -91,11 +87,9 @@ const MerchantDashboard = () => {
       
       setMerchantData(merchantData);
       
-      // Load slots data
       const slotsData = await fetchMerchantSlots(user.id);
       setSlots(slotsData);
       
-      // Load bookings data - Updated to use the proper join between bookings and profiles
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -167,8 +161,7 @@ const MerchantDashboard = () => {
     }
   };
   
-  // Process data for components
-  const processedAppointments = bookings.map(booking => ({
+  const processedAppointments: Appointment[] = bookings.map(booking => ({
     id: booking.id,
     customerName: booking.profiles?.username || 'Unknown User',
     service: booking.service_name,
@@ -179,7 +172,7 @@ const MerchantDashboard = () => {
       ? 'confirmed' 
       : booking.status === 'cancelled' 
         ? 'cancelled' 
-        : 'pending')
+        : 'pending') as 'confirmed' | 'cancelled' | 'pending'
   }));
   
   const today = new Date().toISOString().split('T')[0];
@@ -254,7 +247,6 @@ const MerchantDashboard = () => {
                 
                 <div className="lg:col-span-4">
                   <h2 className="text-xl font-semibold mb-4">Today's Schedule</h2>
-                  {/* Display today's appointments */}
                   <div className="bg-muted/50 rounded-lg p-6">
                     {processedAppointments
                       .filter(app => app.date === today)

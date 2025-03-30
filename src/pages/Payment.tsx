@@ -154,8 +154,6 @@ const Payment = () => {
         userId: user.id,
         amount: finalPaymentAmount,
         paymentMethod: values.paymentMethod,
-        paymentStatus: "completed",
-        transactionId: `DEV-${Math.floor(Math.random() * 1000000)}`,
         coinsUsed: useCoins ? coinsToUse : 0,
         coinsEarned: coinsEarned
       });

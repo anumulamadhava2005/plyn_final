@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
@@ -29,6 +30,12 @@ export interface PaymentData {
   coinsUsed?: number;
   coinsEarned?: number;
 }
+
+// Mock function for initializing database (for development purposes)
+export const initializeDatabase = async () => {
+  console.log("Database initialization function called (development mock)");
+  return { success: true, message: "Mock initialization - no actual changes made" };
+};
 
 // Function to create a new booking in the database
 export const createBooking = async (bookingData: BookingData) => {

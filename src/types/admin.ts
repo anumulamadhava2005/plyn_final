@@ -1,4 +1,5 @@
 
+
 export interface TimeSlot {
   id: string;
   merchant_id: string;
@@ -28,3 +29,41 @@ export interface SlotFormData {
   startTime: string;
   endTime: string;
 }
+
+export interface Appointment {
+  id: string;
+  customerName: string;
+  service: string;
+  date: string;
+  time: string;
+  duration: string;
+  status: 'confirmed' | 'cancelled' | 'pending';
+}
+
+export interface DashboardStats {
+  totalCustomers: number;
+  totalBookings: number;
+  totalRevenue: number;
+  completedBookings: number;
+  pendingBookings: number;
+}
+
+export interface MerchantApplication {
+  id: string;
+  businessName: string;
+  businessEmail: string;
+  businessPhone: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface MerchantData {
+  id: string;
+  businessName: string;
+  businessEmail: string;
+  businessPhone: string;
+  businessAddress: string;
+  serviceCategory: string;
+  status: string;
+}
+
