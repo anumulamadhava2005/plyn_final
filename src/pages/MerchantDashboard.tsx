@@ -95,12 +95,12 @@ const MerchantDashboard = () => {
       const slotsData = await fetchMerchantSlots(user.id);
       setSlots(slotsData);
       
-      // Load bookings data
+      // Load bookings data - Updated to use the proper join between bookings and profiles
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           *,
-          user_profile:profiles(username, phone_number)
+          profiles:user_profile_id(username, phone_number)
         `)
         .eq('merchant_id', user.id);
         
@@ -170,7 +170,7 @@ const MerchantDashboard = () => {
   // Process data for components
   const processedAppointments = bookings.map(booking => ({
     id: booking.id,
-    customerName: booking.user_profile?.username || 'Unknown User',
+    customerName: booking.profiles?.username || 'Unknown User',
     service: booking.service_name,
     date: booking.booking_date,
     time: booking.time_slot,

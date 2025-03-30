@@ -31,6 +31,7 @@ export type Database = {
           time_slot: string | null
           updated_at: string
           user_id: string
+          user_profile_id: string | null
         }
         Insert: {
           additional_notes?: string | null
@@ -53,6 +54,7 @@ export type Database = {
           time_slot?: string | null
           updated_at?: string
           user_id: string
+          user_profile_id?: string | null
         }
         Update: {
           additional_notes?: string | null
@@ -75,6 +77,7 @@ export type Database = {
           time_slot?: string | null
           updated_at?: string
           user_id?: string
+          user_profile_id?: string | null
         }
         Relationships: [
           {
@@ -103,6 +106,13 @@ export type Database = {
             columns: ["slot_id"]
             isOneToOne: false
             referencedRelation: "slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

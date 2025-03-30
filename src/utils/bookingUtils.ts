@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
@@ -52,7 +51,8 @@ export const createBooking = async (bookingData: BookingData) => {
         status: "upcoming",
         additional_notes: bookingData.notes || "",
         coins_used: bookingData.coinsUsed || 0,
-        coins_earned: bookingData.coinsEarned || 0
+        coins_earned: bookingData.coinsEarned || 0,
+        user_profile_id: bookingData.userId // Set user_profile_id to the user's id
       })
       .select()
       .single();
@@ -154,14 +154,14 @@ export const updateUserCoins = async (userId: string, coinsEarned: number, coins
   }
 };
 
-// Function to fetch user's bookings
+// Function to fetch user's bookings - update to use the correct relationship
 export const fetchUserBookings = async (userId: string) => {
   try {
     const { data, error } = await supabase
       .from("bookings")
       .select(`
         *,
-        payments(*)
+        profiles:user_profile_id(*)
       `)
       .eq("user_id", userId)
       .order("booking_date", { ascending: false });
