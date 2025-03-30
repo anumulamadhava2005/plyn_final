@@ -69,7 +69,7 @@ const BookNow = () => {
           return {
             id: merchant.id,
             name: merchant.business_name,
-            rating: (4 + Math.random()).toFixed(1), // Random rating between 4.0 and 5.0
+            rating: parseFloat((4 + Math.random()).toFixed(1)), // Random rating between 4.0 and 5.0
             review_count: Math.floor(Math.random() * 300) + 50, // Random review count
             address: merchant.business_address,
             distance: (Math.random() * 5).toFixed(1) + " mi", // Random distance
