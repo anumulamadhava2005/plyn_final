@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { CreditCard, Calendar, User, Phone, Mail, Loader2, Coins } from 'lucide-react';
 import PaymentMethodSelector from './PaymentMethodSelector';
+import { Textarea } from '@/components/ui/textarea';
 
 const paymentSchema = z.object({
   cardName: z.string().min(3, "Cardholder name is required").optional(),
@@ -86,10 +87,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
     return `${digits.slice(0, 2)}/${digits.slice(2, 4)}`;
   };
 
-  const handleFormSubmit = async (values: PaymentFormValues) => {
+  const handleFormSubmit = (values: PaymentFormValues) => {
     console.log("PaymentForm: Form submitted with values:", values);
     try {
-      await onSubmit(values);
+      onSubmit(values);
     } catch (error) {
       console.error("PaymentForm: Error during form submission:", error);
     }
@@ -315,8 +316,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   <FormItem>
                     <FormLabel>Special Instructions (Optional)</FormLabel>
                     <FormControl>
-                      <textarea
-                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      <Textarea
                         placeholder="Any special requests or information for the salon"
                         {...field}
                       />
@@ -335,7 +335,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             variant="default"
             className="w-full"
             disabled={isSubmitting}
-            onClick={() => console.log("Payment button clicked, current form state:", form.getValues())}
+            onClick={() => {
+              console.log("Payment button clicked, current form state:", form.getValues());
+            }}
           >
             {isSubmitting ? (
               <>
