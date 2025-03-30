@@ -106,6 +106,7 @@ const Payment = () => {
   };
   
   const handlePayment = async (values: PaymentFormValues) => {
+    console.log("Payment handler called with values:", values);
     try {
       setIsSubmitting(true);
       setPaymentError(null);
@@ -123,11 +124,14 @@ const Payment = () => {
         return;
       }
       
+      console.log("Checking slot availability...");
       const slotCheck = await checkSlotAvailability(
         bookingData.salonId,
         new Date(bookingData.date).toISOString().split('T')[0],
         bookingData.timeSlot
       );
+      
+      console.log("Slot availability check result:", slotCheck);
       
       if (!slotCheck.available) {
         setPaymentError("Sorry, this time slot is no longer available. Please select another time.");
@@ -144,7 +148,7 @@ const Payment = () => {
       // Handle payment with PLYN coins
       if (values.paymentMethod === 'plyn_coins') {
         const requiredCoins = bookingData.totalPrice * 2;
-        console.log("Required coins:", requiredCoins, "User coins:", userCoins);
+        console.log("Required coins for full payment:", requiredCoins, "User coins:", userCoins);
         
         if (userCoins < requiredCoins) {
           // If not enough coins, show error message
@@ -155,10 +159,12 @@ const Payment = () => {
         
         coinsApplied = requiredCoins;
         finalPaymentAmount = 0; // Full payment with coins
+        console.log("Full payment with coins. Applying", coinsApplied, "coins, final amount:", finalPaymentAmount);
       } else if (useCoins && coinsToUse > 0) {
         // Partial payment with coins (alongside other payment method)
         coinsApplied = coinsToUse;
         finalPaymentAmount = getAmountAfterCoins();
+        console.log("Partial payment with coins. Applying", coinsApplied, "coins, final amount:", finalPaymentAmount);
       }
       
       // Calculate coins earned (none if paying with coins)
@@ -169,6 +175,19 @@ const Payment = () => {
         coinsApplied,
         coinsEarned,
         paymentMethod: values.paymentMethod
+      });
+      
+      console.log("Booking data:", {
+        userId: user.id,
+        salonId: bookingData.salonId,
+        salonName: bookingData.salonName,
+        serviceName: bookingData.services.map((s: any) => s.name).join(", "),
+        date: new Date(bookingData.date).toISOString().split('T')[0],
+        timeSlot: bookingData.timeSlot,
+        email: values.email,
+        phone: values.phone,
+        slotId: slotCheck.slotId,
+        notes: values.notes,
       });
       
       const newBooking = await createBooking({
@@ -188,6 +207,8 @@ const Payment = () => {
         coinsEarned: coinsEarned
       });
       
+      console.log("Booking created:", newBooking);
+      
       const payment = await createPayment({
         bookingId: newBooking.id,
         userId: user.id,
@@ -197,7 +218,10 @@ const Payment = () => {
         coinsEarned: coinsEarned
       });
       
+      console.log("Payment created:", payment);
+      
       await bookSlot(slotCheck.slotId);
+      console.log("Slot booked successfully");
 
       // Update user's coin balance
       const newCoinsBalance = await updateUserCoins(user.id, coinsEarned, coinsApplied);

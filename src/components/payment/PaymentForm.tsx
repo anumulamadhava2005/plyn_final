@@ -86,9 +86,21 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
     return `${digits.slice(0, 2)}/${digits.slice(2, 4)}`;
   };
 
+  const handleFormSubmit = async (values: PaymentFormValues) => {
+    console.log("PaymentForm: Form submitted with values:", values);
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      console.error("PaymentForm: Error during form submission:", error);
+    }
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form 
+        onSubmit={form.handleSubmit(handleFormSubmit)} 
+        className="space-y-4"
+      >
         <Tabs defaultValue="payment" className="w-full">
           <TabsList className="w-full grid grid-cols-2 mb-4">
             <TabsTrigger value="payment">Payment Method</TabsTrigger>
@@ -323,6 +335,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             variant="default"
             className="w-full"
             disabled={isSubmitting}
+            onClick={() => console.log("Payment button clicked, current form state:", form.getValues())}
           >
             {isSubmitting ? (
               <>
