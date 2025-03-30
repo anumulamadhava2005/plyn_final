@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -129,8 +130,30 @@ const Payment = () => {
         return;
       }
 
-      const finalPaymentAmount = getAmountAfterCoins();
-      const coinsEarned = getCoinsToEarn();
+      // Calculate the final payment amount (after using coins)
+      let finalPaymentAmount = bookingData.totalPrice;
+      let coinsApplied = 0;
+      
+      // Handle payment with PLYN coins
+      if (values.paymentMethod === 'plyn_coins') {
+        const requiredCoins = bookingData.totalPrice * 2;
+        
+        if (userCoins < requiredCoins) {
+          // If not enough coins, show error message
+          setPaymentError(`You need ${requiredCoins} PLYN coins for this payment. You currently have ${userCoins} coins.`);
+          setIsSubmitting(false);
+          return;
+        }
+        
+        coinsApplied = requiredCoins;
+        finalPaymentAmount = 0; // Full payment with coins
+      } else if (useCoins && coinsToUse > 0) {
+        // Partial payment with coins (alongside other payment method)
+        coinsApplied = coinsToUse;
+        finalPaymentAmount = getAmountAfterCoins();
+      }
+      
+      const coinsEarned = values.paymentMethod === 'plyn_coins' ? 0 : getCoinsToEarn();
       
       const newBooking = await createBooking({
         userId: user.id,
@@ -145,7 +168,7 @@ const Payment = () => {
         totalDuration: bookingData.totalDuration,
         slotId: slotCheck.slotId,
         notes: values.notes,
-        coinsUsed: useCoins ? coinsToUse : 0,
+        coinsUsed: coinsApplied,
         coinsEarned: coinsEarned
       });
       
@@ -154,17 +177,22 @@ const Payment = () => {
         userId: user.id,
         amount: finalPaymentAmount,
         paymentMethod: values.paymentMethod,
-        coinsUsed: useCoins ? coinsToUse : 0,
+        coinsUsed: coinsApplied,
         coinsEarned: coinsEarned
       });
       
       await bookSlot(slotCheck.slotId);
 
-      const newCoinsBalance = await updateUserCoins(user.id, coinsEarned, useCoins ? coinsToUse : 0);
+      const newCoinsBalance = await updateUserCoins(user.id, coinsEarned, coinsApplied);
+      
+      // Show appropriate message based on payment method
+      const successMessage = values.paymentMethod === 'plyn_coins' 
+        ? `Your appointment has been booked using ${coinsApplied} PLYN coins!`
+        : `Your appointment has been booked! ${coinsEarned > 0 ? `You earned ${coinsEarned} PLYN coins!` : ''}`;
       
       toast({
         title: "Payment Successful",
-        description: `Your appointment has been booked! ${coinsEarned > 0 ? `You earned ${coinsEarned} PLYN coins!` : ''}`,
+        description: successMessage,
       });
       
       showBookingSuccessNotification({
@@ -177,12 +205,12 @@ const Payment = () => {
         state: {
           ...bookingData,
           bookingId: newBooking.id,
-          coinsUsed: useCoins ? coinsToUse : 0,
+          coinsUsed: coinsApplied,
           coinsEarned: coinsEarned,
           finalPrice: finalPaymentAmount,
           paymentDetails: {
             cardName: values.cardName,
-            cardNumber: values.cardNumber.slice(-4).padStart(16, '*'),
+            cardNumber: values.cardNumber ? values.cardNumber.slice(-4).padStart(16, '*') : '',
             expiryDate: values.expiryDate,
             paymentMethod: values.paymentMethod
           }
@@ -315,6 +343,8 @@ const Payment = () => {
                       onSubmit={handlePayment}
                       isSubmitting={isSubmitting}
                       totalPrice={getAmountAfterCoins()}
+                      userCoins={userCoins}
+                      plyCoinsEnabled={true}
                     />
                   </div>
                 </motion.div>

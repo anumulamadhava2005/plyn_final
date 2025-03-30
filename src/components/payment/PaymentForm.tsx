@@ -14,18 +14,27 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { CreditCard, Calendar, User, Phone, Mail, Loader2 } from 'lucide-react';
+import { CreditCard, Calendar, User, Phone, Mail, Loader2, Coins } from 'lucide-react';
 import PaymentMethodSelector from './PaymentMethodSelector';
 
 const paymentSchema = z.object({
-  cardName: z.string().min(3, "Cardholder name is required"),
-  cardNumber: z.string().regex(/^\d{16}$/, "Card number must be 16 digits"),
-  expiryDate: z.string().regex(/^(0[1-9]|1[0-2])\/\d{2}$/, "Expiry date must be in MM/YY format"),
-  cvv: z.string().regex(/^\d{3,4}$/, "CVV must be 3 or 4 digits"),
+  cardName: z.string().min(3, "Cardholder name is required").optional(),
+  cardNumber: z.string().regex(/^\d{16}$/, "Card number must be 16 digits").optional(),
+  expiryDate: z.string().regex(/^(0[1-9]|1[0-2])\/\d{2}$/, "Expiry date must be in MM/YY format").optional(),
+  cvv: z.string().regex(/^\d{3,4}$/, "CVV must be 3 or 4 digits").optional(),
   phone: z.string().min(5, "Phone number is required"),
   email: z.string().email("Valid email is required"),
   paymentMethod: z.string().min(1, "Please select a payment method"),
   notes: z.string().optional(),
+}).refine((data) => {
+  // Only validate card details if payment method is credit_card
+  if (data.paymentMethod === 'credit_card') {
+    return !!data.cardName && !!data.cardNumber && !!data.expiryDate && !!data.cvv;
+  }
+  return true;
+}, {
+  message: "Card details are required for credit card payments",
+  path: ["cardName"],
 });
 
 export type PaymentFormValues = z.infer<typeof paymentSchema>;
@@ -35,20 +44,27 @@ interface PaymentFormProps {
   onSubmit: (values: PaymentFormValues) => Promise<void>;
   isSubmitting: boolean;
   totalPrice: number;
+  userCoins?: number;
+  plyCoinsEnabled?: boolean;
 }
 
 const PaymentForm: React.FC<PaymentFormProps> = ({ 
   defaultValues, 
   onSubmit, 
   isSubmitting,
-  totalPrice
+  totalPrice,
+  userCoins = 0,
+  plyCoinsEnabled = true
 }) => {
-  const [paymentMethod, setPaymentMethod] = React.useState('credit_card');
+  const [paymentMethod, setPaymentMethod] = React.useState(defaultValues.paymentMethod || 'credit_card');
   const [showQRCode, setShowQRCode] = React.useState(false);
   
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
-    defaultValues
+    defaultValues: {
+      ...defaultValues,
+      paymentMethod: defaultValues.paymentMethod || 'credit_card'
+    }
   });
 
   const formatCardNumber = (value: string) => {
@@ -81,6 +97,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   <FormControl>
                     <PaymentMethodSelector
                       selectedMethod={field.value}
+                      plyCoinsEnabled={plyCoinsEnabled && userCoins > 0}
                       onMethodChange={(value) => {
                         field.onChange(value);
                         setPaymentMethod(value);
@@ -96,6 +113,20 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                 </FormItem>
               )}
             />
+            
+            {paymentMethod === 'plyn_coins' && (
+              <div className="flex flex-col items-center py-4 space-y-3">
+                <div className="flex items-center justify-center h-16 w-16 rounded-full bg-primary/10">
+                  <Coins className="h-8 w-8 text-primary" />
+                </div>
+                <p className="text-sm font-medium">Your PLYN Coins Balance: {userCoins} coins</p>
+                <p className="text-sm text-center text-muted-foreground">
+                  {userCoins >= totalPrice * 2 ? 
+                    `You have enough coins to cover this payment completely!` : 
+                    `Your coins can cover $${(userCoins / 2).toFixed(2)} of this payment.`}
+                </p>
+              </div>
+            )}
             
             {showQRCode && (
               <div className="flex flex-col items-center py-4">
@@ -146,7 +177,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                           <Input
                             placeholder="1234 5678 9012 3456"
                             {...field}
-                            value={formatCardNumber(field.value)}
+                            value={formatCardNumber(field.value || '')}
                             onChange={(e) => field.onChange(formatCardNumber(e.target.value))}
                             className="pl-10"
                           />
@@ -170,7 +201,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                             <Input
                               placeholder="MM/YY"
                               {...field}
-                              value={formatExpiryDate(field.value)}
+                              value={formatExpiryDate(field.value || '')}
                               onChange={(e) => field.onChange(formatExpiryDate(e.target.value))}
                               className="pl-10"
                             />
@@ -290,7 +321,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                 Processing...
               </>
             ) : (
-              <>Pay ${totalPrice}</>
+              <>{paymentMethod === 'plyn_coins' ? 'Pay with PLYN Coins' : `Pay $${totalPrice}`}</>
             )}
           </AnimatedButton>
         </div>
