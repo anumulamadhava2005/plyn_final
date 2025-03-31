@@ -22,6 +22,7 @@ const MerchantDashboard = () => {
   const [merchantData, setMerchantData] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [userProfiles, setUserProfiles] = useState<Record<string, any>>({});
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -70,6 +71,7 @@ const MerchantDashboard = () => {
         return;
       }
       
+      // Fetch merchant data
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
@@ -88,16 +90,14 @@ const MerchantDashboard = () => {
       
       setMerchantData(merchantData);
       
+      // Fetch slots
       const slotsData = await fetchMerchantSlots(user.id);
       setSlots(slotsData);
       
-      // Updated query to properly join with profiles table
+      // Fetch bookings separately
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
-        .select(`
-          *,
-          profiles:user_profile_id (username, phone_number)
-        `)
+        .select('*')
         .eq('merchant_id', user.id);
         
       if (bookingsError) {
@@ -107,10 +107,48 @@ const MerchantDashboard = () => {
           description: "Could not load your bookings. Please try again.",
           variant: "destructive",
         });
-      } else {
-        console.log("Bookings data loaded:", bookingsData);
-        setBookings(bookingsData || []);
+        return;
       }
+      
+      // Get user profile IDs from bookings
+      const userProfileIds = bookingsData?.map(booking => booking.user_profile_id).filter(Boolean) || [];
+      
+      // Fetch user profiles separately if there are any profile IDs
+      if (userProfileIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, phone_number')
+          .in('id', userProfileIds);
+          
+        if (profilesError) {
+          console.error("Error loading profiles data:", profilesError);
+          toast({
+            title: "Data Error",
+            description: "Could not load customer profiles. Some customer names may be missing.",
+            variant: "destructive",
+          });
+        } else {
+          // Create a map of profiles by ID for easy lookup
+          const profilesMap = (profilesData || []).reduce((acc, profile) => {
+            acc[profile.id] = profile;
+            return acc;
+          }, {} as Record<string, any>);
+          
+          setUserProfiles(profilesMap);
+        }
+      }
+      
+      // Merge bookings with profiles data
+      const enhancedBookings = (bookingsData || []).map(booking => {
+        const userProfile = booking.user_profile_id ? userProfiles[booking.user_profile_id] : null;
+        return {
+          ...booking,
+          profiles: userProfile
+        };
+      });
+      
+      console.log("Enhanced bookings with profiles:", enhancedBookings);
+      setBookings(enhancedBookings);
     } catch (error: any) {
       console.error("Error in loadMerchantData:", error);
       toast({

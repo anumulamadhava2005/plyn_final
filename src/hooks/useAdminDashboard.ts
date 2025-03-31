@@ -52,21 +52,31 @@ export const useAdminDashboard = () => {
       const approved = merchantsData.filter(m => m.status === 'approved');
       const rejected = merchantsData.filter(m => m.status === 'rejected');
       
-      // Fetch user profiles for each merchant
-      const enhancedApplications = await Promise.all(
-        merchantsData.map(async (merchant: any) => {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('username, email')
-            .eq('id', merchant.id)
-            .single();
-            
-          return {
-            ...merchant,
-            user_profile: profileData || null
-          };
-        })
-      );
+      // Fetch merchant data and user profiles separately
+      const merchantIdsToFetch = merchantsData.map(merchant => merchant.id);
+      
+      // Fetch user profiles for the merchants
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, email')
+        .in('id', merchantIdsToFetch);
+        
+      if (profilesError) throw profilesError;
+      
+      // Create a map of profiles by ID for easy lookup
+      const profilesMap = (profilesData || []).reduce((acc, profile) => {
+        acc[profile.id] = profile;
+        return acc;
+      }, {});
+      
+      // Merge merchant data with profile data
+      const enhancedApplications = merchantsData.map(merchant => {
+        const profile = profilesMap[merchant.id];
+        return {
+          ...merchant,
+          user_profile: profile || null
+        };
+      });
       
       // Sort and filter applications by status
       const pendingApps = enhancedApplications.filter(app => app.status === 'pending');
