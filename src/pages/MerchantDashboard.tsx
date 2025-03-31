@@ -260,7 +260,7 @@ const MerchantDashboard = () => {
               <TabsTrigger value="settings" onClick={() => navigate('/merchant-dashboard?tab=settings')}>Settings</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="overview" className="space-y-6">
+            <TabsContent value="overview" className="space-y-4">
               <DashboardMetrics 
                 totalAppointments={metrics.totalAppointments}
                 todayAppointments={metrics.todayAppointments}
