@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -107,13 +108,21 @@ const MerchantDashboard = () => {
         return;
       }
       
+      // First, extract all unique user profile IDs from bookings
       const userProfileIds = bookingsData?.map(booking => booking.user_profile_id).filter(Boolean) || [];
+      const uniqueUserProfileIds = [...new Set(userProfileIds)];
       
-      if (userProfileIds.length > 0) {
+      // Create a profiles map to store user profile data
+      let profilesMap: Record<string, any> = {};
+      
+      // Only fetch profiles if there are user profile IDs
+      if (uniqueUserProfileIds.length > 0) {
+        console.log("Fetching profiles for IDs:", uniqueUserProfileIds);
+        
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
           .select('id, username, phone_number')
-          .in('id', userProfileIds);
+          .in('id', uniqueUserProfileIds);
           
         if (profilesError) {
           console.error("Error loading profiles data:", profilesError);
@@ -123,17 +132,22 @@ const MerchantDashboard = () => {
             variant: "destructive",
           });
         } else {
-          const profilesMap = (profilesData || []).reduce((acc, profile) => {
+          // Create a map of profiles by ID for easy lookup
+          profilesMap = (profilesData || []).reduce((acc, profile) => {
             acc[profile.id] = profile;
             return acc;
           }, {} as Record<string, any>);
           
-          setUserProfiles(profilesMap);
+          console.log("Profiles map created:", profilesMap);
         }
       }
       
+      // Set the profiles map first
+      setUserProfiles(profilesMap);
+      
+      // Then enhance the bookings with profile data
       const enhancedBookings = (bookingsData || []).map(booking => {
-        const userProfile = booking.user_profile_id ? userProfiles[booking.user_profile_id] : null;
+        const userProfile = booking.user_profile_id ? profilesMap[booking.user_profile_id] : null;
         return {
           ...booking,
           profiles: userProfile
