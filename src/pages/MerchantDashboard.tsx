@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import AppointmentsList from '@/components/merchant/AppointmentsList';
 import DashboardMetrics from '@/components/merchant/DashboardMetrics';
 import SlotManager from '@/components/merchant/SlotManager';
+import MerchantServices from '@/components/merchant/MerchantServices';
 import PageTransition from '@/components/transitions/PageTransition';
 import { format } from 'date-fns';
 import { updateBookingStatus, fetchMerchantSlots } from '@/utils/bookingUtils';
@@ -71,7 +71,6 @@ const MerchantDashboard = () => {
         return;
       }
       
-      // Fetch merchant data
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
         .select('*')
@@ -90,11 +89,9 @@ const MerchantDashboard = () => {
       
       setMerchantData(merchantData);
       
-      // Fetch slots
       const slotsData = await fetchMerchantSlots(user.id);
       setSlots(slotsData);
       
-      // Fetch bookings separately
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select('*')
@@ -110,10 +107,8 @@ const MerchantDashboard = () => {
         return;
       }
       
-      // Get user profile IDs from bookings
       const userProfileIds = bookingsData?.map(booking => booking.user_profile_id).filter(Boolean) || [];
       
-      // Fetch user profiles separately if there are any profile IDs
       if (userProfileIds.length > 0) {
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
@@ -128,7 +123,6 @@ const MerchantDashboard = () => {
             variant: "destructive",
           });
         } else {
-          // Create a map of profiles by ID for easy lookup
           const profilesMap = (profilesData || []).reduce((acc, profile) => {
             acc[profile.id] = profile;
             return acc;
@@ -138,7 +132,6 @@ const MerchantDashboard = () => {
         }
       }
       
-      // Merge bookings with profiles data
       const enhancedBookings = (bookingsData || []).map(booking => {
         const userProfile = booking.user_profile_id ? userProfiles[booking.user_profile_id] : null;
         return {
@@ -147,7 +140,6 @@ const MerchantDashboard = () => {
         };
       });
       
-      console.log("Enhanced bookings with profiles:", enhancedBookings);
       setBookings(enhancedBookings);
     } catch (error: any) {
       console.error("Error in loadMerchantData:", error);
@@ -346,8 +338,7 @@ const MerchantDashboard = () => {
             </TabsContent>
             
             <TabsContent value="services">
-              <h2 className="text-xl font-semibold mb-4">Your Services</h2>
-              <p>Service management coming soon...</p>
+              <MerchantServices merchantId={user?.id || ''} />
             </TabsContent>
             
             <TabsContent value="settings">

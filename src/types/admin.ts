@@ -71,3 +71,14 @@ export interface MerchantData {
   status: string;
   created_at: string;
 }
+
+export interface Service {
+  id: string;
+  merchant_id: string;
+  name: string;
+  description: string;
+  price: number;
+  duration: number;
+  created_at: string;
+  updated_at: string;
+}
