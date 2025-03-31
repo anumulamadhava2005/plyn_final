@@ -1,7 +1,8 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { DashboardStats, MerchantApplication, MerchantData } from "@/types/admin";
-import { useToast } from "@/components/ui/use-toast";
+import { DashboardStats, MerchantApplication } from "@/types/admin";
+import { useToast } from "@/hooks/use-toast";
 
 export const useAdminDashboard = () => {
   const [pendingApplications, setPendingApplications] = useState<MerchantApplication[]>([]);
@@ -12,6 +13,10 @@ export const useAdminDashboard = () => {
     totalMerchants: 0,
     totalUsers: 0,
     totalBookings: 0,
+    totalCustomers: 0,
+    totalRevenue: 0,
+    completedBookings: 0,
+    pendingBookings: 0,
     pendingApplications: 0
   });
   const { toast } = useToast();
@@ -77,6 +82,10 @@ export const useAdminDashboard = () => {
         totalMerchants: merchantsData.length,
         totalUsers,
         totalBookings,
+        totalCustomers: totalUsers,
+        totalRevenue: 0, // This would need a calculation based on payments
+        completedBookings: 0, // This would need to be calculated based on booking status
+        pendingBookings: 0, // This would need to be calculated based on booking status
         pendingApplications: pending.length
       });
     } catch (error: any) {

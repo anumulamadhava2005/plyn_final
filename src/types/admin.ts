@@ -1,5 +1,4 @@
 
-
 export interface TimeSlot {
   id: string;
   merchant_id: string;
@@ -41,29 +40,34 @@ export interface Appointment {
 }
 
 export interface DashboardStats {
-  totalCustomers: number;
+  totalMerchants: number;
+  totalUsers: number;
   totalBookings: number;
+  totalCustomers: number;
   totalRevenue: number;
   completedBookings: number;
   pendingBookings: number;
+  pendingApplications: number;
 }
 
 export interface MerchantApplication {
   id: string;
-  businessName: string;
-  businessEmail: string;
-  businessPhone: string;
+  business_name: string;
   status: string;
-  createdAt: string;
+  created_at: string;
+  business_email: string;
+  business_phone: string;
+  business_address?: string;
+  service_category?: string;
 }
 
 export interface MerchantData {
   id: string;
-  businessName: string;
-  businessEmail: string;
-  businessPhone: string;
-  businessAddress: string;
-  serviceCategory: string;
+  business_name: string;
+  business_email: string;
+  business_phone: string;
+  business_address: string;
+  service_category: string;
   status: string;
+  created_at: string;
 }
-

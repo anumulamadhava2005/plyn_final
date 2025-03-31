@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -90,11 +91,12 @@ const MerchantDashboard = () => {
       const slotsData = await fetchMerchantSlots(user.id);
       setSlots(slotsData);
       
+      // Updated query to properly join with profiles table
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           *,
-          profiles:user_profile_id(username, phone_number)
+          profiles:user_profile_id (username, phone_number)
         `)
         .eq('merchant_id', user.id);
         
@@ -106,6 +108,7 @@ const MerchantDashboard = () => {
           variant: "destructive",
         });
       } else {
+        console.log("Bookings data loaded:", bookingsData);
         setBookings(bookingsData || []);
       }
     } catch (error: any) {

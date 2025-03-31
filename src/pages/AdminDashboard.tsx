@@ -16,18 +16,9 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
+import { MerchantApplication } from '@/types/admin';
 
 type EmptyRPCParams = Record<string, never>;
-
-interface MerchantData {
-  id: string;
-  business_name: string;
-  status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-  business_email: string;
-  business_phone: string;
-  [key: string]: any; // For any additional fields
-}
 
 interface DebugInfo {
   method?: string;
@@ -48,7 +39,6 @@ const AdminDashboard = () => {
   const { 
     pendingApplications, 
     approvedApplications,
-    fetchApplications,
     handleApprove,
     handleReject,
     isLoading
@@ -124,8 +114,9 @@ const AdminDashboard = () => {
         return;
       }
       
+      // Note: this RPC function should be created in Supabase before calling it
       const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_all_merchants', {} as EmptyRPCParams);
+        .rpc('get_merchants', {} as EmptyRPCParams);
         
       if (rpcError) {
         console.error("Error fetching merchant data via RPC:", rpcError);
@@ -199,7 +190,7 @@ const AdminDashboard = () => {
             
             <TabsContent value="applications" className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {pendingApplications.map((app: MerchantData) => (
+                {pendingApplications.map((app: MerchantApplication) => (
                   <Card key={app.id} className="bg-white shadow-md rounded-md">
                     <CardHeader>
                       <CardTitle>{app.business_name}</CardTitle>
@@ -224,7 +215,7 @@ const AdminDashboard = () => {
                 <>
                   <h2 className="text-xl font-semibold mt-8">Approved Merchants</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {approvedApplications.map((app: MerchantData) => (
+                    {approvedApplications.map((app: MerchantApplication) => (
                       <Card key={app.id} className="bg-white shadow-md rounded-md">
                         <CardHeader>
                           <CardTitle>{app.business_name}</CardTitle>
@@ -235,7 +226,7 @@ const AdminDashboard = () => {
                         <CardContent>
                           <p>Email: {app.business_email}</p>
                           <p>Phone: {app.business_phone}</p>
-                          <Badge variant="success">Approved</Badge>
+                          <Badge variant="default">Approved</Badge>
                         </CardContent>
                       </Card>
                     ))}
