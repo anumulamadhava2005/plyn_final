@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -114,38 +113,38 @@ const AdminDashboard = () => {
         return;
       }
       
-      // Note: this RPC function should be created in Supabase before calling it
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_merchants', {} as EmptyRPCParams);
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('*');
         
-      if (rpcError) {
-        console.error("Error fetching merchant data via RPC:", rpcError);
+      if (merchantError) {
+        console.error("Error fetching merchant data via direct query:", merchantError);
         setDebugInfo({
-          method: "RPC",
-          error: rpcError,
-          message: rpcError.message,
+          method: "Direct Query",
+          error: merchantError,
+          message: merchantError.message,
         });
         
         toast({
-          title: "RPC Error",
-          description: rpcError.message,
+          title: "Query Error",
+          description: merchantError.message,
           variant: "destructive",
         });
         setIsChecking(false);
         return;
       }
       
-      console.log("RPC Result:", rpcData);
+      console.log("Query Result:", merchantData);
       
       setDebugInfo({
-        method: "RPC",
-        data: rpcData,
-        count: rpcData ? (rpcData as any[]).length : 0
+        method: "Direct Query",
+        data: merchantData,
+        count: merchantData ? (merchantData as any[]).length : 0
       });
       
       toast({
-        title: "Database Check (RPC)",
-        description: `Found ${rpcData ? (rpcData as any[]).length : 0} merchant records using RPC method.`,
+        title: "Database Check",
+        description: `Found ${merchantData ? (merchantData as any[]).length : 0} merchant records using direct query.`,
       });
       return;
     } catch (error) {

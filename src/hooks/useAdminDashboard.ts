@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardStats, MerchantApplication } from "@/types/admin";
@@ -56,15 +55,25 @@ export const useAdminDashboard = () => {
       const merchantIdsToFetch = merchantsData.map(merchant => merchant.id);
       
       // Fetch user profiles for the merchants
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, username, email')
-        .in('id', merchantIdsToFetch);
-        
+      let profilesData: any[] = [];
+      let profilesError = null;
+      
+      try {
+        const profilesResponse = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', merchantIdsToFetch);
+          
+        profilesData = profilesResponse.data || [];
+        profilesError = profilesResponse.error;
+      } catch (err) {
+        console.error("Error fetching profiles:", err);
+      }
+      
       if (profilesError) throw profilesError;
       
       // Create a map of profiles by ID for easy lookup
-      const profilesMap = (profilesData || []).reduce((acc, profile) => {
+      const profilesMap = (profilesData || []).reduce((acc: {[key: string]: any}, profile) => {
         acc[profile.id] = profile;
         return acc;
       }, {});
