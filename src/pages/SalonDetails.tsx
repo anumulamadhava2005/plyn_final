@@ -139,7 +139,6 @@ const SalonDetails = () => {
     try {
       setIsBooking(true);
       
-      // Get user profile ID
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id')
@@ -148,33 +147,29 @@ const SalonDetails = () => {
         
       if (profileError) throw profileError;
       
-      // Create booking record
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
-        .insert([
-          {
-            user_id: user.id,
-            user_profile_id: profileData.id,
-            merchant_id: id,
-            salon_id: id,
-            salon_name: salon.business_name,
-            service_name: selectedService.name,
-            service_price: String(selectedService.price),
-            service_duration: selectedService.duration,
-            slot_id: selectedSlot.id,
-            booking_date: selectedSlot.date,
-            time_slot: selectedSlot.start_time,
-            status: 'pending',
-            coins_earned: 0,
-            coins_used: 0
-          }
-        ])
+        .insert({
+          user_id: user.id,
+          user_profile_id: profileData.id,
+          merchant_id: id || '',
+          salon_id: id || '',
+          salon_name: salon.business_name,
+          service_name: selectedService.name,
+          service_price: String(selectedService.price),
+          service_duration: selectedService.duration,
+          slot_id: selectedSlot.id,
+          booking_date: selectedSlot.date,
+          time_slot: selectedSlot.start_time,
+          status: 'pending',
+          coins_earned: 0,
+          coins_used: 0
+        })
         .select()
         .single();
         
       if (bookingError) throw bookingError;
       
-      // Update slot to booked
       const { error: slotError } = await supabase
         .from('slots')
         .update({ is_booked: true })
@@ -182,7 +177,6 @@ const SalonDetails = () => {
         
       if (slotError) throw slotError;
       
-      // Show success notification
       showBookingSuccessNotification({
         salonName: salon.business_name,
         serviceName: selectedService.name,
@@ -192,11 +186,9 @@ const SalonDetails = () => {
         totalPrice: selectedService.price
       });
       
-      // Reset selection
       setSelectedService(null);
       setSelectedSlot(null);
       
-      // Navigate to bookings page
       navigate('/bookings');
     } catch (error: any) {
       console.error('Error booking appointment:', error);
@@ -417,11 +409,11 @@ const SalonDetails = () => {
                   <ul className="space-y-1 text-sm">
                     <li className="flex justify-between">
                       <span>Monday - Friday</span>
-                      <span>9:00 AM - 7:00 PM</span>
+                      <span>9:00 AM - 5:00 PM</span>
                     </li>
                     <li className="flex justify-between">
                       <span>Saturday</span>
-                      <span>10:00 AM - 6:00 PM</span>
+                      <span>10:00 AM - 4:00 PM</span>
                     </li>
                     <li className="flex justify-between">
                       <span>Sunday</span>

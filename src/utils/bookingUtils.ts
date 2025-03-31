@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
+import { addMinutes, format, parseISO } from "date-fns";
 
 // Interface for booking data
 export interface BookingData {
@@ -358,31 +359,90 @@ export const fetchMerchantSlots = async (merchantId: string) => {
   }
 };
 
-// Function to delete a slot (for merchant use)
-export const deleteSlot = async (slotId: string) => {
+// New function to optimize slot creation based on working hours (9:00-17:00)
+export const createDynamicTimeSlots = async (merchantId: string, date: string, serviceDurations: number[] = [30]) => {
   try {
-    // Check if the slot is already booked
-    const { data: slotData, error: checkError } = await supabase
-      .from("slots")
-      .select("is_booked")
-      .eq("id", slotId)
-      .single();
-      
-    if (checkError) throw checkError;
+    // Default working hours from 9:00 to 17:00 (5:00 PM)
+    const workingStartHour = 9;
+    const workingEndHour = 17;
     
-    if (slotData.is_booked) {
-      throw new Error("Cannot delete a slot that has already been booked.");
+    // Get existing slots for this date to avoid duplicates
+    const { data: existingSlots, error: existingError } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .eq("date", date);
+      
+    if (existingError) throw existingError;
+    
+    // If slots already exist for this date, don't create duplicates
+    if (existingSlots && existingSlots.length > 0) {
+      console.log(`${existingSlots.length} slots already exist for ${date}`);
+      return existingSlots;
     }
     
-    const { error } = await supabase
-      .from("slots")
-      .delete()
-      .eq("id", slotId);
-
-    if (error) throw error;
-    return true;
+    // Create slots based on all possible service durations
+    const slots = [];
+    const slotsSeen = new Set(); // To avoid duplicate slots
+    
+    // Ensure we have at least one service duration
+    if (serviceDurations.length === 0) {
+      serviceDurations = [30]; // Default 30 minute slots
+    }
+    
+    // Create slots for each service duration
+    for (const duration of serviceDurations) {
+      // Start at 9:00 AM
+      let currentDate = new Date(`${date}T09:00:00`);
+      const endTime = new Date(`${date}T${workingEndHour}:00:00`);
+      
+      // Create slots until we reach the end of working hours
+      while (currentDate < endTime) {
+        const startTimeStr = format(currentDate, "HH:mm");
+        
+        // Only create a slot if there's enough time left in the workday
+        const potentialEndTime = addMinutes(currentDate, duration);
+        if (potentialEndTime <= endTime) {
+          const endTimeStr = format(potentialEndTime, "HH:mm");
+          
+          // Create a unique key to avoid duplicate slots
+          const slotKey = `${startTimeStr}-${endTimeStr}`;
+          
+          if (!slotsSeen.has(slotKey)) {
+            slots.push({
+              merchant_id: merchantId,
+              date: date,
+              start_time: startTimeStr,
+              end_time: endTimeStr,
+              is_booked: false,
+              service_duration: duration
+            });
+            
+            slotsSeen.add(slotKey);
+          }
+        }
+        
+        // Move to the next potential slot (30 minute increments for flexibility)
+        currentDate = addMinutes(currentDate, 30);
+      }
+    }
+    
+    // If we have slots to create, insert them
+    if (slots.length > 0) {
+      const { data, error } = await supabase
+        .from("slots")
+        .insert(slots)
+        .select();
+        
+      if (error) throw error;
+      
+      console.log(`Created ${data.length} dynamic slots for ${date}`);
+      return data;
+    }
+    
+    return [];
   } catch (error) {
-    console.error("Error deleting slot:", error);
+    console.error("Error creating dynamic time slots:", error);
     throw error;
   }
 };
