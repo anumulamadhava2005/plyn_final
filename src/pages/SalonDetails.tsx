@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -78,6 +77,28 @@ const SalonDetails = () => {
         return;
       }
       
+      // Fetch services for this merchant
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('merchant_id', id);
+        
+      if (servicesError) {
+        console.error("Error fetching services:", servicesError);
+        // Continue with defaults if services can't be fetched
+      }
+      
+      // Format services data
+      const formattedServices = servicesData && servicesData.length > 0 
+        ? servicesData.map(service => ({
+            id: service.id,
+            name: service.name,
+            price: parseFloat(service.price),
+            duration: service.duration,
+            description: service.description
+          }))
+        : generateDefaultServices(merchantData.service_category);
+      
       // Transform merchant data to salon format with required fields
       const salonData: Salon = {
         id: merchantData.id,
@@ -88,7 +109,7 @@ const SalonDetails = () => {
         distance: (Math.random() * 5).toFixed(1) + " mi", // Random distance
         image: getRandomSalonImage(merchantData.service_category),
         description: `${merchantData.business_name} is a premium salon offering top-notch services. Our skilled professionals provide expert services in a stylish and relaxed environment.`,
-        services: generateRandomServices(merchantData.service_category),
+        services: formattedServices,
         openingTime: "9:00 AM", // Default
         closingTime: "7:00 PM", // Default
         type: getSalonType(merchantData.service_category)
@@ -104,30 +125,23 @@ const SalonDetails = () => {
     }
   };
   
-  // Helper function to generate random services based on salon type
-  const generateRandomServices = (category: string) => {
+  // Helper function to generate default services based on salon type if none exist in the database
+  const generateDefaultServices = (category: string) => {
     const services = [];
-    const serviceCount = Math.floor(Math.random() * 3) + 3; // 3-5 services
     
     if (category.toLowerCase().includes('barber') || category.toLowerCase().includes('men')) {
-      services.push({ id: "s1", name: "Men's Haircut", price: 30 + Math.floor(Math.random() * 20), duration: 30, description: "Classic or modern haircut tailored to your style" });
-      services.push({ id: "s2", name: "Beard Trim", price: 15 + Math.floor(Math.random() * 10), duration: 15, description: "Precise beard trimming and shaping" });
-      if (serviceCount > 2) services.push({ id: "s3", name: "Hair Wash & Style", price: 20 + Math.floor(Math.random() * 10), duration: 20, description: "Thorough wash with styling" });
-      if (serviceCount > 3) services.push({ id: "s4", name: "Hot Towel Shave", price: 25 + Math.floor(Math.random() * 15), duration: 25, description: "Traditional hot towel shave for a smooth finish" });
-      if (serviceCount > 4) services.push({ id: "s5", name: "Hair Coloring", price: 40 + Math.floor(Math.random() * 30), duration: 60, description: "Professional hair coloring services" });
+      services.push({ id: "s1", name: "Men's Haircut", price: 30, duration: 30, description: "Classic or modern haircut tailored to your style" });
+      services.push({ id: "s2", name: "Beard Trim", price: 15, duration: 15, description: "Precise beard trimming and shaping" });
+      services.push({ id: "s3", name: "Hair Wash & Style", price: 20, duration: 20, description: "Thorough wash with styling" });
     } else if (category.toLowerCase().includes('salon') || category.toLowerCase().includes('women')) {
-      services.push({ id: "s6", name: "Women's Haircut", price: 45 + Math.floor(Math.random() * 30), duration: 45, description: "Precision cut with style consultation" });
-      services.push({ id: "s7", name: "Blow Dry & Style", price: 35 + Math.floor(Math.random() * 15), duration: 30, description: "Professional blow dry with styling" });
-      if (serviceCount > 2) services.push({ id: "s8", name: "Hair Coloring", price: 80 + Math.floor(Math.random() * 40), duration: 90, description: "Full hair coloring with premium products" });
-      if (serviceCount > 3) services.push({ id: "s9", name: "Deep Conditioning", price: 30 + Math.floor(Math.random() * 15), duration: 30, description: "Intensive hair treatment for damaged hair" });
-      if (serviceCount > 4) services.push({ id: "s10", name: "Manicure", price: 25 + Math.floor(Math.random() * 15), duration: 45, description: "Classic manicure with polish" });
+      services.push({ id: "s6", name: "Women's Haircut", price: 45, duration: 45, description: "Precision cut with style consultation" });
+      services.push({ id: "s7", name: "Blow Dry & Style", price: 35, duration: 30, description: "Professional blow dry with styling" });
+      services.push({ id: "s8", name: "Hair Coloring", price: 80, duration: 90, description: "Full hair coloring with premium products" });
     } else {
       // Unisex or other categories
-      services.push({ id: "s11", name: "Haircut", price: 40 + Math.floor(Math.random() * 20), duration: 40, description: "Expert cut for all hair types" });
-      services.push({ id: "s12", name: "Styling", price: 30 + Math.floor(Math.random() * 15), duration: 30, description: "Professional styling without cutting" });
-      if (serviceCount > 2) services.push({ id: "s13", name: "Color Treatment", price: 70 + Math.floor(Math.random() * 30), duration: 90, description: "Professional color service" });
-      if (serviceCount > 3) services.push({ id: "s14", name: "Hair Treatment", price: 50 + Math.floor(Math.random() * 20), duration: 60, description: "Nourishing hair treatment" });
-      if (serviceCount > 4) services.push({ id: "s15", name: "Kid's Haircut", price: 20 + Math.floor(Math.random() * 10), duration: 20, description: "Gentle haircuts for children" });
+      services.push({ id: "s11", name: "Haircut", price: 40, duration: 40, description: "Expert cut for all hair types" });
+      services.push({ id: "s12", name: "Styling", price: 30, duration: 30, description: "Professional styling without cutting" });
+      services.push({ id: "s13", name: "Color Treatment", price: 70, duration: 90, description: "Professional color service" });
     }
     
     return services;
