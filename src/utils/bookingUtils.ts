@@ -272,13 +272,13 @@ export const checkSlotAvailability = async (salonId: string, date: string, timeS
   }
 };
 
-// Enhanced function to mark a slot as booked with atomic update
+// Enhanced function to book a slot and create dynamic follow-up slots
 export const bookSlot = async (slotId: string) => {
   try {
     console.log("Booking slot:", slotId);
     
     // First check if slot is still available
-    const { data: checkData, error: checkError } = await supabase
+    const { data: slotData, error: checkError } = await supabase
       .from("slots")
       .select("*")
       .eq("id", slotId)
@@ -286,7 +286,7 @@ export const bookSlot = async (slotId: string) => {
       .single();
     
     if (checkError) {
-      if (checkError.code === "PGRST116") { 
+      if (checkError.code === "PGRST116") {
         // No rows returned, slot is already booked
         console.error("Slot is already booked");
         throw new Error("This slot has already been booked by another customer.");
@@ -294,8 +294,8 @@ export const bookSlot = async (slotId: string) => {
       console.error("Error checking slot availability:", checkError);
       throw checkError;
     }
-
-    // If we got here, slot is available, so mark it as booked with optimistic locking
+    
+    // Update the slot to mark it as booked
     const { data, error } = await supabase
       .from("slots")
       .update({ is_booked: true })
@@ -303,7 +303,7 @@ export const bookSlot = async (slotId: string) => {
       .eq("is_booked", false) // Ensure it hasn't been booked in the meantime
       .select()
       .single();
-
+      
     if (error) {
       console.error("Error booking slot:", error);
       throw error;
@@ -313,6 +313,28 @@ export const bookSlot = async (slotId: string) => {
       console.error("Slot was booked by someone else");
       throw new Error("Slot was booked by someone else while processing your request.");
     }
+    
+    // After booking, generate new available slots to fill any gaps
+    // This ensures dynamic slot generation right after a booking
+    const merchantId = data.merchant_id;
+    const slotDate = data.date;
+    
+    // Get the service durations offered by this merchant to create appropriate slots
+    const { data: serviceData } = await supabase
+      .from('services')
+      .select('duration')
+      .eq('merchant_id', merchantId);
+      
+    const serviceDurations = serviceData?.map(s => s.duration) || [30];
+    
+    // Generate new slots in background (don't await)
+    createDynamicTimeSlots(merchantId, slotDate, serviceDurations)
+      .then(newSlots => {
+        console.log(`Generated ${newSlots.length} new dynamic slots after booking`);
+      })
+      .catch(err => {
+        console.error("Error generating new slots after booking:", err);
+      });
     
     console.log("Slot booked successfully:", data);
     return data;
@@ -572,74 +594,28 @@ export const fetchAvailableSlots = async (salonId: string, date: string) => {
   }
 };
 
-// Enhanced function to book a slot and create dynamic follow-up slots
-export const bookSlot = async (slotId: string) => {
+// Function to fetch merchant's available slots
+export const fetchMerchantSlots = async (merchantId: string, date?: string) => {
   try {
-    console.log("Booking slot:", slotId);
-    
-    // First check if slot is still available
-    const { data: slotData, error: checkError } = await supabase
+    let query = supabase
       .from("slots")
       .select("*")
-      .eq("id", slotId)
-      .eq("is_booked", false)
-      .single();
+      .eq("merchant_id", merchantId);
     
-    if (checkError) {
-      if (checkError.code === "PGRST116") {
-        // No rows returned, slot is already booked
-        console.error("Slot is already booked");
-        throw new Error("This slot has already been booked by another customer.");
-      }
-      console.error("Error checking slot availability:", checkError);
-      throw checkError;
+    if (date) {
+      query = query.eq("date", date);
     }
     
-    // Update the slot to mark it as booked
-    const { data, error } = await supabase
-      .from("slots")
-      .update({ is_booked: true })
-      .eq("id", slotId)
-      .eq("is_booked", false) // Ensure it hasn't been booked in the meantime
-      .select()
-      .single();
-      
+    const { data, error } = await query.order("date").order("start_time");
+
     if (error) {
-      console.error("Error booking slot:", error);
+      console.error("Error fetching merchant slots:", error);
       throw error;
     }
     
-    if (!data) {
-      console.error("Slot was booked by someone else");
-      throw new Error("Slot was booked by someone else while processing your request.");
-    }
-    
-    // After booking, generate new available slots to fill any gaps
-    // This ensures dynamic slot generation right after a booking
-    const merchantId = data.merchant_id;
-    const slotDate = data.date;
-    
-    // Get the service durations offered by this merchant to create appropriate slots
-    const { data: serviceData } = await supabase
-      .from('services')
-      .select('duration')
-      .eq('merchant_id', merchantId);
-      
-    const serviceDurations = serviceData?.map(s => s.duration) || [30];
-    
-    // Generate new slots in background (don't await)
-    createDynamicTimeSlots(merchantId, slotDate, serviceDurations)
-      .then(newSlots => {
-        console.log(`Generated ${newSlots.length} new dynamic slots after booking`);
-      })
-      .catch(err => {
-        console.error("Error generating new slots after booking:", err);
-      });
-    
-    console.log("Slot booked successfully:", data);
-    return data;
+    return data || [];
   } catch (error) {
-    console.error("Error booking slot:", error);
+    console.error("Error in fetchMerchantSlots:", error);
     throw error;
   }
 };

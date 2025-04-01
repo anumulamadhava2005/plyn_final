@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -90,6 +89,7 @@ const MerchantDashboard = () => {
       
       setMerchantData(merchantData);
       
+      // Use the fixed fetchMerchantSlots function
       const slotsData = await fetchMerchantSlots(user.id);
       setSlots(slotsData);
       
