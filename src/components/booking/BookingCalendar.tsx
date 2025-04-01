@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, Clock, Check } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, addMinutes } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { fetchAvailableSlots, createDynamicTimeSlots } from '@/utils/bookingUtils';
+import { supabase } from "@/integrations/supabase/client";
 
 interface BookingCalendarProps {
   salonId: string;
@@ -44,7 +45,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       // First, check if any slots exist for this date
       let slots = await fetchAvailableSlots(salonId, formattedDate);
       
-      // If no slots exist, try to generate dynamic slots first
+      // If no slots exist, try to generate dynamic slots
       if (slots.length === 0) {
         setGeneratingSlots(true);
         
@@ -54,18 +55,16 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           .select('duration')
           .eq('merchant_id', salonId);
         
-        if (!serviceError && serviceData) {
-          const durations = serviceData.map(s => s.duration);
-          if (durations.length > 0) {
-            // Generate slots based on service durations
-            await createDynamicTimeSlots(salonId, formattedDate, durations);
-          } else {
-            // If no service durations are found, create default 30-minute slots
-            await createDynamicTimeSlots(salonId, formattedDate, [30]);
-          }
+        if (!serviceError && serviceData && serviceData.length > 0) {
+          // Extract unique service durations
+          const durations = [...new Set(serviceData.map(s => s.duration))];
+          
+          // Generate slots based on service durations
+          await createDynamicTimeSlots(salonId, formattedDate, durations);
         } else {
-          // If there's an error or no services, create default slots
-          await createDynamicTimeSlots(salonId, formattedDate, [30]);
+          // If no service durations are found, create default slots with
+          // multiple durations for flexibility (15, 30, 45, 60 minutes)
+          await createDynamicTimeSlots(salonId, formattedDate, [15, 30, 45, 60]);
         }
         
         // Now fetch the newly created slots
@@ -110,6 +109,21 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
     return Object.entries(grouped).sort(([hourA], [hourB]) => 
       parseInt(hourA) - parseInt(hourB)
     );
+  };
+
+  // Format duration to display to the user (e.g., "30 min")
+  const formatDuration = (slot: any) => {
+    if (!slot.service_duration) return '';
+    return `${slot.service_duration} min`;
+  };
+
+  // Calculate end time display for a slot
+  const calculateEndTime = (startTime: string, durationMinutes: number) => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startDate = new Date();
+    startDate.setHours(hours, minutes, 0, 0);
+    const endDate = addMinutes(startDate, durationMinutes);
+    return format(endDate, 'HH:mm');
   };
 
   return (
@@ -158,17 +172,20 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                       ? '12 PM' 
                       : `${parseInt(hour) - 12} PM`}
                 </h3>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {slots.map((slot) => (
                     <Button
                       key={slot.id}
                       variant={selectedTime === slot.start_time ? "default" : "outline"}
                       size="sm"
-                      className="relative"
+                      className="justify-start relative"
                       onClick={() => onTimeSelect(slot.start_time, slot.id)}
                     >
-                      <Clock className="h-3 w-3 mr-1" />
-                      {slot.start_time}
+                      <div className="flex items-center">
+                        <Clock className="h-3 w-3 mr-1" />
+                        <span>{slot.start_time} - {slot.end_time}</span>
+                        <span className="ml-1 text-xs opacity-70">{formatDuration(slot)}</span>
+                      </div>
                       {selectedTime === slot.start_time && (
                         <div className="absolute -top-1 -right-1">
                           <div className="bg-primary rounded-full p-0.5">

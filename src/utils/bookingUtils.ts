@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
-import { addMinutes, format, parseISO } from "date-fns";
+import { addMinutes, format, parseISO, isBefore, isAfter } from "date-fns";
 
 // Interface for booking data
 export interface BookingData {
@@ -322,51 +322,14 @@ export const bookSlot = async (slotId: string) => {
   }
 };
 
-// Function to fetch available slots for a salon on a specific date
-export const fetchAvailableSlots = async (salonId: string, date: string) => {
-  try {
-    const { data, error } = await supabase
-      .from("slots")
-      .select("*")
-      .eq("merchant_id", salonId)
-      .eq("date", date)
-      .eq("is_booked", false)
-      .order("start_time");
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error("Error fetching available slots:", error);
-    throw error;
-  }
-};
-
-// Function to fetch all slots for a merchant (for admin/merchant view)
-export const fetchMerchantSlots = async (merchantId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from("slots")
-      .select("*")
-      .eq("merchant_id", merchantId)
-      .order("date", { ascending: true })
-      .order("start_time", { ascending: true });
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error("Error fetching merchant slots:", error);
-    throw error;
-  }
-};
-
-// New function to optimize slot creation based on working hours (9:00-17:00)
+// Enhanced function to create dynamic time slots based on services and available gaps
 export const createDynamicTimeSlots = async (merchantId: string, date: string, serviceDurations: number[] = [30]) => {
   try {
     // Default working hours from 9:00 to 17:00 (5:00 PM)
     const workingStartHour = 9;
     const workingEndHour = 17;
     
-    // Get existing slots for this date to avoid duplicates
+    // Get existing slots for this date
     const { data: existingSlots, error: existingError } = await supabase
       .from("slots")
       .select("*")
@@ -375,13 +338,39 @@ export const createDynamicTimeSlots = async (merchantId: string, date: string, s
       
     if (existingError) throw existingError;
     
-    // If slots already exist for this date, don't create duplicates
+    // If slots already exist for this date, we'll only add more if there are gaps
     if (existingSlots && existingSlots.length > 0) {
-      console.log(`${existingSlots.length} slots already exist for ${date}`);
+      console.log(`${existingSlots.length} slots already exist for ${date}, checking for gaps`);
+      
+      // Sort existing slots by start time
+      const sortedExistingSlots = [...existingSlots].sort((a, b) => {
+        return a.start_time.localeCompare(b.start_time);
+      });
+      
+      // Find gaps in the existing slots to fill with new slots
+      const gapsToFill = findTimeGaps(sortedExistingSlots, date, workingStartHour, workingEndHour);
+      
+      // If there are gaps, create slots for them
+      if (gapsToFill.length > 0) {
+        const newSlots = createSlotsForGaps(gapsToFill, merchantId, date, serviceDurations);
+        
+        if (newSlots.length > 0) {
+          const { data: insertedSlots, error: insertError } = await supabase
+            .from("slots")
+            .insert(newSlots)
+            .select();
+            
+          if (insertError) throw insertError;
+          
+          console.log(`Created ${insertedSlots?.length || 0} new slots to fill gaps`);
+          return [...existingSlots, ...(insertedSlots || [])];
+        }
+      }
+      
       return existingSlots;
     }
     
-    // Create slots based on all possible service durations
+    // If no slots exist for this date, create a full day of slots
     const slots = [];
     const slotsSeen = new Set(); // To avoid duplicate slots
     
@@ -390,18 +379,21 @@ export const createDynamicTimeSlots = async (merchantId: string, date: string, s
       serviceDurations = [30]; // Default 30 minute slots
     }
     
-    // Create slots for each service duration
-    for (const duration of serviceDurations) {
-      // Start at 9:00 AM
-      let currentDate = new Date(`${date}T09:00:00`);
-      const endTime = new Date(`${date}T${workingEndHour}:00:00`);
+    // Get the smallest service duration to use as our increment
+    const minDuration = Math.min(...serviceDurations);
+    
+    // Create slots for each increment throughout the working day
+    let currentDate = new Date(`${date}T0${workingStartHour}:00:00`);
+    const endTime = new Date(`${date}T${workingEndHour}:00:00`);
+    
+    while (currentDate < endTime) {
+      const startTimeStr = format(currentDate, "HH:mm");
       
-      // Create slots until we reach the end of working hours
-      while (currentDate < endTime) {
-        const startTimeStr = format(currentDate, "HH:mm");
-        
-        // Only create a slot if there's enough time left in the workday
+      // For each service duration, create a slot
+      for (const duration of serviceDurations) {
         const potentialEndTime = addMinutes(currentDate, duration);
+        
+        // Only create slot if it fits within working hours
         if (potentialEndTime <= endTime) {
           const endTimeStr = format(potentialEndTime, "HH:mm");
           
@@ -421,10 +413,10 @@ export const createDynamicTimeSlots = async (merchantId: string, date: string, s
             slotsSeen.add(slotKey);
           }
         }
-        
-        // Move to the next potential slot (30 minute increments for flexibility)
-        currentDate = addMinutes(currentDate, 30);
       }
+      
+      // Move to the next increment using minDuration
+      currentDate = addMinutes(currentDate, minDuration);
     }
     
     // If we have slots to create, insert them
@@ -443,6 +435,211 @@ export const createDynamicTimeSlots = async (merchantId: string, date: string, s
     return [];
   } catch (error) {
     console.error("Error creating dynamic time slots:", error);
+    throw error;
+  }
+};
+
+// Helper function to find time gaps in existing slots
+function findTimeGaps(existingSlots: any[], date: string, startHour: number, endHour: number) {
+  const gaps = [];
+  const workDayStart = new Date(`${date}T0${startHour}:00:00`);
+  const workDayEnd = new Date(`${date}T${endHour}:00:00`);
+  
+  // Create a timeline of occupied periods
+  const occupiedPeriods = existingSlots.map(slot => {
+    const startTime = new Date(`${date}T${slot.start_time}:00`);
+    const endTime = new Date(`${date}T${slot.end_time}:00`);
+    return { start: startTime, end: endTime };
+  }).sort((a, b) => a.start.getTime() - b.start.getTime());
+  
+  if (occupiedPeriods.length === 0) {
+    // If no slots exist, return the entire working day as a gap
+    return [{ start: workDayStart, end: workDayEnd }];
+  }
+  
+  // Check if there's a gap at the beginning of the day
+  if (isAfter(occupiedPeriods[0].start, workDayStart)) {
+    gaps.push({
+      start: workDayStart,
+      end: occupiedPeriods[0].start
+    });
+  }
+  
+  // Check for gaps between slots
+  for (let i = 0; i < occupiedPeriods.length - 1; i++) {
+    const currentEnd = occupiedPeriods[i].end;
+    const nextStart = occupiedPeriods[i + 1].start;
+    
+    if (isAfter(nextStart, currentEnd)) {
+      gaps.push({
+        start: currentEnd,
+        end: nextStart
+      });
+    }
+  }
+  
+  // Check if there's a gap at the end of the day
+  const lastSlot = occupiedPeriods[occupiedPeriods.length - 1];
+  if (isBefore(lastSlot.end, workDayEnd)) {
+    gaps.push({
+      start: lastSlot.end,
+      end: workDayEnd
+    });
+  }
+  
+  return gaps;
+}
+
+// Helper function to create slots for the identified gaps
+function createSlotsForGaps(gaps: any[], merchantId: string, date: string, serviceDurations: number[]) {
+  const newSlots = [];
+  const slotsSeen = new Set();
+  
+  // Get the smallest service duration to use as our increment
+  const minDuration = Math.min(...serviceDurations);
+  
+  for (const gap of gaps) {
+    let currentTime = new Date(gap.start);
+    
+    while (currentTime < gap.end) {
+      const startTimeStr = format(currentTime, "HH:mm");
+      
+      // For each service duration, create a slot if it fits in the gap
+      for (const duration of serviceDurations) {
+        const potentialEndTime = addMinutes(currentTime, duration);
+        
+        // Only create slot if it fits within the gap
+        if (potentialEndTime <= gap.end) {
+          const endTimeStr = format(potentialEndTime, "HH:mm");
+          
+          // Create a unique key to avoid duplicate slots
+          const slotKey = `${startTimeStr}-${endTimeStr}`;
+          
+          if (!slotsSeen.has(slotKey)) {
+            newSlots.push({
+              merchant_id: merchantId,
+              date: date,
+              start_time: startTimeStr,
+              end_time: endTimeStr,
+              is_booked: false,
+              service_duration: duration
+            });
+            
+            slotsSeen.add(slotKey);
+          }
+        }
+      }
+      
+      // Move to the next increment
+      currentTime = addMinutes(currentTime, minDuration);
+    }
+  }
+  
+  return newSlots;
+}
+
+// Enhanced function to fetch available slots with filtering for past slots
+export const fetchAvailableSlots = async (salonId: string, date: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", salonId)
+      .eq("date", date)
+      .eq("is_booked", false)
+      .order("start_time");
+
+    if (error) throw error;
+    
+    // Filter out slots that are in the past
+    const now = new Date();
+    const today = format(now, "yyyy-MM-dd");
+    const currentTime = format(now, "HH:mm");
+    
+    const availableSlots = data.filter(slot => {
+      // If the slot date is today, check if the time has passed
+      if (date === today) {
+        return slot.start_time > currentTime;
+      }
+      // For future dates, include all slots
+      return true;
+    });
+    
+    return availableSlots || [];
+  } catch (error) {
+    console.error("Error fetching available slots:", error);
+    throw error;
+  }
+};
+
+// Enhanced function to book a slot and create dynamic follow-up slots
+export const bookSlot = async (slotId: string) => {
+  try {
+    console.log("Booking slot:", slotId);
+    
+    // First check if slot is still available
+    const { data: slotData, error: checkError } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("id", slotId)
+      .eq("is_booked", false)
+      .single();
+    
+    if (checkError) {
+      if (checkError.code === "PGRST116") {
+        // No rows returned, slot is already booked
+        console.error("Slot is already booked");
+        throw new Error("This slot has already been booked by another customer.");
+      }
+      console.error("Error checking slot availability:", checkError);
+      throw checkError;
+    }
+    
+    // Update the slot to mark it as booked
+    const { data, error } = await supabase
+      .from("slots")
+      .update({ is_booked: true })
+      .eq("id", slotId)
+      .eq("is_booked", false) // Ensure it hasn't been booked in the meantime
+      .select()
+      .single();
+      
+    if (error) {
+      console.error("Error booking slot:", error);
+      throw error;
+    }
+    
+    if (!data) {
+      console.error("Slot was booked by someone else");
+      throw new Error("Slot was booked by someone else while processing your request.");
+    }
+    
+    // After booking, generate new available slots to fill any gaps
+    // This ensures dynamic slot generation right after a booking
+    const merchantId = data.merchant_id;
+    const slotDate = data.date;
+    
+    // Get the service durations offered by this merchant to create appropriate slots
+    const { data: serviceData } = await supabase
+      .from('services')
+      .select('duration')
+      .eq('merchant_id', merchantId);
+      
+    const serviceDurations = serviceData?.map(s => s.duration) || [30];
+    
+    // Generate new slots in background (don't await)
+    createDynamicTimeSlots(merchantId, slotDate, serviceDurations)
+      .then(newSlots => {
+        console.log(`Generated ${newSlots.length} new dynamic slots after booking`);
+      })
+      .catch(err => {
+        console.error("Error generating new slots after booking:", err);
+      });
+    
+    console.log("Slot booked successfully:", data);
+    return data;
+  } catch (error) {
+    console.error("Error booking slot:", error);
     throw error;
   }
 };

@@ -156,7 +156,7 @@ const SalonDetails = () => {
           salon_id: id || '',
           salon_name: salon.business_name,
           service_name: selectedService.name,
-          service_price: String(selectedService.price),
+          service_price: Number(selectedService.price),
           service_duration: selectedService.duration,
           slot_id: selectedSlot.id,
           booking_date: selectedSlot.date,

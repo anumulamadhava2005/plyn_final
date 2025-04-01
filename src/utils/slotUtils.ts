@@ -1,6 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { format, addMinutes, addDays, parseISO, subDays } from "date-fns";
+import { format, addMinutes, addDays, parseISO, subDays, isBefore } from "date-fns";
 import { TimeSlot, SlotAvailability } from "@/types/admin";
 
 // Generate time slots for a salon
@@ -26,10 +25,23 @@ export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
     
     console.log(`Generating new slots for ${formattedDate}`);
     
-    // Otherwise, create new slots for this date
+    // Get service durations from this merchant to create appropriate slots
+    const { data: serviceData, error: serviceError } = await supabase
+      .from('services')
+      .select('duration')
+      .eq('merchant_id', salonId);
+      
+    // Get unique service durations, defaulting to 15, 30, 45, 60 minutes if none found
+    const serviceDurations = serviceData && serviceData.length > 0
+      ? [...new Set(serviceData.map(s => s.duration))]
+      : [15, 30, 45, 60];
+    
+    // Get smallest duration to use as increment
+    const minDuration = Math.min(...serviceDurations);
+    
+    // Default business hours
     const startHour = 9; // 9 AM
-    const endHour = 19; // 7 PM
-    const slotDuration = 30; // 30 minute intervals
+    const endHour = 17; // 5 PM
     
     let slots = [];
     let currentTime = new Date(date);
@@ -40,21 +52,33 @@ export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
     
     while (currentTime < endTime) {
       const startTimeStr = format(currentTime, "HH:mm");
-      const endTimeStr = format(addMinutes(currentTime, slotDuration), "HH:mm");
       
-      // Randomly mark some slots as booked for testing purposes
-      const randomBooked = Math.random() < 0.3; // 30% chance of being booked
+      // Create slots for each service duration
+      for (const duration of serviceDurations) {
+        const endTimeObj = addMinutes(currentTime, duration);
+        
+        // Only create slots that end within business hours
+        if (endTimeObj <= endTime) {
+          const endTimeStr = format(endTimeObj, "HH:mm");
+          
+          // Randomly mark some slots as booked for testing purposes
+          // But don't book slots in the future
+          const isInPast = isBefore(currentTime, new Date());
+          const randomBooked = isInPast || Math.random() < 0.1; // 10% chance of being booked for future slots
+          
+          slots.push({
+            merchant_id: salonId,
+            date: formattedDate,
+            start_time: startTimeStr,
+            end_time: endTimeStr,
+            is_booked: randomBooked,
+            service_duration: duration
+          });
+        }
+      }
       
-      slots.push({
-        merchant_id: salonId,
-        date: formattedDate,
-        start_time: startTimeStr,
-        end_time: endTimeStr,
-        is_booked: randomBooked,
-        service_duration: slotDuration
-      });
-      
-      currentTime = addMinutes(currentTime, slotDuration);
+      // Move to the next time increment using minDuration
+      currentTime = addMinutes(currentTime, minDuration);
     }
     
     // Insert the slots into the database
@@ -287,7 +311,7 @@ export const enableRealtimeForSlots = async () => {
   }
 };
 
-// New function for bulk creating time slots
+// New function for bulk creating time slots with dynamic timing
 export const createBulkTimeSlots = async (
   merchantId: string,
   date: string,
@@ -314,9 +338,41 @@ export const createBulkTimeSlots = async (
       };
     });
     
+    // Check for overlapping slots first
+    const { data: existingSlots, error: checkError } = await supabase
+      .from("slots")
+      .select("start_time, end_time")
+      .eq("merchant_id", merchantId)
+      .eq("date", date);
+      
+    if (checkError) throw checkError;
+    
+    // Filter out slots that overlap with existing ones
+    const nonOverlappingSlots = slotsToCreate.filter(newSlot => {
+      if (!existingSlots || existingSlots.length === 0) return true;
+      
+      // Convert times to comparable format
+      const newStart = timeToMinutes(newSlot.start_time);
+      const newEnd = timeToMinutes(newSlot.end_time);
+      
+      // Check if this slot overlaps with any existing slot
+      return !existingSlots.some(existingSlot => {
+        const existingStart = timeToMinutes(existingSlot.start_time);
+        const existingEnd = timeToMinutes(existingSlot.end_time);
+        
+        // Check for overlap
+        return (newStart < existingEnd && newEnd > existingStart);
+      });
+    });
+    
+    if (nonOverlappingSlots.length === 0) {
+      console.log("All requested slots overlap with existing slots");
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from("slots")
-      .insert(slotsToCreate)
+      .insert(nonOverlappingSlots)
       .select();
     
     if (error) throw error;
@@ -327,6 +383,12 @@ export const createBulkTimeSlots = async (
     throw error;
   }
 };
+
+// Helper function to convert time string to minutes since midnight
+function timeToMinutes(timeStr: string): number {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
 
 // Get slot availability summary by date
 export const getSlotAvailabilitySummary = async (
