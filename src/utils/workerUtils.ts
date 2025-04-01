@@ -1,21 +1,12 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO, addMinutes, isBefore } from "date-fns";
-
-/**
- * Interface for worker availability
- */
-export interface WorkerAvailability {
-  workerId: string;
-  name: string;
-  nextAvailableTime: string;
-  specialty?: string;
-}
+import { WorkerAvailability, WorkerData, MerchantSettings } from "@/types/admin";
 
 /**
  * Get all workers for a merchant
  */
-export const fetchMerchantWorkers = async (merchantId: string) => {
+export const fetchMerchantWorkers = async (merchantId: string): Promise<WorkerData[]> => {
   try {
     const { data, error } = await supabase
       .from("workers")
@@ -67,8 +58,8 @@ export const upsertMerchantSettings = async (
     total_workers?: number;
     working_hours_start?: string;
     working_hours_end?: string;
-    break_start?: string;
-    break_end?: string;
+    break_start?: string | null;
+    break_end?: string | null;
     worker_assignment_strategy?: string;
   }
 ) => {
@@ -92,7 +83,7 @@ export const upsertMerchantSettings = async (
 /**
  * Get merchant settings
  */
-export const getMerchantSettings = async (merchantId: string) => {
+export const getMerchantSettings = async (merchantId: string): Promise<MerchantSettings | null> => {
   try {
     const { data, error } = await supabase
       .from("merchant_settings")

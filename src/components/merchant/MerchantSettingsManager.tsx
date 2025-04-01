@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { getMerchantSettings, upsertMerchantSettings } from '@/utils/workerUtils';
+import { MerchantSettings } from '@/types/admin';
 
 interface MerchantSettingsManagerProps {
   merchantId: string;
@@ -16,7 +17,8 @@ interface MerchantSettingsManagerProps {
 }
 
 const MerchantSettingsManager: React.FC<MerchantSettingsManagerProps> = ({ merchantId, onSettingsUpdated }) => {
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<MerchantSettings>({
+    merchant_id: merchantId,
     total_workers: 1,
     working_hours_start: '09:00',
     working_hours_end: '17:00',
@@ -38,6 +40,7 @@ const MerchantSettingsManager: React.FC<MerchantSettingsManagerProps> = ({ merch
       const data = await getMerchantSettings(merchantId);
       if (data) {
         setSettings({
+          merchant_id: merchantId,
           total_workers: data.total_workers || 1,
           working_hours_start: data.working_hours_start || '09:00',
           working_hours_end: data.working_hours_end || '17:00',

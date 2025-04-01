@@ -1,3 +1,4 @@
+
 export interface TimeSlot {
   id: string;
   merchant_id: string;
@@ -6,6 +7,7 @@ export interface TimeSlot {
   end_time: string;
   is_booked: boolean;
   service_duration: number;
+  worker_id?: string;
 }
 
 export interface SlotAvailability {
@@ -81,4 +83,32 @@ export interface Service {
   duration: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkerData {
+  id: string;
+  merchant_id: string;
+  name: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  specialty?: string;
+  notes?: string;
+}
+
+export interface MerchantSettings {
+  merchant_id: string;
+  total_workers: number;
+  working_hours_start: string;
+  working_hours_end: string;
+  break_start?: string;
+  break_end?: string;
+  worker_assignment_strategy: string;
+}
+
+export interface WorkerAvailability {
+  workerId: string;
+  name: string;
+  nextAvailableTime: string;
+  specialty?: string;
 }

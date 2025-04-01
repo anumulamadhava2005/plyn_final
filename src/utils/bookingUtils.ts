@@ -2,335 +2,297 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
 import { addMinutes, format, parseISO, isBefore, isAfter } from "date-fns";
-import { findAvailableWorker } from "./workerUtils";
+import { findAvailableTimeSlots } from "@/utils/workerUtils";
+import { TimeSlot, SlotAvailability } from "@/types/admin";
 
-// Interface for booking data
-export interface BookingData {
-  userId: string;
-  salonId: string;
-  salonName: string;
-  serviceName: string;
-  date: string;
-  timeSlot: string;
-  email: string;
-  phone: string;
-  totalPrice: number;
-  totalDuration: number;
-  slotId: string;
-  notes?: string;
-  coinsUsed?: number;
-  coinsEarned?: number;
-  workerId?: string;
-}
-
-// Interface for payment data
-export interface PaymentData {
-  bookingId: string;
-  userId: string;
-  amount: number;
-  paymentMethod: string;
-  coinsUsed?: number;
-  coinsEarned?: number;
-}
-
-// Mock function for initializing database (for development purposes)
-export const initializeDatabase = async () => {
-  console.log("Database initialization function called (development mock)");
-  return { success: true, message: "Mock initialization - no actual changes made" };
-};
-
-// Function to create a new booking in the database
-export const createBooking = async (bookingData: BookingData) => {
+// Generate time slots for a salon
+export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
   try {
-    console.log("Creating booking with data:", bookingData);
+    // Format the date for database queries
+    const formattedDate = format(date, "yyyy-MM-dd");
     
-    const { data: newBooking, error: bookingError } = await supabase
-      .from("bookings")
-      .insert({
-        user_id: bookingData.userId,
-        merchant_id: bookingData.salonId,
-        salon_id: bookingData.salonId,
-        salon_name: bookingData.salonName,
-        service_name: bookingData.serviceName,
-        booking_date: bookingData.date,
-        time_slot: bookingData.timeSlot,
-        customer_email: bookingData.email,
-        customer_phone: bookingData.phone,
-        service_price: bookingData.totalPrice,
-        service_duration: bookingData.totalDuration,
-        slot_id: bookingData.slotId,
-        status: "upcoming",
-        additional_notes: bookingData.notes || "",
-        coins_used: bookingData.coinsUsed || 0,
-        coins_earned: bookingData.coinsEarned || 0,
-        user_profile_id: bookingData.userId,
-        worker_id: bookingData.workerId
-      })
-      .select()
-      .single();
-
-    if (bookingError) {
-      console.error("Error in createBooking:", bookingError);
-      throw bookingError;
-    }
-
-    console.log("Booking created successfully:", newBooking);
-    return newBooking;
-  } catch (error) {
-    console.error("Error creating booking:", error);
-    throw error;
-  }
-};
-
-// Function to create a payment record
-export const createPayment = async (paymentData: PaymentData) => {
-  try {
-    console.log("Creating payment with data:", paymentData);
-    
-    // For development purposes, always create a successful payment
-    const { data: newPayment, error: paymentError } = await supabase
-      .from("payments")
-      .insert({
-        booking_id: paymentData.bookingId,
-        user_id: paymentData.userId,
-        amount: paymentData.amount,
-        payment_method: paymentData.paymentMethod,
-        payment_status: "completed",
-        transaction_id: `DEV-${Math.floor(Math.random() * 1000000)}`,
-        coins_used: paymentData.coinsUsed || 0,
-        coins_earned: paymentData.coinsEarned || 0
-      })
-      .select()
-      .single();
-
-    if (paymentError) {
-      console.error("Error in createPayment:", paymentError);
-      throw paymentError;
-    }
-
-    // Update the booking with the payment ID
-    const { error: updateError } = await supabase
-      .from("bookings")
-      .update({ payment_id: newPayment.id })
-      .eq("id", paymentData.bookingId);
-
-    if (updateError) {
-      console.error("Error updating booking with payment_id:", updateError);
-      throw updateError;
-    }
-
-    console.log("Payment created successfully:", newPayment);
-    return newPayment;
-  } catch (error) {
-    console.error("Error processing payment:", error);
-    throw error;
-  }
-};
-
-// Function to get user's PLYN coins
-export const getUserCoins = async (userId: string) => {
-  try {
-    console.log("Fetching coins for user:", userId);
-    
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("coins")
-      .eq("id", userId)
-      .single();
-
-    if (error) {
-      console.error("Error in getUserCoins:", error);
-      throw error;
-    }
-    
-    const coins = data?.coins || 0;
-    console.log("User coins retrieved:", coins);
-    return coins;
-  } catch (error) {
-    console.error("Error fetching user coins:", error);
-    return 0;
-  }
-};
-
-// Function to update user's PLYN coins
-export const updateUserCoins = async (userId: string, coinsEarned: number, coinsUsed: number) => {
-  try {
-    console.log(`Updating coins for user ${userId}: earned ${coinsEarned}, used ${coinsUsed}`);
-    
-    const { data: userData, error: fetchError } = await supabase
-      .from("profiles")
-      .select("coins")
-      .eq("id", userId)
-      .single();
-
-    if (fetchError) {
-      console.error("Error fetching current coin balance:", fetchError);
-      throw fetchError;
-    }
-    
-    const currentCoins = userData?.coins || 0;
-    const newCoinsBalance = currentCoins + coinsEarned - coinsUsed;
-    
-    console.log(`Current coins: ${currentCoins}, New balance: ${newCoinsBalance}`);
-    
-    const { data, error: updateError } = await supabase
-      .from("profiles")
-      .update({ coins: newCoinsBalance })
-      .eq("id", userId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error("Error updating coin balance:", updateError);
-      throw updateError;
-    }
-    
-    console.log("Coins updated successfully. New balance:", newCoinsBalance);
-    return newCoinsBalance;
-  } catch (error) {
-    console.error("Error updating user coins:", error);
-    throw error;
-  }
-};
-
-// Function to fetch user's bookings - update to use the correct relationship
-export const fetchUserBookings = async (userId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from("bookings")
-      .select(`
-        *,
-        profiles:user_profile_id(*)
-      `)
-      .eq("user_id", userId)
-      .order("booking_date", { ascending: false });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Error fetching bookings:", error);
-    throw error;
-  }
-};
-
-// Function to update a booking status
-export const updateBookingStatus = async (bookingId: string, status: string) => {
-  try {
-    const { data, error } = await supabase
-      .from("bookings")
-      .update({ status })
-      .eq("id", bookingId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Error updating booking status:", error);
-    throw error;
-  }
-};
-
-// Enhanced function to check slot availability with worker assignment
-export const checkSlotAvailability = async (salonId: string, date: string, timeSlot: string, serviceDuration: number = 30) => {
-  try {
-    console.log(`Checking slot availability for salon ${salonId} on ${date} at ${timeSlot}`);
-    
-    // First check if the slot exists and is available
-    const { data, error } = await supabase
+    // First check if slots already exist for this date and salon
+    const { data: existingSlots, error: checkError } = await supabase
       .from("slots")
       .select("*")
       .eq("merchant_id", salonId)
-      .eq("date", date)
-      .eq("start_time", timeSlot)
-      .eq("is_booked", false)
-      .limit(1);
-
-    if (error) {
-      console.error("Error checking slot availability:", error);
-      throw error;
+      .eq("date", formattedDate);
+    
+    if (checkError) throw checkError;
+    
+    // If slots already exist, return them
+    if (existingSlots && existingSlots.length > 0) {
+      console.log(`Found ${existingSlots.length} existing slots for ${formattedDate}`);
+      return existingSlots;
     }
     
-    // If no slots are found, try to find an available worker
-    if (!data || data.length === 0) {
-      // Try to find an available worker
-      const availableWorker = await findAvailableWorker(salonId, date, timeSlot, serviceDuration);
+    console.log(`Generating new slots for ${formattedDate}`);
+    
+    // Get service durations from this merchant to create appropriate slots
+    const { data: serviceData, error: serviceError } = await supabase
+      .from('services')
+      .select('duration')
+      .eq('merchant_id', salonId);
       
-      if (!availableWorker) {
-        console.log("No available workers found for the requested time");
-        return {
-          available: false,
-          slotId: null,
-          workerId: null
-        };
-      }
+    // Get unique service durations, defaulting to 15, 30, 45, 60 minutes if none found
+    const serviceDurations = serviceData && serviceData.length > 0
+      ? [...new Set(serviceData.map(s => s.duration))]
+      : [15, 30, 45, 60];
+    
+    // Get smallest duration to use as increment
+    const minDuration = Math.min(...serviceDurations);
+    
+    // Default business hours
+    const startHour = 9; // 9 AM
+    const endHour = 17; // 5 PM
+    
+    let slots = [];
+    let currentTime = new Date(date);
+    currentTime.setHours(startHour, 0, 0, 0);
+    
+    const endTime = new Date(date);
+    endTime.setHours(endHour, 0, 0, 0);
+    
+    while (currentTime < endTime) {
+      const startTimeStr = format(currentTime, "HH:mm");
       
-      // Create a new slot for this worker
-      const endTimeDate = addMinutes(new Date(`${date}T${timeSlot}`), serviceDuration);
-      const endTime = format(endTimeDate, "HH:mm");
-      
-      const { data: newSlot, error: createError } = await supabase
-        .from("slots")
-        .insert({
-          merchant_id: salonId,
-          date,
-          start_time: timeSlot,
-          end_time: endTime,
-          is_booked: false,
-          service_duration: serviceDuration,
-          worker_id: availableWorker.workerId
-        })
-        .select()
-        .single();
+      // Create slots for each service duration
+      for (const duration of serviceDurations) {
+        const endTimeObj = addMinutes(currentTime, duration);
         
-      if (createError) {
-        console.error("Error creating new slot:", createError);
-        throw createError;
-      }
-      
-      console.log("Created new slot with worker assignment:", newSlot);
-      return {
-        available: true,
-        slotId: newSlot.id,
-        workerId: availableWorker.workerId
-      };
-    }
-    
-    // If existing slot doesn't have a worker assigned, find one
-    let slotToUse = data[0];
-    if (!slotToUse.worker_id) {
-      const availableWorker = await findAvailableWorker(salonId, date, timeSlot, serviceDuration);
-      
-      if (availableWorker) {
-        // Update the slot with the worker ID
-        const { data: updatedSlot, error: updateError } = await supabase
-          .from("slots")
-          .update({ worker_id: availableWorker.workerId })
-          .eq("id", slotToUse.id)
-          .select()
-          .single();
+        // Only create slots that end within business hours
+        if (endTimeObj <= endTime) {
+          const endTimeStr = format(endTimeObj, "HH:mm");
           
-        if (updateError) {
-          console.error("Error updating slot with worker:", updateError);
-        } else {
-          slotToUse = updatedSlot;
+          // Randomly mark some slots as booked for testing purposes
+          // But don't book slots in the future
+          const isInPast = isBefore(currentTime, new Date());
+          const randomBooked = isInPast || Math.random() < 0.1; // 10% chance of being booked for future slots
+          
+          slots.push({
+            merchant_id: salonId,
+            date: formattedDate,
+            start_time: startTimeStr,
+            end_time: endTimeStr,
+            is_booked: randomBooked,
+            service_duration: duration
+          });
         }
       }
+      
+      // Move to the next time increment using minDuration
+      currentTime = addMinutes(currentTime, minDuration);
     }
     
-    console.log("Available slot found:", slotToUse);
-    return {
-      available: true,
-      slotId: slotToUse.id,
-      workerId: slotToUse.worker_id
-    };
+    // Insert the slots into the database
+    const { data: insertedSlots, error: insertError } = await supabase
+      .from("slots")
+      .insert(slots)
+      .select();
+    
+    if (insertError) throw insertError;
+    
+    console.log(`Created ${insertedSlots.length} new slots for ${formattedDate}`);
+    return insertedSlots;
   } catch (error) {
-    console.error("Error checking slot availability:", error);
+    console.error("Error generating salon time slots:", error);
     throw error;
   }
 };
 
-// Enhanced function to book a slot with worker assignment
+// Get available time slots for a salon
+export const getAvailableTimeSlots = async (salonId: string, date: Date) => {
+  try {
+    // Ensure slots exist for this date
+    await generateSalonTimeSlots(salonId, date);
+    
+    // Format the date for database queries
+    const formattedDate = format(date, "yyyy-MM-dd");
+    
+    // Get available slots
+    const { data: availableSlots, error } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", salonId)
+      .eq("date", formattedDate)
+      .eq("is_booked", false)
+      .order("start_time");
+    
+    if (error) throw error;
+    
+    console.log(`Found ${availableSlots?.length || 0} available slots for ${formattedDate}`);
+    return availableSlots || [];
+  } catch (error) {
+    console.error("Error getting available time slots:", error);
+    throw error;
+  }
+};
+
+// Format time slots for display
+export const formatSlotsForDisplay = (slots: any[]) => {
+  return slots.map(slot => ({
+    id: slot.id,
+    time: slot.start_time,
+    available: !slot.is_booked
+  }));
+};
+
+// Add default data for development purposes
+export const seedDefaultData = async () => {
+  try {
+    // Check if default merchants exist
+    const { data: existingMerchants, error: checkError } = await supabase
+      .from("merchants")
+      .select("id");
+    
+    if (checkError) throw checkError;
+    
+    // If default merchants already exist, don't seed
+    if (existingMerchants && existingMerchants.length > 0) {
+      console.log("Default merchants already exist, skipping merchant seeding");
+      
+      // Even if merchants exist, make sure we generate slots for testing
+      await generateSlotsForMerchants(existingMerchants);
+      
+      return { success: true, message: "Default data already exists" };
+    }
+    
+    // Add default salons/merchants
+    const defaultMerchants = [
+      {
+        id: "8a7b6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d",
+        business_name: "Men's Style Barber Shop",
+        business_address: "123 Main Street, Downtown",
+        business_phone: "555-123-4567",
+        business_email: "info@mensstyle.com",
+        service_category: "men"
+      },
+      {
+        id: "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+        business_name: "Glamour Women's Salon",
+        business_address: "456 Fashion Avenue, Uptown",
+        business_phone: "555-987-6543",
+        business_email: "info@glamoursalon.com",
+        service_category: "women"
+      }
+    ];
+    
+    const { error: merchantError } = await supabase
+      .from("merchants")
+      .insert(defaultMerchants);
+    
+    if (merchantError) throw merchantError;
+    
+    console.log("Default merchants created successfully");
+    
+    // Generate slots for these merchants
+    await generateSlotsForMerchants(defaultMerchants);
+    
+    // Create some test bookings
+    await createTestBookings(defaultMerchants);
+    
+    return { success: true, message: "Default data seeded successfully" };
+  } catch (error) {
+    console.error("Error seeding default data:", error);
+    return { success: false, message: "Error seeding default data", error };
+  }
+};
+
+// Helper function to generate slots for merchants
+async function generateSlotsForMerchants(merchants: any[]) {
+  const today = new Date();
+  
+  for (const merchant of merchants) {
+    // Generate slots for the previous 3 days (some will be in the past) and the next 14 days
+    for (let i = -3; i < 14; i++) {
+      const date = addDays(today, i);
+      await generateSalonTimeSlots(merchant.id, date);
+    }
+    console.log(`Generated slots for merchant: ${merchant.business_name || merchant.id}`);
+  }
+}
+
+// Create some test bookings for development
+async function createTestBookings(merchants: any[]) {
+  try {
+    // First check if we already have test bookings
+    const { data: existingBookings, error: checkError } = await supabase
+      .from("bookings")
+      .select("id")
+      .limit(1);
+    
+    if (checkError) throw checkError;
+    
+    // If bookings exist, skip creating test bookings
+    if (existingBookings && existingBookings.length > 0) {
+      console.log("Test bookings already exist, skipping");
+      return;
+    }
+    
+    // For each merchant, create a few test bookings
+    for (const merchant of merchants) {
+      // Get some available slots
+      const today = new Date();
+      const tomorrow = addDays(today, 1);
+      const dayAfter = addDays(today, 2);
+      
+      const dates = [today, tomorrow, dayAfter];
+      
+      for (const date of dates) {
+        // Get available slots for this date
+        const { data: slots } = await supabase
+          .from("slots")
+          .select("*")
+          .eq("merchant_id", merchant.id)
+          .eq("date", format(date, "yyyy-MM-dd"))
+          .eq("is_booked", false)
+          .limit(3);
+        
+        if (!slots || slots.length === 0) continue;
+        
+        // Book one slot for each date
+        const slot = slots[0];
+        
+        // Mark this slot as booked
+        await supabase
+          .from("slots")
+          .update({ is_booked: true })
+          .eq("id", slot.id);
+        
+        // Create a test booking
+        const { data: booking, error: bookingError } = await supabase
+          .from("bookings")
+          .insert({
+            user_id: "00000000-0000-0000-0000-000000000000", // Placeholder user ID
+            merchant_id: merchant.id,
+            salon_id: merchant.id,
+            salon_name: merchant.business_name,
+            service_name: merchant.service_category === "men" ? "Men's Haircut" : "Women's Cut & Style",
+            booking_date: format(date, "yyyy-MM-dd"),
+            time_slot: slot.start_time,
+            customer_email: "test@example.com",
+            customer_phone: "555-555-5555",
+            service_price: merchant.service_category === "men" ? 35 : 55,
+            service_duration: 30,
+            slot_id: slot.id,
+            status: "upcoming",
+            additional_notes: "Test booking created automatically"
+          })
+          .select()
+          .single();
+        
+        if (bookingError) throw bookingError;
+        
+        console.log(`Created test booking for ${merchant.business_name} on ${format(date, "yyyy-MM-dd")} at ${slot.start_time}`);
+      }
+    }
+  } catch (error) {
+    console.error("Error creating test bookings:", error);
+    throw error;
+  }
+}
+
+// Enhanced function to mark a slot as booked with atomic update
 export const bookSlot = async (slotId: string) => {
   try {
     console.log("Booking slot:", slotId);
@@ -376,7 +338,6 @@ export const bookSlot = async (slotId: string) => {
     // This ensures dynamic slot generation right after a booking
     const merchantId = data.merchant_id;
     const slotDate = data.date;
-    const workerId = data.worker_id;
     
     // Get the service durations offered by this merchant to create appropriate slots
     const { data: serviceData } = await supabase
@@ -403,334 +364,331 @@ export const bookSlot = async (slotId: string) => {
   }
 };
 
-// Enhanced function to create dynamic time slots based on services and available gaps
-export const createDynamicTimeSlots = async (merchantId: string, date: string, serviceDurations: number[] = [30]) => {
+// New function to support real-time updates
+export const enableRealtimeForSlots = async () => {
   try {
-    // Default working hours from 9:00 to 17:00 (5:00 PM)
-    const workingStartHour = 9;
-    const workingEndHour = 17;
+    // Enable realtime for slots table; casting to any to bypass TypeScript checking
+    const { data, error } = await (supabase.rpc as any)(
+      'supabase_realtime' as any,
+      {
+        table_name: 'slots',
+        action: 'enable'
+      }
+    );
     
-    // Get existing slots for this date
-    const { data: existingSlots, error: existingError } = await supabase
+    if (error) throw error;
+    console.log("Realtime enabled for slots table");
+    return data;
+  } catch (error) {
+    console.error("Error enabling realtime:", error);
+    // Don't throw the error, just log it as this is not critical
+    return null;
+  }
+};
+
+// New function for bulk creating time slots with dynamic timing
+export const createBulkTimeSlots = async (
+  merchantId: string,
+  date: string,
+  slots: { startTime: string; endTime: string }[]
+): Promise<TimeSlot[]> => {
+  try {
+    const slotsToCreate = slots.map(slot => {
+      // Calculate duration in minutes
+      const [startHour, startMinute] = slot.startTime.split(':').map(Number);
+      const [endHour, endMinute] = slot.endTime.split(':').map(Number);
+      
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = endHour * 60 + endMinute;
+      
+      const duration = endMinutes - startMinutes;
+      
+      return {
+        merchant_id: merchantId,
+        date,
+        start_time: slot.startTime,
+        end_time: slot.endTime,
+        is_booked: false,
+        service_duration: duration
+      };
+    });
+    
+    // Check for overlapping slots first
+    const { data: existingSlots, error: checkError } = await supabase
       .from("slots")
-      .select("*")
+      .select("start_time, end_time")
       .eq("merchant_id", merchantId)
       .eq("date", date);
       
-    if (existingError) throw existingError;
+    if (checkError) throw checkError;
     
-    // If slots already exist for this date, we'll only add more if there are gaps
-    if (existingSlots && existingSlots.length > 0) {
-      console.log(`${existingSlots.length} slots already exist for ${date}, checking for gaps`);
+    // Filter out slots that overlap with existing ones
+    const nonOverlappingSlots = slotsToCreate.filter(newSlot => {
+      if (!existingSlots || existingSlots.length === 0) return true;
       
-      // Sort existing slots by start time
-      const sortedExistingSlots = [...existingSlots].sort((a, b) => {
-        return a.start_time.localeCompare(b.start_time);
-      });
+      // Convert times to comparable format
+      const newStart = timeToMinutes(newSlot.start_time);
+      const newEnd = timeToMinutes(newSlot.end_time);
       
-      // Find gaps in the existing slots to fill with new slots
-      const gapsToFill = findTimeGaps(sortedExistingSlots, date, workingStartHour, workingEndHour);
-      
-      // If there are gaps, create slots for them
-      if (gapsToFill.length > 0) {
-        const newSlots = createSlotsForGaps(gapsToFill, merchantId, date, serviceDurations);
+      // Check if this slot overlaps with any existing slot
+      return !existingSlots.some(existingSlot => {
+        const existingStart = timeToMinutes(existingSlot.start_time);
+        const existingEnd = timeToMinutes(existingSlot.end_time);
         
-        if (newSlots.length > 0) {
-          const { data: insertedSlots, error: insertError } = await supabase
-            .from("slots")
-            .insert(newSlots)
-            .select();
-            
-          if (insertError) throw insertError;
-          
-          console.log(`Created ${insertedSlots?.length || 0} new slots to fill gaps`);
-          return [...existingSlots, ...(insertedSlots || [])];
-        }
+        // Check for overlap
+        return (newStart < existingEnd && newEnd > existingStart);
+      });
+    });
+    
+    if (nonOverlappingSlots.length === 0) {
+      console.log("All requested slots overlap with existing slots");
+      return [];
+    }
+    
+    const { data, error } = await supabase
+      .from("slots")
+      .insert(nonOverlappingSlots)
+      .select();
+    
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error creating bulk time slots:", error);
+    throw error;
+  }
+};
+
+// Helper function to convert time string to minutes since midnight
+function timeToMinutes(timeStr: string): number {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+// Get slot availability summary by date
+export const getSlotAvailabilitySummary = async (
+  merchantId: string, 
+  startDate: Date, 
+  endDate: Date
+): Promise<SlotAvailability[]> => {
+  try {
+    const formattedStartDate = format(startDate, "yyyy-MM-dd");
+    const formattedEndDate = format(endDate, "yyyy-MM-dd");
+    
+    const { data, error } = await supabase
+      .from("slots")
+      .select("date, is_booked")
+      .eq("merchant_id", merchantId)
+      .gte("date", formattedStartDate)
+      .lte("date", formattedEndDate);
+    
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      return [];
+    }
+    
+    // Group by date and count available/booked slots
+    const dateMap = new Map<string, { available: number; booked: number }>();
+    
+    data.forEach(slot => {
+      if (!dateMap.has(slot.date)) {
+        dateMap.set(slot.date, { available: 0, booked: 0 });
       }
       
-      return existingSlots;
+      const dateStats = dateMap.get(slot.date)!;
+      if (slot.is_booked) {
+        dateStats.booked += 1;
+      } else {
+        dateStats.available += 1;
+      }
+    });
+    
+    // Convert map to array
+    const result: SlotAvailability[] = Array.from(dateMap.entries()).map(([date, slots]) => ({
+      date,
+      slots
+    }));
+    
+    // Sort by date
+    result.sort((a, b) => a.date.localeCompare(b.date));
+    
+    return result;
+  } catch (error) {
+    console.error("Error getting slot availability summary:", error);
+    throw error;
+  }
+};
+
+// Function to update booking status
+export const updateBookingStatus = async (bookingId: string, status: 'confirmed' | 'cancelled' | 'pending') => {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ status })
+      .eq('id', bookingId)
+      .select();
+
+    if (error) {
+      console.error("Error updating booking status:", error);
+      throw error;
     }
-    
-    // If no slots exist for this date, create a full day of slots
-    const slots = [];
-    const slotsSeen = new Set(); // To avoid duplicate slots
-    
-    // Ensure we have at least one service duration
-    if (serviceDurations.length === 0) {
-      serviceDurations = [30]; // Default 30 minute slots
+
+    return data;
+  } catch (error) {
+    console.error("Error updating booking status:", error);
+    throw error;
+  }
+};
+
+// Function to create dynamic time slots based on merchant settings
+export const createDynamicTimeSlots = async (merchantId: string, date: string, serviceDurations: number[]): Promise<TimeSlot[]> => {
+  try {
+    // Get merchant settings for working hours
+    const { data: settings, error: settingsError } = await supabase
+      .from("merchant_settings")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .single();
+
+    if (settingsError) throw settingsError;
+
+    const startHour = settings?.working_hours_start || "09:00";
+    const endHour = settings?.working_hours_end || "17:00";
+
+    // Generate time slots every 15 minutes from start to end
+    const timeSlots: TimeSlot[] = [];
+    const startTime = new Date(`${date}T${startHour}`);
+    const endTime = new Date(`${date}T${endHour}`);
+    const now = new Date();
+    const currentDate = new Date(`${date}`);
+    const isPastDate = isBefore(currentDate, now);
+
+    // For past dates, no slots are available
+    if (isPastDate) {
+      return [];
     }
-    
-    // Get the smallest service duration to use as our increment
-    const minDuration = Math.min(...serviceDurations);
-    
-    // Create slots for each increment throughout the working day
-    let currentDate = new Date(`${date}T0${workingStartHour}:00:00`);
-    const endTime = new Date(`${date}T${workingEndHour}:00:00`);
-    
-    while (currentDate < endTime) {
-      const startTimeStr = format(currentDate, "HH:mm");
-      
+
+    // Current time for filtering past slots on current date
+    const currentTime = format(now, "HH:mm");
+    const isToday = format(now, "yyyy-MM-dd") === date;
+
+    // Go through each 15-minute slot
+    for (
+      let slotTime = new Date(startTime);
+      slotTime < endTime;
+      slotTime = addMinutes(slotTime, 15)
+    ) {
+      const slotTimeStr = format(slotTime, "HH:mm");
+
+      // Skip slots in the past for today
+      if (isToday && slotTimeStr < currentTime) {
+        continue;
+      }
+
       // For each service duration, create a slot
       for (const duration of serviceDurations) {
-        const potentialEndTime = addMinutes(currentDate, duration);
-        
-        // Only create slot if it fits within working hours
-        if (potentialEndTime <= endTime) {
-          const endTimeStr = format(potentialEndTime, "HH:mm");
-          
-          // Create a unique key to avoid duplicate slots
-          const slotKey = `${startTimeStr}-${endTimeStr}`;
-          
-          if (!slotsSeen.has(slotKey)) {
-            slots.push({
-              merchant_id: merchantId,
-              date: date,
-              start_time: startTimeStr,
-              end_time: endTimeStr,
-              is_booked: false,
-              service_duration: duration
-            });
-            
-            slotsSeen.add(slotKey);
-          }
+        const slotEndTime = format(addMinutes(slotTime, duration), "HH:mm");
+
+        // Ensure the slot end time is within working hours
+        if (isAfter(parseISO(`${date}T${slotEndTime}`), endTime)) {
+          continue;
         }
+
+        // Create the time slot
+        timeSlots.push({
+          merchant_id: merchantId,
+          date: date,
+          start_time: slotTimeStr,
+          end_time: slotEndTime,
+          is_booked: false,
+          service_duration: duration,
+          id: '' // Placeholder, this will be generated by the database
+        });
       }
-      
-      // Move to the next increment using minDuration
-      currentDate = addMinutes(currentDate, minDuration);
     }
-    
-    // If we have slots to create, insert them
-    if (slots.length > 0) {
-      const { data, error } = await supabase
-        .from("slots")
-        .insert(slots)
-        .select();
-        
-      if (error) throw error;
-      
-      console.log(`Created ${data.length} dynamic slots for ${date}`);
-      return data;
+
+    // Check for overlapping slots first
+    const { data: existingSlots, error: checkError } = await supabase
+      .from("slots")
+      .select("start_time, end_time")
+      .eq("merchant_id", merchantId)
+      .eq("date", date);
+
+    if (checkError) throw checkError;
+
+    // Filter out slots that overlap with existing ones
+    const nonOverlappingSlots = timeSlots.filter(newSlot => {
+      if (!existingSlots || existingSlots.length === 0) return true;
+
+      // Convert times to comparable format
+      const newStart = timeToMinutes(newSlot.start_time);
+      const newEnd = timeToMinutes(newSlot.end_time);
+
+      // Check if this slot overlaps with any existing slot
+      return !existingSlots.some(existingSlot => {
+        const existingStart = timeToMinutes(existingSlot.start_time);
+        const existingEnd = timeToMinutes(existingSlot.end_time);
+
+        // Check for overlap
+        return (newStart < existingEnd && newEnd > existingStart);
+      });
+    });
+
+    if (nonOverlappingSlots.length === 0) {
+      console.log("All generated slots overlap with existing slots");
+      return [];
     }
-    
-    return [];
+
+    // Insert the non-overlapping slots into the database
+    const { data, error } = await supabase
+      .from("slots")
+      .insert(nonOverlappingSlots)
+      .select();
+
+    if (error) {
+      console.error("Error creating dynamic time slots:", error);
+      throw error;
+    }
+
+    console.log(`Created ${data.length} new dynamic slots`);
+    return data || [];
   } catch (error) {
     console.error("Error creating dynamic time slots:", error);
     throw error;
   }
 };
 
-// Helper function to find time gaps in existing slots
-function findTimeGaps(existingSlots: any[], date: string, startHour: number, endHour: number) {
-  const gaps = [];
-  const workDayStart = new Date(`${date}T0${startHour}:00:00`);
-  const workDayEnd = new Date(`${date}T${endHour}:00:00`);
-  
-  // Create a timeline of occupied periods
-  const occupiedPeriods = existingSlots.map(slot => {
-    const startTime = new Date(`${date}T${slot.start_time}:00`);
-    const endTime = new Date(`${date}T${slot.end_time}:00`);
-    return { start: startTime, end: endTime };
-  }).sort((a, b) => a.start.getTime() - b.start.getTime());
-  
-  if (occupiedPeriods.length === 0) {
-    // If no slots exist, return the entire working day as a gap
-    return [{ start: workDayStart, end: workDayEnd }];
-  }
-  
-  // Check if there's a gap at the beginning of the day
-  if (isAfter(occupiedPeriods[0].start, workDayStart)) {
-    gaps.push({
-      start: workDayStart,
-      end: occupiedPeriods[0].start
-    });
-  }
-  
-  // Check for gaps between slots
-  for (let i = 0; i < occupiedPeriods.length - 1; i++) {
-    const currentEnd = occupiedPeriods[i].end;
-    const nextStart = occupiedPeriods[i + 1].start;
-    
-    if (isAfter(nextStart, currentEnd)) {
-      gaps.push({
-        start: currentEnd,
-        end: nextStart
-      });
-    }
-  }
-  
-  // Check if there's a gap at the end of the day
-  const lastSlot = occupiedPeriods[occupiedPeriods.length - 1];
-  if (isBefore(lastSlot.end, workDayEnd)) {
-    gaps.push({
-      start: lastSlot.end,
-      end: workDayEnd
-    });
-  }
-  
-  return gaps;
-}
-
-// Helper function to create slots for the identified gaps
-function createSlotsForGaps(gaps: any[], merchantId: string, date: string, serviceDurations: number[]) {
-  const newSlots = [];
-  const slotsSeen = new Set();
-  
-  // Get the smallest service duration to use as our increment
-  const minDuration = Math.min(...serviceDurations);
-  
-  for (const gap of gaps) {
-    let currentTime = new Date(gap.start);
-    
-    while (currentTime < gap.end) {
-      const startTimeStr = format(currentTime, "HH:mm");
-      
-      // For each service duration, create a slot if it fits in the gap
-      for (const duration of serviceDurations) {
-        const potentialEndTime = addMinutes(currentTime, duration);
-        
-        // Only create slot if it fits within the gap
-        if (potentialEndTime <= gap.end) {
-          const endTimeStr = format(potentialEndTime, "HH:mm");
-          
-          // Create a unique key to avoid duplicate slots
-          const slotKey = `${startTimeStr}-${endTimeStr}`;
-          
-          if (!slotsSeen.has(slotKey)) {
-            newSlots.push({
-              merchant_id: merchantId,
-              date: date,
-              start_time: startTimeStr,
-              end_time: endTimeStr,
-              is_booked: false,
-              service_duration: duration
-            });
-            
-            slotsSeen.add(slotKey);
-          }
-        }
-      }
-      
-      // Move to the next increment
-      currentTime = addMinutes(currentTime, minDuration);
-    }
-  }
-  
-  return newSlots;
-}
-
-// Enhanced function to fetch merchant slots with worker information
-export const fetchMerchantSlots = async (merchantId: string, date?: string) => {
-  try {
-    let query = supabase
-      .from("slots")
-      .select(`
-        *,
-        workers (id, name, specialty)
-      `)
-      .eq("merchant_id", merchantId);
-    
-    if (date) {
-      query = query.eq("date", date);
-    }
-    
-    const { data, error } = await query.order("date").order("start_time");
-
-    if (error) {
-      console.error("Error fetching merchant slots:", error);
-      throw error;
-    }
-    
-    return data || [];
-  } catch (error) {
-    console.error("Error in fetchMerchantSlots:", error);
-    throw error;
-  }
-};
-
-// Enhanced function to fetch available slots with worker information
-export const fetchAvailableSlots = async (salonId: string, date: string, serviceDuration: number = 30) => {
-  try {
-    // First try to find slots with existing workers
-    const { data, error } = await supabase
-      .from("slots")
-      .select(`
-        *,
-        workers (id, name, specialty)
-      `)
-      .eq("merchant_id", salonId)
-      .eq("date", date)
-      .eq("is_booked", false)
-      .order("start_time");
-
-    if (error) throw error;
-    
-    // Filter out slots that are in the past
-    const now = new Date();
-    const today = format(now, "yyyy-MM-dd");
-    const currentTime = format(now, "HH:mm");
-    
-    const availableSlotsWithWorkers = (data || []).filter(slot => {
-      // If the slot date is today, check if the time has passed
-      if (date === today) {
-        return slot.start_time > currentTime;
-      }
-      // For future dates, include all slots
-      return true;
-    });
-    
-    // If no slots with workers are found, get all possible slots with available workers
-    if (!availableSlotsWithWorkers.length) {
-      // This will generate slots based on worker availability
-      const timeSlots = await findAvailableTimeSlots(salonId, date, serviceDuration);
-      
-      // Convert to the same format as slots
-      const generatedSlots = timeSlots.map(timeSlot => ({
-        id: `generated-${timeSlot.time}`,
-        merchant_id: salonId,
-        date: date,
-        start_time: timeSlot.time,
-        end_time: format(addMinutes(new Date(`${date}T${timeSlot.time}`), serviceDuration), "HH:mm"),
-        is_booked: false,
-        service_duration: serviceDuration,
-        workers: timeSlot.availableWorkers.map(worker => ({
-          id: worker.workerId,
-          name: worker.name,
-          specialty: worker.specialty
-        })),
-        // These are virtual slots that don't exist in the database yet
-        is_virtual: true
-      }));
-      
-      return generatedSlots;
-    }
-    
-    return availableSlotsWithWorkers || [];
-  } catch (error) {
-    console.error("Error fetching available slots:", error);
-    throw error;
-  }
-};
-
-// Subscribe to real-time updates for slot availability
-export const subscribeToSlotUpdates = (salonId: string, date: string, callback: Function) => {
+// Function to subscribe to slot updates
+export const subscribeToSlotUpdates = (merchantId: string, callback: (event: any) => void) => {
   const channel = supabase
-    .channel('slot-updates')
+    .channel('public:slots')
     .on(
       'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'slots',
-        filter: `merchant_id=eq.${salonId}~and~date=eq.${date}`
-      },
-      (payload) => {
+      { event: '*', schema: 'public', table: 'slots', filter: `merchant_id=eq.${merchantId}` },
+      payload => {
+        console.log('Change received!', payload)
         callback(payload);
       }
     )
-    .subscribe();
+    .subscribe()
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  return channel;
+};
+
+// New function to fetch all merchant slots
+export const fetchMerchantSlots = async (merchantId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("slots")
+      .select("*, workers(*)")
+      .eq("merchant_id", merchantId)
+      .order("date", { ascending: false });
+      
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching merchant slots:", error);
+    return [];
+  }
 };
