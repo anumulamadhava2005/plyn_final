@@ -1,4 +1,3 @@
-
 export interface TimeSlot {
   id: string;
   merchant_id: string;
@@ -37,6 +36,7 @@ export interface Appointment {
   time: string;
   duration: string;
   status: 'confirmed' | 'cancelled' | 'pending';
+  worker?: string;
 }
 
 export interface DashboardStats {

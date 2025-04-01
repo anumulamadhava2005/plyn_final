@@ -9,6 +9,8 @@ import { supabase } from '@/integrations/supabase/client';
 import AppointmentsList from '@/components/merchant/AppointmentsList';
 import DashboardMetrics from '@/components/merchant/DashboardMetrics';
 import SlotManager from '@/components/merchant/SlotManager';
+import WorkerManager from '@/components/merchant/WorkerManager';
+import MerchantSettingsManager from '@/components/merchant/MerchantSettingsManager';
 import MerchantServices from '@/components/merchant/MerchantServices';
 import PageTransition from '@/components/transitions/PageTransition';
 import { format } from 'date-fns';
@@ -89,7 +91,6 @@ const MerchantDashboard = () => {
       
       setMerchantData(merchantData);
       
-      // Use the fixed fetchMerchantSlots function
       const slotsData = await fetchMerchantSlots(user.id);
       setSlots(slotsData);
       
@@ -108,19 +109,16 @@ const MerchantDashboard = () => {
         return;
       }
       
-      // First, extract all unique user profile IDs from bookings
       const userProfileIds = bookingsData?.map(booking => booking.user_profile_id).filter(Boolean) || [];
       const uniqueUserProfileIds = [...new Set(userProfileIds)];
       
-      // Create a profiles map to store user profile data
       let profilesMap: Record<string, any> = {};
       
-      // Only fetch profiles if there are user profile IDs
       if (uniqueUserProfileIds.length > 0) {
         console.log("Fetching profiles for IDs:", uniqueUserProfileIds);
         
         const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
+          .from("profiles")
           .select('id, username, phone_number')
           .in('id', uniqueUserProfileIds);
           
@@ -132,7 +130,6 @@ const MerchantDashboard = () => {
             variant: "destructive",
           });
         } else {
-          // Create a map of profiles by ID for easy lookup
           profilesMap = (profilesData || []).reduce((acc, profile) => {
             acc[profile.id] = profile;
             return acc;
@@ -142,10 +139,8 @@ const MerchantDashboard = () => {
         }
       }
       
-      // Set the profiles map first
       setUserProfiles(profilesMap);
       
-      // Then enhance the bookings with profile data
       const enhancedBookings = (bookingsData || []).map(booking => {
         const userProfile = booking.user_profile_id ? profilesMap[booking.user_profile_id] : null;
         return {
@@ -219,7 +214,8 @@ const MerchantDashboard = () => {
       ? 'confirmed' 
       : booking.status === 'cancelled' 
         ? 'cancelled' 
-        : 'pending') as 'confirmed' | 'cancelled' | 'pending'
+        : 'pending') as 'confirmed' | 'cancelled' | 'pending',
+    worker: booking.worker_id ? (slots.find(slot => slot.worker_id === booking.worker_id)?.workers?.name || 'Assigned') : 'Unassigned'
   }));
   
   const today = new Date().toISOString().split('T')[0];
@@ -266,10 +262,11 @@ const MerchantDashboard = () => {
           </div>
           
           <Tabs value={activeTab} defaultValue="overview" className="space-y-6">
-            <TabsList className="grid grid-cols-5 max-w-xl">
+            <TabsList className="grid grid-cols-6 max-w-2xl">
               <TabsTrigger value="overview" onClick={() => navigate('/merchant-dashboard?tab=overview')}>Overview</TabsTrigger>
               <TabsTrigger value="appointments" onClick={() => navigate('/merchant-dashboard?tab=appointments')}>Appointments</TabsTrigger>
               <TabsTrigger value="availability" onClick={() => navigate('/merchant-dashboard?tab=availability')}>Availability</TabsTrigger>
+              <TabsTrigger value="workers" onClick={() => navigate('/merchant-dashboard?tab=workers')}>Workers</TabsTrigger>
               <TabsTrigger value="services" onClick={() => navigate('/merchant-dashboard?tab=services')}>Services</TabsTrigger>
               <TabsTrigger value="settings" onClick={() => navigate('/merchant-dashboard?tab=settings')}>Settings</TabsTrigger>
             </TabsList>
@@ -319,6 +316,10 @@ const MerchantDashboard = () => {
                                   <p className="text-sm text-muted-foreground">{app.duration}</p>
                                 </div>
                               </div>
+                              <div className="mt-2 text-sm">
+                                <span className="text-muted-foreground">Worker: </span>
+                                <span>{app.worker}</span>
+                              </div>
                             </div>
                           ))}
                       </div>
@@ -351,13 +352,24 @@ const MerchantDashboard = () => {
               />
             </TabsContent>
             
+            <TabsContent value="workers">
+              <h2 className="text-xl font-semibold mb-4">Manage Workers</h2>
+              <WorkerManager 
+                merchantId={user?.id || ''} 
+                onWorkersUpdated={handleRefresh}
+              />
+            </TabsContent>
+            
             <TabsContent value="services">
               <MerchantServices merchantId={user?.id || ''} />
             </TabsContent>
             
             <TabsContent value="settings">
-              <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
-              <p>Settings management coming soon...</p>
+              <h2 className="text-xl font-semibold mb-4">Business Settings</h2>
+              <MerchantSettingsManager 
+                merchantId={user?.id || ''} 
+                onSettingsUpdated={handleRefresh}
+              />
             </TabsContent>
           </Tabs>
         </div>

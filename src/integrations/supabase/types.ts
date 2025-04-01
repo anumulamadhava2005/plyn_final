@@ -32,6 +32,7 @@ export type Database = {
           updated_at: string
           user_id: string
           user_profile_id: string | null
+          worker_id: string | null
         }
         Insert: {
           additional_notes?: string | null
@@ -55,6 +56,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           user_profile_id?: string | null
+          worker_id?: string | null
         }
         Update: {
           additional_notes?: string | null
@@ -78,6 +80,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           user_profile_id?: string | null
+          worker_id?: string | null
         }
         Relationships: [
           {
@@ -113,6 +116,57 @@ export type Database = {
             columns: ["user_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchant_settings: {
+        Row: {
+          break_end: string | null
+          break_start: string | null
+          created_at: string
+          merchant_id: string
+          total_workers: number
+          updated_at: string
+          worker_assignment_strategy: string
+          working_hours_end: string
+          working_hours_start: string
+        }
+        Insert: {
+          break_end?: string | null
+          break_start?: string | null
+          created_at?: string
+          merchant_id: string
+          total_workers?: number
+          updated_at?: string
+          worker_assignment_strategy?: string
+          working_hours_end?: string
+          working_hours_start?: string
+        }
+        Update: {
+          break_end?: string | null
+          break_start?: string | null
+          created_at?: string
+          merchant_id?: string
+          total_workers?: number
+          updated_at?: string
+          worker_assignment_strategy?: string
+          working_hours_end?: string
+          working_hours_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_settings_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: true
+            referencedRelation: "merchants"
             referencedColumns: ["id"]
           },
         ]
@@ -290,6 +344,7 @@ export type Database = {
           service_price: number | null
           start_time: string
           updated_at: string
+          worker_id: string | null
         }
         Insert: {
           created_at?: string
@@ -305,6 +360,7 @@ export type Database = {
           service_price?: number | null
           start_time: string
           updated_at?: string
+          worker_id?: string | null
         }
         Update: {
           created_at?: string
@@ -320,6 +376,7 @@ export type Database = {
           service_price?: number | null
           start_time?: string
           updated_at?: string
+          worker_id?: string | null
         }
         Relationships: [
           {
@@ -332,6 +389,95 @@ export type Database = {
           {
             foreignKeyName: "slots_salon_id_fkey"
             columns: ["salon_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slots_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worker_unavailability: {
+        Row: {
+          created_at: string
+          date: string
+          end_time: string
+          id: string
+          reason: string | null
+          start_time: string
+          updated_at: string
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          end_time: string
+          id?: string
+          reason?: string | null
+          start_time: string
+          updated_at?: string
+          worker_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          end_time?: string
+          id?: string
+          reason?: string | null
+          start_time?: string
+          updated_at?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_unavailability_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          merchant_id: string
+          name: string
+          notes: string | null
+          specialty: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          merchant_id: string
+          name: string
+          notes?: string | null
+          specialty?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          merchant_id?: string
+          name?: string
+          notes?: string | null
+          specialty?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workers_merchant_id_fkey"
+            columns: ["merchant_id"]
             isOneToOne: false
             referencedRelation: "merchants"
             referencedColumns: ["id"]
