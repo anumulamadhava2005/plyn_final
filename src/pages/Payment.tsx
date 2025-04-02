@@ -34,7 +34,8 @@ const Payment = () => {
     notes, 
     totalPrice, 
     totalDuration,
-    slotId
+    slotId,
+    selectedWorkerId
   } = location.state || {};
   
   useEffect(() => {
@@ -96,15 +97,18 @@ const Payment = () => {
     fetchUserData();
   }, [user, navigate, toast, salonId, services, date, timeSlot, totalPrice, location]);
   
-  const handleSubmit = async (values: PaymentFormValues) => {
+  const handlePayment = async (values: PaymentFormValues) => {
     try {
       // If a specific slotId was provided (from booking form)
-      if (slotId) {
+      let slotToUse = slotId;
+      let workerId = selectedWorkerId;
+      
+      if (slotToUse) {
         // Just verify that the slot still exists
         const { data: slotExists, error: slotError } = await supabase
           .from('slots')
-          .select('is_booked')
-          .eq('id', slotId)
+          .select('is_booked, worker_id')
+          .eq('id', slotToUse)
           .single();
         
         if (slotError) {
@@ -126,12 +130,17 @@ const Payment = () => {
           navigate(`/book/${salonId}`);
           return;
         }
+        
+        // Store worker ID from the slot if available
+        if (slotExists.worker_id) {
+          workerId = slotExists.worker_id;
+        }
       } else {
         // If no slotId was provided, try to find the slot based on date and time
         try {
           const { data: slots } = await supabase
             .from('slots')
-            .select('id, is_booked')
+            .select('id, is_booked, worker_id')
             .eq('merchant_id', salonId)
             .eq('date', date)
             .eq('start_time', timeSlot);
@@ -159,69 +168,31 @@ const Payment = () => {
           }
           
           // Use the found slotId
-          const slotToUse = availableSlot.id;
+          slotToUse = availableSlot.id;
           
-          // Book the slot
-          await bookSlot(slotToUse);
-          
-          // Assign a worker to the booking
-          let workerId: string | undefined;
-          
-          try {
-            const { data: availableWorkers, error: workersError } = await supabase
-              .from('workers')
-              .select('id')
-              .eq('merchant_id', salonId)
-              .eq('is_active', true)
-              .limit(1);
-            
-            if (!workersError && availableWorkers && availableWorkers.length > 0) {
-              workerId = availableWorkers[0].id;
-            }
-          } catch (error) {
-            console.error("Error finding available worker:", error);
+          // Get worker ID if available
+          if (availableSlot.worker_id) {
+            workerId = availableSlot.worker_id;
           }
           
-          // Create booking record
-          const bookingData = {
-            user_id: user?.id,
-            user_profile_id: user?.id,
-            merchant_id: salonId,
-            salon_id: salonId,
-            salon_name: salonName,
-            service_name: services.map((s: any) => s.name).join(', '),
-            service_price: totalPrice,
-            service_duration: totalDuration,
-            booking_date: date,
-            time_slot: timeSlot,
-            customer_email: values.email,
-            customer_phone: values.phone,
-            additional_notes: values.notes,
-            status: 'pending', // Will be updated to confirmed after payment
-            slot_id: slotToUse,
-            worker_id: workerId,
-            coins_earned: 0,
-            coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
-          };
-          
-          const { id: bookingId } = await createBooking(bookingData);
-          
-          // Process the payment
-          await processPayment({
-            paymentMethod: values.paymentMethod,
-            amount: totalPrice,
-            booking: {
-              id: bookingId,
-              salonName,
-              services,
-              date,
-              timeSlot,
-              totalPrice,
-              totalDuration,
-              coinsUsed: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
+          // If no worker assigned yet, try to find one
+          if (!workerId) {
+            try {
+              const { data: availableWorkers, error: workersError } = await supabase
+                .from('workers')
+                .select('id')
+                .eq('merchant_id', salonId)
+                .eq('is_active', true)
+                .limit(1);
+              
+              if (!workersError && availableWorkers && availableWorkers.length > 0) {
+                workerId = availableWorkers[0].id;
+              }
+            } catch (error) {
+              console.error("Error finding available worker:", error);
             }
-          });
-        } catch (error: any) {
+          }
+        } catch (error) {
           console.error("Error with slot:", error);
           toast({
             title: "Slot Error",
@@ -229,10 +200,54 @@ const Payment = () => {
             variant: "destructive",
           });
           navigate(`/book/${salonId}`);
+          return;
         }
       }
+
+      // Book the slot
+      await bookSlot(slotToUse);
+          
+      // Create booking record
+      const bookingData = {
+        user_id: user?.id,
+        user_profile_id: user?.id,
+        merchant_id: salonId,
+        salon_id: salonId,
+        salon_name: salonName,
+        service_name: services.map((s: any) => s.name).join(', '),
+        service_price: totalPrice,
+        service_duration: totalDuration,
+        booking_date: date,
+        time_slot: timeSlot,
+        customer_email: values.email,
+        customer_phone: values.phone,
+        additional_notes: values.notes,
+        status: 'pending', // Will be updated to confirmed after payment
+        slot_id: slotToUse,
+        worker_id: workerId || null,
+        coins_earned: 0,
+        coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
+      };
+      
+      const { id: bookingId } = await createBooking(bookingData);
+      
+      // Process the payment
+      await processPayment({
+        paymentMethod: values.paymentMethod,
+        amount: totalPrice,
+        booking: {
+          id: bookingId,
+          salonName,
+          services,
+          date,
+          timeSlot,
+          totalPrice,
+          totalDuration,
+          coinsUsed: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
+        }
+      });
     } catch (error: any) {
-      console.error("Error during payment:", error);
+      console.error("Payment error:", error);
       toast({
         title: "Payment Failed",
         description: error.message || "An error occurred during payment. Please try again.",
@@ -299,7 +314,7 @@ const Payment = () => {
                 phone: phone || '',
                 notes: notes || '',
               }}
-              onSubmit={handleSubmit}
+              onSubmit={handlePayment}
               isSubmitting={isProcessing}
               totalPrice={totalPrice}
               userCoins={userCoins}

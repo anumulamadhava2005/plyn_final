@@ -17,6 +17,17 @@ import { format } from 'date-fns';
 import { updateBookingStatus, fetchMerchantSlots, markMissedAppointments, cancelBookingAndRefund } from '@/utils/bookingUtils';
 import { Appointment } from '@/types/admin';
 
+interface Appointment {
+  id: string;
+  customerName: string;
+  service: string;
+  date: string;
+  time: string;
+  duration: string;
+  status: 'confirmed' | 'cancelled' | 'pending' | 'missed';
+  worker?: string;
+}
+
 const MerchantDashboard = () => {
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
