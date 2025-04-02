@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { checkSlotAvailability, createBooking } from '@/utils/bookingUtils';
+import { checkSlotAvailability, createBooking, bookSlot } from '@/utils/bookingUtils';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -103,6 +103,9 @@ const Payment = () => {
         return;
       }
       
+      // Book the slot first to mark it as unavailable
+      await bookSlot(slotId);
+      
       // Assign a worker to the booking
       let workerId: string | undefined;
       
@@ -124,7 +127,10 @@ const Payment = () => {
       // Prepare booking data
       const bookingData = {
         user_id: user?.id,
+        user_profile_id: user?.id, // Assuming profile ID is the same as user ID
         merchant_id: salonId,
+        salon_id: salonId,
+        salon_name: salonName,
         service_name: services.map((s: any) => s.name).join(', '),
         service_price: totalPrice,
         service_duration: totalDuration,
@@ -132,11 +138,13 @@ const Payment = () => {
         time_slot: timeSlot,
         customer_email: values.email,
         customer_phone: values.phone,
-        notes: values.notes,
+        additional_notes: values.notes,
         status: 'confirmed',
         payment_method: values.paymentMethod,
         slot_id: slotId,
-        worker_id: workerId
+        worker_id: workerId,
+        coins_earned: 0,
+        coins_used: 0
       };
       
       // Create booking
@@ -144,6 +152,12 @@ const Payment = () => {
       
       // Redirect to booking confirmation
       navigate('/booking-confirmation', { state: { bookingId } });
+      
+      toast({
+        title: "Booking Confirmed",
+        description: "Your appointment has been successfully booked.",
+        variant: "default",
+      });
     } catch (error: any) {
       console.error("Error during payment:", error);
       toast({

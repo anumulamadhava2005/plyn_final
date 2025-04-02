@@ -139,62 +139,27 @@ const SalonDetails = () => {
     try {
       setIsBooking(true);
       
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single();
-        
-      if (profileError) throw profileError;
-      
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: user.id,
-          user_profile_id: profileData.id,
-          merchant_id: id || '',
-          salon_id: id || '',
-          salon_name: salon.business_name,
-          service_name: selectedService.name,
-          service_price: Number(selectedService.price),
-          service_duration: selectedService.duration,
-          slot_id: selectedSlot.id,
-          booking_date: selectedSlot.date,
-          time_slot: selectedSlot.start_time,
-          status: 'pending',
-          coins_earned: 0,
-          coins_used: 0
-        })
-        .select()
-        .single();
-        
-      if (bookingError) throw bookingError;
-      
-      const { error: slotError } = await supabase
-        .from('slots')
-        .update({ is_booked: true })
-        .eq('id', selectedSlot.id);
-        
-      if (slotError) throw slotError;
-      
-      showBookingSuccessNotification({
-        salonName: salon.business_name,
-        serviceName: selectedService.name,
-        date: format(new Date(selectedSlot.date), 'MMMM d, yyyy'),
-        time: selectedSlot.start_time,
-        services: [{ name: selectedService.name, price: selectedService.price }],
-        totalPrice: selectedService.price
+      navigate('/payment', {
+        state: {
+          salonId: id,
+          salonName: salon.business_name,
+          services: [selectedService],
+          date: selectedSlot.date,
+          timeSlot: selectedSlot.start_time,
+          email: user.email,
+          phone: '',
+          notes: '',
+          totalPrice: selectedService.price,
+          totalDuration: selectedService.duration,
+          slotId: selectedSlot.id
+        }
       });
       
-      setSelectedService(null);
-      setSelectedSlot(null);
-      
-      navigate('/bookings');
     } catch (error: any) {
-      console.error('Error booking appointment:', error);
+      console.error('Error proceeding to payment:', error);
       toast({
-        title: 'Booking Failed',
-        description: error.message || 'Failed to book appointment. Please try again.',
+        title: 'Error',
+        description: error.message || 'Failed to proceed to payment. Please try again.',
         variant: 'destructive',
       });
     } finally {
