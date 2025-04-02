@@ -1,8 +1,11 @@
-
 import { addDays, format, isAfter, isBefore, parse, parseISO } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-import { findAvailableTimeSlots } from './slotUtils';
+import { getAvailableTimeSlots } from './slotUtils';
 import { WorkerAvailability } from '@/types/admin';
+
+// Export functions that are imported by other files
+export { getAvailableTimeSlots as fetchAvailableSlots } from './slotUtils';
+export { generateSalonTimeSlots as createDynamicTimeSlots } from './slotUtils';
 
 // Fetch merchant slots
 export const fetchMerchantSlots = async (merchantId: string) => {
@@ -245,5 +248,26 @@ export const getAvailableWorkers = async (
   } catch (error) {
     console.error("Error getting available workers:", error);
     throw new Error("Could not check worker availability");
+  }
+};
+
+// Get user coins
+export const getUserCoins = async (userId: string): Promise<number> => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('coins')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error("Error fetching user coins:", error);
+      return 0;
+    }
+    
+    return data?.coins || 0;
+  } catch (error) {
+    console.error("Error in getUserCoins:", error);
+    return 0;
   }
 };

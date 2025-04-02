@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight, Store, Coins } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { getUserCoins } from '@/utils/bookingUtils';
+import { getUserCoins } from '@/utils/userUtils';
 
 const Profile = () => {
   const { user, userProfile, signOut, isMerchant } = useAuth();

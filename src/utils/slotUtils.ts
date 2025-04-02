@@ -289,101 +289,6 @@ async function createTestBookings(merchants: any[]) {
   }
 }
 
-// New function to support real-time updates
-export const enableRealtimeForSlots = async () => {
-  try {
-    // Enable realtime for slots table; casting to any to bypass TypeScript checking
-    const { data, error } = await (supabase.rpc as any)(
-      'supabase_realtime' as any,
-      {
-        table_name: 'slots',
-        action: 'enable'
-      }
-    );
-    
-    if (error) throw error;
-    console.log("Realtime enabled for slots table");
-    return data;
-  } catch (error) {
-    console.error("Error enabling realtime:", error);
-    // Don't throw the error, just log it as this is not critical
-    return null;
-  }
-};
-
-// New function for bulk creating time slots with dynamic timing
-export const createBulkTimeSlots = async (
-  merchantId: string,
-  date: string,
-  slots: { startTime: string; endTime: string }[]
-): Promise<TimeSlot[]> => {
-  try {
-    const slotsToCreate = slots.map(slot => {
-      // Calculate duration in minutes
-      const [startHour, startMinute] = slot.startTime.split(':').map(Number);
-      const [endHour, endMinute] = slot.endTime.split(':').map(Number);
-      
-      const startMinutes = startHour * 60 + startMinute;
-      const endMinutes = endHour * 60 + endMinute;
-      
-      const duration = endMinutes - startMinutes;
-      
-      return {
-        merchant_id: merchantId,
-        date,
-        start_time: slot.startTime,
-        end_time: slot.endTime,
-        is_booked: false,
-        service_duration: duration
-      };
-    });
-    
-    // Check for overlapping slots first
-    const { data: existingSlots, error: checkError } = await supabase
-      .from("slots")
-      .select("start_time, end_time")
-      .eq("merchant_id", merchantId)
-      .eq("date", date);
-      
-    if (checkError) throw checkError;
-    
-    // Filter out slots that overlap with existing ones
-    const nonOverlappingSlots = slotsToCreate.filter(newSlot => {
-      if (!existingSlots || existingSlots.length === 0) return true;
-      
-      // Convert times to comparable format
-      const newStart = timeToMinutes(newSlot.start_time);
-      const newEnd = timeToMinutes(newSlot.end_time);
-      
-      // Check if this slot overlaps with any existing slot
-      return !existingSlots.some(existingSlot => {
-        const existingStart = timeToMinutes(existingSlot.start_time);
-        const existingEnd = timeToMinutes(existingSlot.end_time);
-        
-        // Check for overlap
-        return (newStart < existingEnd && newEnd > existingStart);
-      });
-    });
-    
-    if (nonOverlappingSlots.length === 0) {
-      console.log("All requested slots overlap with existing slots");
-      return [];
-    }
-    
-    const { data, error } = await supabase
-      .from("slots")
-      .insert(nonOverlappingSlots)
-      .select();
-    
-    if (error) throw error;
-    
-    return data || [];
-  } catch (error) {
-    console.error("Error creating bulk time slots:", error);
-    throw error;
-  }
-};
-
 // Helper function to convert time string to minutes since midnight
 function timeToMinutes(timeStr: string): number {
   const [hours, minutes] = timeStr.split(':').map(Number);
@@ -441,6 +346,27 @@ export const getSlotAvailabilitySummary = async (
     return result;
   } catch (error) {
     console.error("Error getting slot availability summary:", error);
+    throw error;
+  }
+};
+
+// Function to find available time slots
+export const findAvailableTimeSlots = async (merchantId: string, date: string): Promise<any[]> => {
+  try {
+    // Get available slots
+    const { data, error } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .eq("date", date)
+      .eq("is_booked", false)
+      .order("start_time");
+    
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error finding available time slots:", error);
     throw error;
   }
 };

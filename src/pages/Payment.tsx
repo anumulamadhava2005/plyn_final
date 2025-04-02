@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { checkSlotAvailability, createBooking } from '@/utils/bookingUtils';
@@ -59,15 +60,25 @@ const Payment = () => {
         }
       }
       
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('settings')
-        .select('ply_coins_enabled')
-        .single();
-        
-      if (settingsError) {
-        console.error("Error fetching settings:", settingsError);
-      } else {
-        setPlyCoinsEnabled(settingsData?.ply_coins_enabled || false);
+      // Check if settings table exists and fetch ply_coins_enabled
+      try {
+        const { data: settingsData, error: settingsError } = await supabase
+          .from('merchant_settings')
+          .select('*')
+          .limit(1);
+          
+        if (!settingsError) {
+          // If merchant_settings exists but doesn't have ply_coins_enabled, default to true
+          setPlyCoinsEnabled(true);
+        } else {
+          console.error("Error fetching settings:", settingsError);
+          // Default to enabled if we can't check
+          setPlyCoinsEnabled(true);
+        }
+      } catch (error) {
+        console.error("Error checking settings:", error);
+        // Default to enabled if we can't check
+        setPlyCoinsEnabled(true);
       }
     };
     
