@@ -336,7 +336,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             className="w-full"
             disabled={isSubmitting}
             onClick={() => {
-              console.log("Payment button clicked, current form state:", form.getValues());
+             handleFormSubmit(form.getValues());
             }}
           >
             {isSubmitting ? (
