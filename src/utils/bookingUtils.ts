@@ -37,12 +37,12 @@ export const checkSlotAvailability = async (
   merchantId: string,
   date: string,
   time: string
-): Promise<{ available: boolean; slotId: string }> => {
+): Promise<{ available: boolean; slotId: string; workerId?: string }> => {
   try {
-    // Use limit(1) to handle potential duplicates
+    // Get all slots matching the criteria to handle potential duplicates
     const { data, error } = await supabase
       .from('slots')
-      .select('id, is_booked')
+      .select('id, is_booked, worker_id')
       .eq('merchant_id', merchantId)
       .eq('date', date)
       .eq('start_time', time);
@@ -58,11 +58,20 @@ export const checkSlotAvailability = async (
       throw new Error("No slot found for the selected time");
     }
 
-    // Use the first slot if multiple were returned
-    const slot = data[0];
+    // Find the first available slot if there are multiple
+    const availableSlot = data.find(slot => !slot.is_booked);
+    
+    if (!availableSlot) {
+      return {
+        available: false,
+        slotId: data[0].id // Return any slot ID since none are available
+      };
+    }
+    
     return {
-      available: !slot.is_booked,
-      slotId: slot.id
+      available: true,
+      slotId: availableSlot.id,
+      workerId: availableSlot.worker_id
     };
   } catch (error: any) {
     console.error("Error in checkSlotAvailability:", error);
@@ -118,6 +127,20 @@ export const createBooking = async (bookingData: any): Promise<{ id: string }> =
       // If we need to create a payment record with this method, we could do it here
       // For now, let's just log it
       console.log(`Payment will be processed using: ${paymentMethod}`);
+    }
+    
+    // If there's a worker ID, ensure it's included in the booking
+    if (bookingData.worker_id) {
+      // Get worker details
+      const { data: workerData, error: workerError } = await supabase
+        .from('workers')
+        .select('name')
+        .eq('id', bookingData.worker_id)
+        .single();
+        
+      if (!workerError && workerData) {
+        bookingData.worker_name = workerData.name;
+      }
     }
     
     const { data, error } = await supabase

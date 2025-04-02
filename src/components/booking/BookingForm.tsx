@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -29,6 +28,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -39,7 +39,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
   const { toast } = useToast();
 
   useEffect(() => {
-    // Prefill email if user is logged in
     if (user) {
       setEmail(user.email || '');
     }
@@ -49,11 +48,13 @@ const BookingForm: React.FC<BookingFormProps> = ({
     setSelectedDate(date);
     setSelectedTime(null);
     setSelectedSlotId('');
+    setSelectedWorkerId(null);
   };
 
-  const handleTimeSelect = (time: string, slotId: string) => {
+  const handleTimeSelect = (time: string, slotId: string, workerId?: string) => {
     setSelectedTime(time);
     setSelectedSlotId(slotId);
+    setSelectedWorkerId(workerId || null);
   };
 
   const validateForm = () => {
@@ -108,7 +109,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
         variant: "destructive",
       });
       
-      // Save booking details to sessionStorage before redirecting to login
       sessionStorage.setItem('pendingBooking', JSON.stringify({
         salonId,
         salonName,
@@ -130,11 +130,9 @@ const BookingForm: React.FC<BookingFormProps> = ({
     setIsSubmitting(true);
     
     try {
-      // Verify slot is still available
       const formattedDate = selectedDate.toISOString().split('T')[0];
       
-      // Double check availability
-      const { available, slotId } = await checkSlotAvailability(
+      const { available, slotId, workerId } = await checkSlotAvailability(
         salonId, 
         formattedDate, 
         selectedTime || ''
@@ -148,28 +146,21 @@ const BookingForm: React.FC<BookingFormProps> = ({
         });
         setSelectedTime(null);
         setSelectedSlotId('');
+        setSelectedWorkerId(null);
         setIsSubmitting(false);
         return;
       }
 
-      // Book the slot
+      if (slotId && slotId !== selectedSlotId) {
+        setSelectedSlotId(slotId);
+      }
+      
+      if (workerId) {
+        setSelectedWorkerId(workerId);
+      }
+
       await bookSlot(selectedSlotId);
       
-      console.log("Navigating to payment with state:", {
-        salonId,
-        salonName,
-        services: selectedServices,
-        date: formattedDate,
-        timeSlot: selectedTime,
-        email,
-        phone,
-        notes,
-        totalPrice,
-        totalDuration,
-        slotId: selectedSlotId
-      });
-      
-      // Proceed to payment page
       navigate('/payment', {
         state: {
           salonId,
@@ -182,7 +173,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
           notes,
           totalPrice,
           totalDuration,
-          slotId: selectedSlotId
+          slotId: selectedSlotId,
+          workerId: selectedWorkerId || workerId
         }
       });
     } catch (error: any) {

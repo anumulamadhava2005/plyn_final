@@ -96,7 +96,12 @@ const MerchantDashboard = () => {
       
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
-        .select('*')
+        .select(`
+          *,
+          workers:worker_id (
+            name
+          )
+        `)
         .eq('merchant_id', user.id)
         .order('booking_date', { ascending: false }) // Sort by booking date, newest first
         .order('time_slot', { ascending: true });    // Then by time slot
@@ -221,7 +226,7 @@ const MerchantDashboard = () => {
         : booking.status === 'missed'
           ? 'missed'
         : 'pending') as 'confirmed' | 'cancelled' | 'pending' | 'missed',
-    worker: booking.worker_id ? (slots.find(slot => slot.worker_id === booking.worker_id)?.workers?.name || 'Assigned') : 'Unassigned'
+    worker: booking.worker_name || (booking.workers?.name) || (booking.worker_id ? 'Assigned' : 'Unassigned')
   }));
   
   const today = new Date().toISOString().split('T')[0];

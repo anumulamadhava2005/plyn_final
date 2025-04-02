@@ -31,10 +31,10 @@ export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
       .select('duration')
       .eq('merchant_id', salonId);
       
-    // Get unique service durations, defaulting to 15, 30, 45, 60 minutes if none found
+    // Get unique service durations, defaulting to 30, 60 minutes if none found
     const serviceDurations = serviceData && serviceData.length > 0
       ? [...new Set(serviceData.map(s => s.duration))]
-      : [15, 30, 45, 60];
+      : [30, 60];
     
     // Get smallest duration to use as increment
     const minDuration = Math.min(...serviceDurations);
@@ -50,29 +50,52 @@ export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
     const endTime = new Date(date);
     endTime.setHours(endHour, 0, 0, 0);
     
+    // Get all available workers for this merchant
+    const { data: workers, error: workersError } = await supabase
+      .from('workers')
+      .select('*')
+      .eq('merchant_id', salonId)
+      .eq('is_active', true);
+    
+    if (workersError) throw workersError;
+    
+    const availableWorkers = workers || [];
+    
+    // Keep track of unique time slots to prevent duplicates
+    const uniqueTimeSlots = new Set();
+    
     while (currentTime < endTime) {
       const startTimeStr = format(currentTime, "HH:mm");
       
-      // Create slots for each service duration
-      for (const duration of serviceDurations) {
-        const endTimeObj = addMinutes(currentTime, duration);
+      // Only add each time slot once
+      if (!uniqueTimeSlots.has(startTimeStr)) {
+        uniqueTimeSlots.add(startTimeStr);
+        
+        // Get a default service duration (use the first one)
+        const defaultDuration = serviceDurations[0] || 30;
+        
+        const endTimeObj = addMinutes(currentTime, defaultDuration);
+        const endTimeStr = format(endTimeObj, "HH:mm");
         
         // Only create slots that end within business hours
         if (endTimeObj <= endTime) {
-          const endTimeStr = format(endTimeObj, "HH:mm");
+          // Create one slot per time slot and assign to worker if available
+          const workerId = availableWorkers.length > 0 
+            ? availableWorkers[Math.floor(Math.random() * availableWorkers.length)].id 
+            : null;
           
-          // Randomly mark some slots as booked for testing purposes
-          // But don't book slots in the future
+          // Slots in the past shouldn't be available for booking
           const isInPast = isBefore(currentTime, new Date());
-          const randomBooked = isInPast || Math.random() < 0.1; // 10% chance of being booked for future slots
+          const isBooked = isInPast; // Past slots are considered booked
           
           slots.push({
             merchant_id: salonId,
             date: formattedDate,
             start_time: startTimeStr,
             end_time: endTimeStr,
-            is_booked: randomBooked,
-            service_duration: duration
+            is_booked: isBooked,
+            service_duration: defaultDuration,
+            worker_id: workerId
           });
         }
       }
@@ -411,8 +434,7 @@ export const createSlot = async (merchantId: string, date: string, startTime: st
       .select("*")
       .eq("merchant_id", merchantId)
       .eq("date", date)
-      .eq("start_time", startTime)
-      .eq("end_time", endTime);
+      .eq("start_time", startTime);
     
     if (checkError) throw checkError;
     
@@ -428,6 +450,20 @@ export const createSlot = async (merchantId: string, date: string, startTime: st
     const endMinutes = endParts[0] * 60 + endParts[1];
     const durationMinutes = endMinutes - startMinutes;
     
+    // Get an available worker for this merchant
+    const { data: workers, error: workersError } = await supabase
+      .from('workers')
+      .select('id')
+      .eq('merchant_id', merchantId)
+      .eq('is_active', true);
+    
+    if (workersError) throw workersError;
+    
+    // Assign to a random worker if available
+    const workerId = workers && workers.length > 0
+      ? workers[Math.floor(Math.random() * workers.length)].id
+      : null;
+    
     // Create the new slot
     const { data, error } = await supabase
       .from("slots")
@@ -438,7 +474,8 @@ export const createSlot = async (merchantId: string, date: string, startTime: st
           start_time: startTime,
           end_time: endTime,
           is_booked: false,
-          service_duration: durationMinutes
+          service_duration: durationMinutes,
+          worker_id: workerId
         }
       ])
       .select();

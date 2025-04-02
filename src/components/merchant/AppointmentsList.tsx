@@ -13,6 +13,7 @@ export interface Appointment {
   time: string | undefined;
   duration: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'missed';
+  worker?: string;
 }
 
 export interface AppointmentsListProps {
@@ -73,6 +74,11 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({
                 <div className="text-sm">
                   {appointment.time} • {appointment.duration}
                 </div>
+                {appointment.worker && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Worker: {appointment.worker}
+                  </div>
+                )}
                 
                 {appointment.status === 'pending' && (
                   <div className="flex gap-2 mt-2 sm:justify-end">
