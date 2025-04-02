@@ -1,9 +1,258 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { showBookingSuccessNotification } from "@/components/booking/BookingSuccessNotification";
-import { addMinutes, format, parseISO, isBefore, isAfter } from "date-fns";
+import { addMinutes, format, parseISO, isBefore, isAfter, addDays } from "date-fns";
 import { findAvailableTimeSlots } from "@/utils/workerUtils";
 import { TimeSlot, SlotAvailability } from "@/types/admin";
+
+// Function to check if a slot is available
+export const checkSlotAvailability = async (
+  merchantId: string,
+  date: string,
+  time: string
+) => {
+  try {
+    console.log(`Checking availability for ${merchantId} on ${date} at ${time}`);
+    
+    // Get the slot that matches the date and time
+    const { data, error } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .eq("date", date)
+      .eq("start_time", time)
+      .eq("is_booked", false)
+      .limit(1);
+    
+    if (error) throw error;
+    
+    const available = data && data.length > 0;
+    const slotId = available ? data[0].id : '';
+    
+    return { available, slotId };
+  } catch (error) {
+    console.error("Error checking slot availability:", error);
+    throw error;
+  }
+};
+
+// Function to fetch available slots
+export const fetchAvailableSlots = async (merchantId: string, date: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .eq("date", date)
+      .eq("is_booked", false)
+      .order("start_time");
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching available slots:", error);
+    return [];
+  }
+};
+
+// Function to create a booking
+export const createBooking = async (bookingData: any) => {
+  try {
+    console.log("Creating booking with data:", bookingData);
+    
+    const { data, error } = await supabase
+      .from("bookings")
+      .insert({
+        user_id: bookingData.userId,
+        merchant_id: bookingData.salonId,
+        salon_id: bookingData.salonId,
+        salon_name: bookingData.salonName,
+        service_name: bookingData.serviceName,
+        booking_date: bookingData.date,
+        time_slot: bookingData.timeSlot,
+        customer_email: bookingData.email,
+        customer_phone: bookingData.phone,
+        service_price: bookingData.totalPrice,
+        service_duration: bookingData.totalDuration,
+        slot_id: bookingData.slotId,
+        status: "upcoming",
+        additional_notes: bookingData.notes,
+        worker_id: bookingData.workerId,
+        coins_used: bookingData.coinsUsed || 0,
+        coins_earned: bookingData.coinsEarned || 0
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("Error creating booking:", error);
+    throw error;
+  }
+};
+
+// Function to create payment record
+export const createPayment = async (paymentData: any) => {
+  try {
+    console.log("Creating payment with data:", paymentData);
+    
+    const { data, error } = await supabase
+      .from("payments")
+      .insert({
+        booking_id: paymentData.bookingId,
+        user_id: paymentData.userId,
+        amount: paymentData.amount,
+        payment_method: paymentData.paymentMethod,
+        status: "completed",
+        coins_used: paymentData.coinsUsed || 0,
+        coins_earned: paymentData.coinsEarned || 0
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("Error creating payment:", error);
+    throw error;
+  }
+};
+
+// Get user's PLYN coins
+export const getUserCoins = async (userId: string) => {
+  try {
+    console.log(`Getting coins for user: ${userId}`);
+    
+    // First check if user has coins entry
+    const { data, error } = await supabase
+      .from("user_coins")
+      .select("coins")
+      .eq("user_id", userId)
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No coins entry found, create one with 0 coins
+        const { data: newData, error: insertError } = await supabase
+          .from("user_coins")
+          .insert({ user_id: userId, coins: 0 })
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        return 0;
+      }
+      throw error;
+    }
+    
+    return data?.coins || 0;
+  } catch (error) {
+    console.error("Error getting user coins:", error);
+    return 0;
+  }
+};
+
+// Update user's coins (add earned coins, subtract used coins)
+export const updateUserCoins = async (userId: string, coinsEarned: number = 0, coinsUsed: number = 0) => {
+  try {
+    console.log(`Updating coins for user ${userId}: +${coinsEarned}, -${coinsUsed}`);
+    
+    // Check if user already has a coins record
+    const { data: existingData, error: checkError } = await supabase
+      .from("user_coins")
+      .select("coins")
+      .eq("user_id", userId);
+    
+    if (checkError) throw checkError;
+    
+    let currentCoins = 0;
+    let upsertMethod;
+    
+    if (existingData && existingData.length > 0) {
+      // Update existing record
+      currentCoins = existingData[0].coins;
+      upsertMethod = "update";
+    } else {
+      // Create new record
+      upsertMethod = "insert";
+    }
+    
+    // Calculate new coin balance
+    const newCoinBalance = currentCoins + coinsEarned - coinsUsed;
+    
+    // Upsert the coin record
+    const { data, error } = await supabase
+      .from("user_coins")
+      .upsert({ 
+        user_id: userId, 
+        coins: newCoinBalance,
+        last_updated: new Date().toISOString()
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Also add a transaction record for tracking
+    await supabase
+      .from("coin_transactions")
+      .insert({
+        user_id: userId,
+        coins_earned: coinsEarned,
+        coins_used: coinsUsed,
+        balance: newCoinBalance,
+        transaction_type: coinsUsed > 0 ? "payment" : "reward",
+        description: coinsUsed > 0 ? "Used coins for booking payment" : "Earned coins from booking"
+      });
+    
+    return newCoinBalance;
+  } catch (error) {
+    console.error("Error updating user coins:", error);
+    throw error;
+  }
+};
+
+// Function to fetch user's bookings
+export const fetchUserBookings = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("*, payments(*)")
+      .eq("user_id", userId)
+      .order("booking_date", { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching user bookings:", error);
+    return [];
+  }
+};
+
+// Initialize database for development
+export const initializeDatabase = async () => {
+  try {
+    // Check if we need to seed data
+    const { data: existingData, error: checkError } = await supabase
+      .from('merchants')
+      .select('id')
+      .limit(1);
+      
+    if (checkError) throw checkError;
+    
+    if (!existingData || existingData.length === 0) {
+      console.log("Seeding default data...");
+      return await seedDefaultData();
+    }
+    
+    return { success: true, message: "Database already initialized" };
+  } catch (error) {
+    console.error("Database initialization error:", error);
+    return { success: false, error };
+  }
+};
 
 // Generate time slots for a salon
 export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
@@ -551,7 +800,10 @@ export const createDynamicTimeSlots = async (merchantId: string, date: string, s
       .eq("merchant_id", merchantId)
       .single();
 
-    if (settingsError) throw settingsError;
+    if (settingsError) {
+      // If settings not found, use default values
+      console.log("Using default merchant settings (no custom settings found)");
+    }
 
     const startHour = settings?.working_hours_start || "09:00";
     const endHour = settings?.working_hours_end || "17:00";
@@ -597,13 +849,13 @@ export const createDynamicTimeSlots = async (merchantId: string, date: string, s
 
         // Create the time slot
         timeSlots.push({
+          id: '',
           merchant_id: merchantId,
           date: date,
           start_time: slotTimeStr,
           end_time: slotEndTime,
           is_booked: false,
           service_duration: duration,
-          id: '' // Placeholder, this will be generated by the database
         });
       }
     }
