@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getAvailableTimeSlots } from './slotUtils';
 import { WorkerAvailability } from '@/types/admin';
 
-// Export functions that are imported by other files
+// Export functions from slotUtils that are imported by other files
 export { getAvailableTimeSlots as fetchAvailableSlots } from './slotUtils';
 export { generateSalonTimeSlots as createDynamicTimeSlots } from './slotUtils';
 

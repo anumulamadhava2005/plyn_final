@@ -60,18 +60,19 @@ const Payment = () => {
         }
       }
       
-      // Check if settings table exists and fetch ply_coins_enabled
+      // Check merchant_settings table for ply_coins_enabled
       try {
         const { data: settingsData, error: settingsError } = await supabase
           .from('merchant_settings')
           .select('*')
+          .eq('merchant_id', salonId)
           .limit(1);
           
-        if (!settingsError) {
-          // If merchant_settings exists but doesn't have ply_coins_enabled, default to true
+        if (!settingsError && settingsData && settingsData.length > 0) {
+          // Default to true for now as the schema doesn't have ply_coins_enabled yet
           setPlyCoinsEnabled(true);
         } else {
-          console.error("Error fetching settings:", settingsError);
+          console.log("No merchant settings found, defaulting to enabled");
           // Default to enabled if we can't check
           setPlyCoinsEnabled(true);
         }
@@ -102,6 +103,24 @@ const Payment = () => {
         return;
       }
       
+      // Assign a worker to the booking
+      let workerId: string | undefined;
+      
+      try {
+        const { data: availableWorkers, error: workersError } = await supabase
+          .from('workers')
+          .select('id')
+          .eq('merchant_id', salonId)
+          .eq('is_active', true)
+          .limit(1);
+        
+        if (!workersError && availableWorkers && availableWorkers.length > 0) {
+          workerId = availableWorkers[0].id;
+        }
+      } catch (error) {
+        console.error("Error finding available worker:", error);
+      }
+      
       // Prepare booking data
       const bookingData = {
         user_id: user?.id,
@@ -116,7 +135,8 @@ const Payment = () => {
         notes: values.notes,
         status: 'confirmed',
         payment_method: values.paymentMethod,
-        slot_id: slotId
+        slot_id: slotId,
+        worker_id: workerId
       };
       
       // Create booking

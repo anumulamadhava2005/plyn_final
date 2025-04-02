@@ -60,11 +60,11 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           const durations = [...new Set(serviceData.map(s => s.duration))];
           
           // Generate slots based on service durations
-          await createDynamicTimeSlots(salonId, formattedDate, durations);
+          await createDynamicTimeSlots(salonId, formattedDate);
         } else {
           // If no service durations are found, create default slots with
-          // multiple durations for flexibility (15, 30, 45, 60 minutes)
-          await createDynamicTimeSlots(salonId, formattedDate, [15, 30, 45, 60]);
+          // multiple durations for flexibility
+          await createDynamicTimeSlots(salonId, formattedDate);
         }
         
         // Now fetch the newly created slots
