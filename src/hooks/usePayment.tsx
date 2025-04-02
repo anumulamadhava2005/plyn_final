@@ -72,18 +72,20 @@ export const usePayment = (): PaymentHookReturn => {
         if (["phonepe", "paytm", "netbanking", "upi", "qr_code"].includes(details.paymentMethod)) {
           // For simulated payment methods, navigate to our simulator
           navigate('/payment/simulator', { 
-            search: `?method=${details.paymentMethod}&amount=${details.amount}&booking_id=${details.booking?.id || ''}`,
             state: { 
               paymentDetails: {
                 ...details.booking,
                 paymentId: payment.paymentId,
                 provider: payment.provider,
                 dbId: payment.dbId
-              }
+              },
+              method: details.paymentMethod,
+              amount: details.amount,
+              booking_id: details.booking?.id || ''
             }
           });
         } else {
-          // For real payment gateways (like Stripe), redirect to their checkout
+          // For real payment gateways (like Razorpay), redirect to their checkout
           window.location.href = payment.url;
         }
       } else {

@@ -18,6 +18,12 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   // Basic payment methods always available
   const basicPaymentMethods = [
     {
+      id: 'razorpay',
+      name: 'RazorPay',
+      icon: <ArrowDownToLine className="h-5 w-5 text-blue-500" />,
+      description: 'Pay securely with RazorPay (Credit/Debit Cards, UPI, Wallets)'
+    },
+    {
       id: 'credit_card',
       name: 'Credit/Debit Card',
       icon: <CreditCard className="h-5 w-5" />,
@@ -40,12 +46,6 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
       name: 'Net Banking',
       icon: <Building className="h-5 w-5 text-green-600" />,
       description: 'Pay directly from your bank account'
-    },
-    {
-      id: 'razorpay',
-      name: 'RazorPay',
-      icon: <ArrowDownToLine className="h-5 w-5 text-blue-500" />,
-      description: 'Pay using RazorPay payment gateway'
     },
     {
       id: 'qr_code',

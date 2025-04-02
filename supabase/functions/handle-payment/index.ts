@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { Stripe } from "https://esm.sh/stripe@13.10.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +15,7 @@ serve(async (req) => {
 
   try {
     // Get request body
-    const { paymentMethod, amount, currency = "usd", booking = {} } = await req.json();
+    const { paymentMethod, amount, currency = "INR", booking = {} } = await req.json();
     
     // Create Supabase client
     const supabaseClient = createClient(
@@ -40,36 +39,68 @@ serve(async (req) => {
     // Handle different payment methods
     let paymentResponse;
     
-    if (paymentMethod === "credit_card") {
-      // Initialize Stripe for credit card payments
-      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-        apiVersion: "2023-10-16",
+    if (paymentMethod === "credit_card" || paymentMethod === "razorpay") {
+      // Initialize Razorpay for credit card payments
+      const razorpayKeyId = Deno.env.get("RAZORPAY_KEY_ID");
+      if (!razorpayKeyId) {
+        throw new Error("Razorpay key ID not configured");
+      }
+
+      // Generate a random receipt ID
+      const receiptId = `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      
+      // Create order in Razorpay
+      const razorpayOrderUrl = "https://api.razorpay.com/v1/orders";
+      const razorpaySecretKey = Deno.env.get("RAZORPAY_SECRET_KEY") || "";
+      
+      const orderResponse = await fetch(razorpayOrderUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Basic ${btoa(`${razorpayKeyId}:${razorpaySecretKey}`)}`,
+        },
+        body: JSON.stringify({
+          amount: Math.round(amount * 100), // Razorpay uses paise (100 paise = 1 INR)
+          currency: currency,
+          receipt: receiptId,
+          notes: {
+            booking_id: booking.id || "",
+            user_id: user.id,
+            salon_name: booking.salonName || "Salon Booking"
+          }
+        }),
       });
       
-      // Create Stripe payment session
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        mode: "payment",
-        line_items: [{
-          price_data: {
-            currency,
-            product_data: {
-              name: "Salon Booking",
-              description: booking.salonName ? `Booking at ${booking.salonName}` : "Salon Services",
-            },
-            unit_amount: Math.round(amount * 100), // Stripe uses cents
-          },
-          quantity: 1,
-        }],
-        success_url: `${req.headers.get("origin")}/booking-confirmation?session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id || ""}`,
-        cancel_url: `${req.headers.get("origin")}/payment?canceled=true`,
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(`Razorpay order creation failed: ${errorData.error.description || "Unknown error"}`);
+      }
+      
+      const orderData = await orderResponse.json();
+      
+      // Set up checkout parameters
+      const checkoutParams = new URLSearchParams({
+        key: razorpayKeyId,
+        order_id: orderData.id,
+        amount: String(Math.round(amount * 100)),
+        currency: currency,
+        name: booking.salonName || "Salon Booking",
+        description: "Payment for salon services",
+        customer_id: user.id,
+        prefill_email: booking.email || user.email || "",
+        prefill_contact: booking.phone || "",
+        callback_url: `${req.headers.get("origin")}/booking-confirmation?order_id=${orderData.id}&booking_id=${booking.id || ""}`,
+        cancel_url: `${req.headers.get("origin")}/payment?canceled=true`
       });
+      
+      const checkoutUrl = `https://checkout.razorpay.com/v1/checkout.html?${checkoutParams.toString()}`;
       
       paymentResponse = { 
-        paymentId: session.id,
-        url: session.url,
-        provider: "stripe",
-        status: "pending"
+        paymentId: orderData.id,
+        url: checkoutUrl,
+        provider: "razorpay",
+        status: "pending",
+        orderId: orderData.id
       };
     } 
     else if (["phonepe", "paytm", "netbanking", "upi", "qr_code"].includes(paymentMethod)) {
@@ -136,7 +167,8 @@ serve(async (req) => {
         payment_status: paymentResponse.status,
         provider: paymentResponse.provider,
         payment_id: paymentResponse.paymentId,
-        coins_used: paymentResponse.coinsUsed || 0
+        coins_used: paymentResponse.coinsUsed || 0,
+        order_id: paymentResponse.orderId || null
       })
       .select("id")
       .single();

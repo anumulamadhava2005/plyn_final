@@ -1,337 +1,215 @@
 
 import React, { useState, useEffect } from 'react';
-import { format, addDays, isSameDay } from 'date-fns';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import { z } from "zod"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
 import { supabase } from '@/integrations/supabase/client';
-import { fetchAvailableSlots, generateSalonTimeSlots } from '@/utils/bookingUtils';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { getTimeSlotsForDate, deleteSlot, createSlot } from '@/utils/slotUtils';
+import { Loader2 } from 'lucide-react';
 
-const formSchema = z.object({
-  startTime: z.string().min(1, {
-    message: "Start time is required.",
-  }),
-  endTime: z.string().min(1, {
-    message: "End time is required.",
-  }),
-  serviceDuration: z.string().min(1, {
-    message: "Service duration is required.",
-  }),
-})
-
-interface Slot {
-  id: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  is_booked: boolean;
-  merchant_id: string;
-  service_duration: number;
+interface SlotManagerProps {
+  merchantId: string;
+  selectedDate?: Date;
+  onDateChange?: React.Dispatch<React.SetStateAction<Date>>;
+  onSlotsUpdated?: () => void;
 }
 
-const SlotManager = ({ merchantId }: { merchantId: string }) => {
-  const [date, setDate] = useState<Date | undefined>(new Date());
-  const [slots, setSlots] = useState<Slot[]>([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const { toast } = useToast()
-  const [isGenerating, setIsGenerating] = useState(false);
+const SlotManager: React.FC<SlotManagerProps> = ({ 
+  merchantId,
+  selectedDate = new Date(),
+  onDateChange = () => {},
+  onSlotsUpdated = () => {}
+}) => {
+  const [internalSelectedDate, setInternalSelectedDate] = useState<Date>(selectedDate);
+  const [slots, setSlots] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      startTime: "",
-      endTime: "",
-      serviceDuration: "",
-    },
-  })
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-  }
-
+  // If the component receives a new selected date prop, update the internal state
   useEffect(() => {
-    if (merchantId && date) {
-      fetchSlots();
-    }
-  }, [merchantId, date]);
+    setInternalSelectedDate(selectedDate);
+  }, [selectedDate]);
 
+  // Fetch slots for the selected date
   const fetchSlots = async () => {
-    if (!date) return;
-
-    const dateString = format(date, 'yyyy-MM-dd');
-
+    setLoading(true);
     try {
-      const availableSlots = await fetchAvailableSlots(merchantId, dateString);
-      setSlots(availableSlots);
+      const dateStr = format(internalSelectedDate, 'yyyy-MM-dd');
+      const fetchedSlots = await getTimeSlotsForDate(merchantId, dateStr);
+      setSlots(fetchedSlots);
     } catch (error: any) {
       console.error('Error fetching slots:', error);
       toast({
-        title: 'Error fetching slots',
-        description: error.message || 'Could not fetch slots',
+        title: 'Error',
+        description: 'Failed to load time slots',
         variant: 'destructive',
       });
-      setSlots([]);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Fetch slots when the selected date changes
+  useEffect(() => {
+    fetchSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [internalSelectedDate, merchantId]);
+
+  // Handle date selection
   const handleDateSelect = (date: Date | undefined) => {
-    setDate(date);
+    if (date) {
+      setInternalSelectedDate(date);
+      onDateChange(date);
+    }
   };
 
-  const handleOpenDialog = (slot: Slot) => {
-    setSelectedSlot(slot);
-    setIsDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setSelectedSlot(null);
-    setIsDialogOpen(false);
-  };
-
-  const handleDeleteSlot = async () => {
-    if (!selectedSlot) return;
-
+  // Add a new slot
+  const handleAddSlot = async (startTime: string, endTime: string) => {
     try {
-      const { error } = await supabase
-        .from('slots')
-        .delete()
-        .eq('id', selectedSlot.id);
+      const dateStr = format(internalSelectedDate, 'yyyy-MM-dd');
+      await createSlot(merchantId, dateStr, startTime, endTime);
+      toast({
+        title: 'Success',
+        description: 'Slot added successfully',
+      });
+      fetchSlots();
+      onSlotsUpdated();
+    } catch (error: any) {
+      console.error('Error adding slot:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to add slot',
+        variant: 'destructive',
+      });
+    }
+  };
 
-      if (error) {
-        console.error("Error deleting slot:", error);
-        toast({
-          title: "Error deleting slot",
-          description: error.message || "Could not delete the slot",
-          variant: "destructive",
-        });
-        return;
+  // Delete a slot
+  const handleDeleteSlot = async (slotId: string) => {
+    try {
+      await deleteSlot(slotId);
+      toast({
+        title: 'Success',
+        description: 'Slot deleted successfully',
+      });
+      fetchSlots();
+      onSlotsUpdated();
+    } catch (error: any) {
+      console.error('Error deleting slot:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete slot',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Generate time slots for quick add
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = 9; hour < 21; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const startHour = hour;
+        const startMinute = minute;
+        const endHour = minute === 30 ? hour + 1 : hour;
+        const endMinute = minute === 30 ? 0 : 30;
+        
+        const startTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+        const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+        
+        slots.push({ startTime, endTime });
       }
-
-      toast({
-        title: "Slot deleted",
-        description: "The slot has been successfully deleted.",
-      });
-
-      fetchSlots();
-    } catch (error: any) {
-      console.error("Error deleting slot:", error);
-      toast({
-        title: "Error deleting slot",
-        description: error.message || "Could not delete the slot",
-        variant: "destructive",
-      });
-    } finally {
-      handleCloseDialog();
     }
-  };
-
-  const handleGenerateSlots = async () => {
-    if (!date) {
-      toast({
-        title: "Please select a date",
-        description: "Select a date to generate slots for.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsGenerating(true);
-
-    try {
-      await generateSalonTimeSlots(merchantId, date);
-      toast({
-        title: "Slots generated",
-        description: "Available time slots have been generated successfully.",
-      });
-      fetchSlots();
-    } catch (error: any) {
-      console.error("Error generating slots:", error);
-      toast({
-        title: "Error generating slots",
-        description: error.message || "Could not generate time slots",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const isDateBlocked = (date: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    return slots;
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <Card className="shadow-md rounded-md">
-        <CardHeader>
-          <CardTitle className="text-2xl">Manage Time Slots</CardTitle>
-          <CardDescription>
-            View and manage available time slots for your salon.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="date">Select Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={
-                      "w-[240px] justify-start text-left font-normal" +
-                      (date ? " text-foreground" : " text-muted-foreground")
-                    }
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-auto p-0"
-                  align="start"
-                  sideOffset={6}
-                >
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    onSelect={handleDateSelect}
-                    disabled={isDateBlocked}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <Button onClick={handleGenerateSlots} disabled={isGenerating}>
-              {isGenerating ? "Generating..." : "Generate Slots"}
-            </Button>
-          </div>
-
-          <div className="relative overflow-x-auto">
-            <Table>
-              <TableCaption>
-                A list of your available time slots.
-              </TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Date</TableHead>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead>Service Duration</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {slots.map((slot) => (
-                  <TableRow key={slot.id}>
-                    <TableCell className="font-medium">
-                      {format(new Date(slot.date), "PPP")}
-                    </TableCell>
-                    <TableCell>{slot.start_time}</TableCell>
-                    <TableCell>{slot.end_time}</TableCell>
-                    <TableCell>{slot.service_duration} minutes</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleOpenDialog(slot)}
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle>Manage Availability</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="calendar" className="space-y-4">
+          <TabsList className="grid grid-cols-2 mb-4">
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
+            <TabsTrigger value="quickAdd">Quick Add</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="calendar" className="space-y-4">
+            <div className="flex flex-col space-y-4">
+              <Calendar
+                mode="single"
+                selected={internalSelectedDate}
+                onSelect={handleDateSelect}
+                className="rounded-md border mx-auto"
+              />
+              
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">
+                  Slots for {format(internalSelectedDate, 'PPPP')}
+                </h3>
+                
+                {loading ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : slots.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    {slots.map((slot) => (
+                      <Badge 
+                        key={slot.id} 
+                        variant={slot.is_booked ? "secondary" : "outline"}
+                        className="flex justify-between items-center px-3 py-1.5"
                       >
-                        Delete
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {slots.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4">
-                      No slots available for this date.
-                    </TableCell>
-                  </TableRow>
+                        <span>{slot.start_time} - {slot.end_time}</span>
+                        {!slot.is_booked && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-5 w-5 ml-1 rounded-full"
+                            onClick={() => handleDeleteSlot(slot.id)}
+                          >
+                            ×
+                          </Button>
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    No slots available for this date.
+                  </p>
                 )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. Are you sure you want to delete{" "}
-              {selectedSlot?.start_time} slot on{" "}
-              {selectedSlot?.date ? format(new Date(selectedSlot.date), "PPP") : ""}{" "}
-              ?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCloseDialog}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSlot}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="quickAdd" className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Quick add slots for {format(internalSelectedDate, 'PPPP')}:
+            </p>
+            
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+              {generateTimeSlots().map((slot, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => handleAddSlot(slot.startTime, slot.endTime)}
+                >
+                  {slot.startTime} - {slot.endTime}
+                </Button>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 };
 

@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { Stripe } from "https://esm.sh/stripe@13.10.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +15,7 @@ serve(async (req) => {
 
   try {
     // Get request body
-    const { paymentId, provider, sessionId } = await req.json();
+    const { paymentId, provider, sessionId, orderId, razorpayPaymentId } = await req.json();
     
     // Create Supabase client
     const supabaseClient = createClient(
@@ -41,27 +40,50 @@ serve(async (req) => {
     let paymentStatus = "pending";
     let paymentDetails = {};
     
-    if (provider === "stripe" && sessionId) {
-      // Verify Stripe payment
-      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-        apiVersion: "2023-10-16",
-      });
+    if (provider === "razorpay" && (orderId || paymentId)) {
+      // Verify Razorpay payment
+      const razorpayKeyId = Deno.env.get("RAZORPAY_KEY_ID");
+      const razorpaySecretKey = Deno.env.get("RAZORPAY_SECRET_KEY");
       
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
-      
-      if (session.payment_status === "paid") {
-        paymentStatus = "completed";
-      } else if (session.payment_status === "unpaid") {
-        paymentStatus = "pending";
-      } else {
-        paymentStatus = "failed";
+      if (!razorpayKeyId || !razorpaySecretKey) {
+        throw new Error("Razorpay credentials not configured");
       }
       
-      paymentDetails = {
-        customer: session.customer,
-        amountTotal: session.amount_total / 100,
-        currency: session.currency
-      };
+      // Check the payment status
+      const orderIdToCheck = orderId || paymentId;
+      const verifyUrl = `https://api.razorpay.com/v1/orders/${orderIdToCheck}/payments`;
+      
+      const response = await fetch(verifyUrl, {
+        headers: {
+          "Authorization": `Basic ${btoa(`${razorpayKeyId}:${razorpaySecretKey}`)}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to verify Razorpay payment");
+      }
+      
+      const data = await response.json();
+      
+      // Check payment status
+      if (data.items && data.items.length > 0) {
+        const payment = data.items[0];
+        
+        if (payment.status === "authorized" || payment.status === "captured") {
+          paymentStatus = "completed";
+        } else if (payment.status === "created" || payment.status === "attempted") {
+          paymentStatus = "pending";
+        } else {
+          paymentStatus = "failed";
+        }
+        
+        paymentDetails = {
+          razorpayPaymentId: payment.id,
+          amountPaid: payment.amount / 100, // Convert from paise to INR
+          currency: payment.currency,
+          method: payment.method
+        };
+      }
     } 
     else if (["phonepe", "paytm", "netbanking", "upi", "qr_code"].includes(provider)) {
       // For demo purposes, we'll simulate payment verification
