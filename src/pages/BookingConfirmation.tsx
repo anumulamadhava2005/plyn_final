@@ -120,16 +120,17 @@ const BookingConfirmation = () => {
                 <div className="space-y-6">
                   <div className="flex items-start">
                     <div className={`rounded-md p-2 mr-3 ${
-                      bookingData.salonName.includes("Men") || bookingData.salonName.includes("Barber") 
+                      bookingData.salonName && 
+                      (bookingData.salonName.includes("Men") || bookingData.salonName.includes("Barber") 
                         ? "bg-salon-men/10 text-salon-men print:bg-gray-100" 
-                        : "bg-salon-women/10 text-salon-women print:bg-gray-100"
+                        : "bg-salon-women/10 text-salon-women print:bg-gray-100")
                     }`}>
                       <CreditCard className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="font-medium">{bookingData.salonName}</h3>
+                      <h3 className="font-medium">{bookingData.salonName || 'Salon'}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {bookingData.services.length} service(s)
+                        {bookingData.services && bookingData.services.length ? `${bookingData.services.length} service(s)` : 'Service booked'}
                       </p>
                     </div>
                   </div>
@@ -151,9 +152,9 @@ const BookingConfirmation = () => {
                       <Clock className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="font-medium">{bookingData.timeSlot}</h3>
+                      <h3 className="font-medium">{bookingData.timeSlot || bookingData.time}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Duration: {bookingData.totalDuration} minutes
+                        Duration: {bookingData.totalDuration || 30} minutes
                       </p>
                     </div>
                   </div>
@@ -175,7 +176,7 @@ const BookingConfirmation = () => {
                   <div>
                     <h3 className="font-medium mb-3">Services Booked</h3>
                     <ul className="space-y-2">
-                      {bookingData.services.map((service: any, index: number) => (
+                      {bookingData.services && bookingData.services.map((service: any, index: number) => (
                         <li key={index} className="flex justify-between text-sm">
                           <div className="flex items-center">
                             <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
@@ -184,6 +185,15 @@ const BookingConfirmation = () => {
                           <span className="font-medium">${service.price}</span>
                         </li>
                       ))}
+                      {!bookingData.services && bookingData.serviceName && (
+                        <li className="flex justify-between text-sm">
+                          <div className="flex items-center">
+                            <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                            <span>{bookingData.serviceName}</span>
+                          </div>
+                          <span className="font-medium">${bookingData.servicePrice || 0}</span>
+                        </li>
+                      )}
                     </ul>
                   </div>
                   
@@ -230,7 +240,7 @@ const BookingConfirmation = () => {
                       </p>
                     </div>
                     <div className="text-xl font-bold">
-                      ${bookingData.finalPrice !== undefined ? bookingData.finalPrice.toFixed(2) : bookingData.totalPrice.toFixed(2)}
+                      ${bookingData.finalPrice !== undefined ? bookingData.finalPrice.toFixed(2) : bookingData.totalPrice ? bookingData.totalPrice.toFixed(2) : '0.00'}
                     </div>
                   </div>
                 </div>

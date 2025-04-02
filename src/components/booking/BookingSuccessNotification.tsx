@@ -4,10 +4,11 @@ import { toast } from '@/hooks/use-toast';
 import { Check, Calendar, Clock } from 'lucide-react';
 
 interface BookingDetails {
-  salonName: string;
-  serviceName: string;
-  date: string;
-  time: string;
+  salonName?: string;
+  serviceName?: string;
+  date?: string;
+  time?: string;
+  timeSlot?: string; // Alternative field name
   services?: { name: string; price: number }[];
   totalPrice?: number;
 }
@@ -20,11 +21,11 @@ export const showBookingSuccessNotification = (booking: BookingDetails) => {
         <p className="mb-1">Your appointment has been successfully booked!</p>
         <div className="flex items-center gap-2 mt-1">
           <Calendar className="h-4 w-4 text-primary" />
-          <span>{booking.date}</span>
+          <span>{booking.date || 'Date scheduled'}</span>
           <Clock className="h-4 w-4 ml-2 text-primary" />
-          <span>{booking.time}</span>
+          <span>{booking.time || booking.timeSlot || 'Time scheduled'}</span>
         </div>
-        <p className="font-medium mt-1">{booking.salonName}</p>
+        <p className="font-medium mt-1">{booking.salonName || 'Salon'}</p>
         
         {booking.services && booking.services.length > 0 ? (
           <div className="mt-1 pt-1 border-t">
@@ -42,7 +43,7 @@ export const showBookingSuccessNotification = (booking: BookingDetails) => {
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">{booking.serviceName}</p>
+          <p className="text-sm text-muted-foreground">{booking.serviceName || 'Service booked'}</p>
         )}
       </div>
     ),
