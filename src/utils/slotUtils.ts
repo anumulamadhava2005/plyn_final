@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { format, addMinutes, addDays, parseISO, subDays, isBefore } from "date-fns";
 import { TimeSlot, SlotAvailability } from "@/types/admin";
@@ -98,13 +99,16 @@ export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
 };
 
 // Get available time slots for a salon
-export const getAvailableTimeSlots = async (salonId: string, date: Date) => {
+export const getAvailableTimeSlots = async (salonId: string, date: Date | string) => {
   try {
+    // Convert string date to Date object if needed
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
     // Ensure slots exist for this date
-    await generateSalonTimeSlots(salonId, date);
+    await generateSalonTimeSlots(salonId, dateObj);
     
     // Format the date for database queries
-    const formattedDate = format(date, "yyyy-MM-dd");
+    const formattedDate = format(dateObj, "yyyy-MM-dd");
     
     // Get available slots
     const { data: availableSlots, error } = await supabase

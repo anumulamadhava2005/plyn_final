@@ -1,11 +1,13 @@
 import { addDays, format, isAfter, isBefore, parse, parseISO } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-import { getAvailableTimeSlots } from './slotUtils';
+import { getAvailableTimeSlots, generateSalonTimeSlots, findAvailableTimeSlots } from './slotUtils';
 import { WorkerAvailability } from '@/types/admin';
 
 // Export functions from slotUtils that are imported by other files
 export { getAvailableTimeSlots as fetchAvailableSlots } from './slotUtils';
 export { generateSalonTimeSlots as createDynamicTimeSlots } from './slotUtils';
+export { generateSalonTimeSlots } from './slotUtils';
+export { findAvailableTimeSlots } from './slotUtils';
 
 // Fetch merchant slots
 export const fetchMerchantSlots = async (merchantId: string) => {
@@ -251,23 +253,11 @@ export const getAvailableWorkers = async (
   }
 };
 
-// Get user coins
+// Export getUserCoins for backward compatibility, but mark as deprecated
+/**
+ * @deprecated Use getUserCoins from userUtils.ts instead
+ */
 export const getUserCoins = async (userId: string): Promise<number> => {
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('coins')
-      .eq('id', userId)
-      .single();
-    
-    if (error) {
-      console.error("Error fetching user coins:", error);
-      return 0;
-    }
-    
-    return data?.coins || 0;
-  } catch (error) {
-    console.error("Error in getUserCoins:", error);
-    return 0;
-  }
+  const { getUserCoins: getCoins } = await import('./userUtils');
+  return getCoins(userId);
 };

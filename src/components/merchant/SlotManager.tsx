@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { format, addDays, isSameDay } from 'date-fns';
 import {
@@ -58,7 +59,7 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { supabase } from '@/integrations/supabase/client';
-import { generateSalonTimeSlots, fetchAvailableSlots } from '@/utils/bookingUtils';
+import { fetchAvailableSlots, generateSalonTimeSlots } from '@/utils/bookingUtils';
 
 const formSchema = z.object({
   startTime: z.string().min(1, {
@@ -190,10 +191,9 @@ const SlotManager = ({ merchantId }: { merchantId: string }) => {
     }
 
     setIsGenerating(true);
-    const dateString = format(date, 'yyyy-MM-dd');
 
     try {
-      await generateSalonTimeSlots(merchantId, dateString);
+      await generateSalonTimeSlots(merchantId, date);
       toast({
         title: "Slots generated",
         description: "Available time slots have been generated successfully.",

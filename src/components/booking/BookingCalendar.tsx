@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, Clock, Check } from 'lucide-react';
-import { format, addMinutes } from 'date-fns';
+import { format, addMinutes, parseISO } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -60,11 +60,11 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           const durations = [...new Set(serviceData.map(s => s.duration))];
           
           // Generate slots based on service durations
-          await createDynamicTimeSlots(salonId, formattedDate);
+          await createDynamicTimeSlots(salonId, selectedDate);
         } else {
           // If no service durations are found, create default slots with
           // multiple durations for flexibility
-          await createDynamicTimeSlots(salonId, formattedDate);
+          await createDynamicTimeSlots(salonId, selectedDate);
         }
         
         // Now fetch the newly created slots

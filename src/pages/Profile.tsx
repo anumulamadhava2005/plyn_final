@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -7,9 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CalendarIcon, CreditCard, HelpCircle, LogOut, Settings } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { updateUserCoins } from '@/utils/userUtils';
-// Update the import statement to use userUtils instead of bookingUtils
-import { getUserCoins } from '@/utils/userUtils';
-import { getUserProfile } from '@/utils/userUtils';
+// Import getUserCoins from userUtils
+import { getUserCoins, getUserProfile } from '@/utils/userUtils';
 import PageTransition from '@/components/transitions/PageTransition';
 
 const Profile = () => {
