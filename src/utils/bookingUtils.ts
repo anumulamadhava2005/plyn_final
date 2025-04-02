@@ -45,8 +45,7 @@ export const checkSlotAvailability = async (
       .select('id, is_booked')
       .eq('merchant_id', merchantId)
       .eq('date', date)
-      .eq('start_time', time)
-      .limit(1);
+      .eq('start_time', time);
 
     if (error) {
       console.error("Error checking slot availability:", error);
@@ -65,7 +64,7 @@ export const checkSlotAvailability = async (
       available: !slot.is_booked,
       slotId: slot.id
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in checkSlotAvailability:", error);
     throw new Error("Could not check slot availability");
   }
@@ -86,6 +85,24 @@ export const bookSlot = async (slotId: string): Promise<void> => {
   } catch (error) {
     console.error("Error in bookSlot:", error);
     throw new Error("Could not book the slot");
+  }
+};
+
+// Release a slot (make it available again)
+export const releaseSlot = async (slotId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('slots')
+      .update({ is_booked: false })
+      .eq('id', slotId);
+
+    if (error) {
+      console.error("Error releasing slot:", error);
+      throw new Error(`Error releasing slot: ${error.message}`);
+    }
+  } catch (error) {
+    console.error("Error in releaseSlot:", error);
+    throw new Error("Could not release the slot");
   }
 };
 
@@ -122,7 +139,7 @@ export const createBooking = async (bookingData: any): Promise<{ id: string }> =
 };
 
 // Update booking status
-export const updateBookingStatus = async (bookingId: string, status: 'confirmed' | 'cancelled' | 'pending'): Promise<void> => {
+export const updateBookingStatus = async (bookingId: string, status: 'confirmed' | 'cancelled' | 'pending' | 'missed'): Promise<void> => {
   try {
     const { error } = await supabase
       .from('bookings')
@@ -136,6 +153,117 @@ export const updateBookingStatus = async (bookingId: string, status: 'confirmed'
   } catch (error) {
     console.error("Error in updateBookingStatus:", error);
     throw new Error("Could not update the booking status");
+  }
+};
+
+// Cancel booking and refund coins
+export const cancelBookingAndRefund = async (bookingId: string): Promise<void> => {
+  try {
+    // First, get the booking details to check if PLYN coins were used
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select('*, slot_id, user_id, coins_used, status')
+      .eq('id', bookingId)
+      .single();
+      
+    if (bookingError) {
+      console.error("Error fetching booking for cancellation:", bookingError);
+      throw new Error(`Error fetching booking: ${bookingError.message}`);
+    }
+    
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+    
+    // Check if booking is already cancelled to prevent double processing
+    if (booking.status === 'cancelled') {
+      console.log("Booking already cancelled");
+      return;
+    }
+    
+    // Begin a transaction to ensure all operations succeed or fail together
+    // First, release the slot
+    if (booking.slot_id) {
+      await releaseSlot(booking.slot_id);
+    }
+    
+    // Update booking status to cancelled
+    await updateBookingStatus(bookingId, 'cancelled');
+    
+    // If coins were used, refund them to the user
+    if (booking.coins_used > 0 && booking.user_id) {
+      // Get the user's current coins
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('coins')
+        .eq('id', booking.user_id)
+        .single();
+      
+      if (userError) {
+        console.error("Error fetching user data for refund:", userError);
+        throw new Error(`Error fetching user data: ${userError.message}`);
+      }
+      
+      const currentCoins = userData?.coins || 0;
+      const updatedCoins = currentCoins + booking.coins_used;
+      
+      // Update the user's coins
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ coins: updatedCoins })
+        .eq('id', booking.user_id);
+        
+      if (updateError) {
+        console.error("Error refunding coins:", updateError);
+        throw new Error(`Error refunding coins: ${updateError.message}`);
+      }
+      
+      console.log(`Refunded ${booking.coins_used} coins to user ${booking.user_id}`);
+    }
+  } catch (error: any) {
+    console.error("Error in cancelBookingAndRefund:", error);
+    throw new Error(`Failed to cancel booking: ${error.message}`);
+  }
+};
+
+// Mark past appointments as missed
+export const markMissedAppointments = async (): Promise<void> => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = format(today, 'yyyy-MM-dd');
+    
+    // Find all confirmed appointments that are in the past and haven't been cancelled or marked as missed
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, booking_date, time_slot, status')
+      .lt('booking_date', todayStr)
+      .in('status', ['confirmed', 'pending']);
+      
+    if (error) {
+      console.error("Error fetching past appointments:", error);
+      throw new Error(`Error fetching past appointments: ${error.message}`);
+    }
+    
+    // If there are past appointments, mark them as missed
+    if (data && data.length > 0) {
+      const missedIds = data.map(booking => booking.id);
+      
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({ status: 'missed' })
+        .in('id', missedIds);
+        
+      if (updateError) {
+        console.error("Error marking appointments as missed:", updateError);
+        throw new Error(`Error marking appointments as missed: ${updateError.message}`);
+      }
+      
+      console.log(`Marked ${data.length} past appointments as missed`);
+    }
+  } catch (error: any) {
+    console.error("Error in markMissedAppointments:", error);
+    throw new Error(`Failed to mark missed appointments: ${error.message}`);
   }
 };
 
@@ -154,6 +282,9 @@ export const fetchUserBookings = async (userId: string): Promise<any[]> => {
       throw new Error(`Error fetching bookings: ${error.message}`);
     }
 
+    // Run the missed appointment check when fetching bookings
+    await markMissedAppointments();
+
     // Convert status to match the expected format in the UI
     return (data || []).map(booking => ({
       ...booking,
@@ -161,9 +292,11 @@ export const fetchUserBookings = async (userId: string): Promise<any[]> => {
         ? 'upcoming' 
         : booking.status === 'cancelled' 
           ? 'cancelled' 
-          : isBookingInPast(booking.booking_date) 
-            ? 'completed' 
-            : 'upcoming'
+          : booking.status === 'missed'
+            ? 'missed'
+            : isBookingInPast(booking.booking_date) 
+              ? 'completed' 
+              : 'upcoming'
     }));
   } catch (error) {
     console.error("Error in fetchUserBookings:", error);

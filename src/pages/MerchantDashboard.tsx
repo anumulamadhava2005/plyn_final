@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,7 +14,7 @@ import MerchantSettingsManager from '@/components/merchant/MerchantSettingsManag
 import MerchantServices from '@/components/merchant/MerchantServices';
 import PageTransition from '@/components/transitions/PageTransition';
 import { format } from 'date-fns';
-import { updateBookingStatus, fetchMerchantSlots } from '@/utils/bookingUtils';
+import { updateBookingStatus, fetchMerchantSlots, markMissedAppointments, cancelBookingAndRefund } from '@/utils/bookingUtils';
 import { Appointment } from '@/types/admin';
 
 const MerchantDashboard = () => {
@@ -153,6 +152,8 @@ const MerchantDashboard = () => {
       });
       
       setBookings(enhancedBookings);
+      
+      await markMissedAppointments();
     } catch (error: any) {
       console.error("Error in loadMerchantData:", error);
       toast({
@@ -191,10 +192,10 @@ const MerchantDashboard = () => {
 
   const handleCancelAppointment = async (bookingId: string) => {
     try {
-      await updateBookingStatus(bookingId, 'cancelled');
+      await cancelBookingAndRefund(bookingId);
       toast({
         title: "Appointment Cancelled",
-        description: "The appointment has been cancelled successfully.",
+        description: "The appointment has been cancelled and any used PLYN coins have been refunded.",
       });
       handleRefresh();
     } catch (error: any) {
@@ -216,8 +217,10 @@ const MerchantDashboard = () => {
     status: (booking.status === 'confirmed' 
       ? 'confirmed' 
       : booking.status === 'cancelled' 
-        ? 'cancelled' 
-        : 'pending') as 'confirmed' | 'cancelled' | 'pending',
+        ? 'cancelled'
+        : booking.status === 'missed'
+          ? 'missed'
+        : 'pending') as 'confirmed' | 'cancelled' | 'pending' | 'missed',
     worker: booking.worker_id ? (slots.find(slot => slot.worker_id === booking.worker_id)?.workers?.name || 'Assigned') : 'Unassigned'
   }));
   

@@ -1,393 +1,171 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Calendar, Clock, MapPin, AlertCircle, Check, X, Bell } from 'lucide-react';
-import { format } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { fetchUserBookings, updateBookingStatus } from '@/utils/bookingUtils';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
+import { fetchUserBookings, cancelBookingAndRefund } from '@/utils/bookingUtils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { format } from 'date-fns';
+import { X, Calendar } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import PageTransition from '@/components/transitions/PageTransition';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const MyBookings = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [bookings, setBookings] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState("upcoming");
-  const [loading, setLoading] = useState(true);
-  
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedTab, setSelectedTab] = useState('upcoming');
+  const { toast } = useToast();
+
   useEffect(() => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to view your bookings",
-        variant: "destructive",
-      });
-      navigate('/auth', { state: { redirectTo: '/my-bookings' } });
-      return;
-    }
-    
-    fetchBookings();
-  }, [user, navigate, toast]);
-  
-  const fetchBookings = async () => {
-    setLoading(true);
-    
-    try {
-      if (!user) return;
-      
-      const bookingsData = await fetchUserBookings(user.id);
-      
-      // If no bookings yet, show some sample ones for demo purposes
-      if (bookingsData && bookingsData.length > 0) {
-        setBookings(bookingsData);
-      } else {
-        // Fallback to mock data if no bookings exist
-        setBookings(getMockBookings());
+    const loadBookings = async () => {
+      // Check if user is authenticated
+      if (loading) return;
+      if (!user) {
+        navigate('/auth?redirect=bookings');
+        return;
       }
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching bookings:", error);
-      toast({
-        title: "Error fetching bookings",
-        description: "We couldn't load your bookings. Please try again later.",
-        variant: "destructive",
-      });
-      setLoading(false);
-    }
-  };
-  
-  const getMockBookings = () => {
-    return [
-      {
-        id: "1",
-        salon_name: "Modern Cuts",
-        salon_id: "1",
-        service_name: "Men's Haircut",
-        service_price: 35,
-        service_duration: 30,
-        booking_date: new Date().toISOString(),
-        time_slot: "14:00",
-        status: "upcoming",
-        customer_email: user?.email,
-        customer_phone: "",
-        merchant_id: "1"
-      },
-      {
-        id: "2",
-        salon_name: "Elegance Hair Studio",
-        salon_id: "2",
-        service_name: "Women's Haircut, Blow Dry & Style",
-        service_price: 95,
-        service_duration: 75,
-        booking_date: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString(),
-        time_slot: "11:30",
-        status: "upcoming",
-        customer_email: user?.email,
-        customer_phone: "",
-        merchant_id: "2"
-      },
-      {
-        id: "3",
-        salon_name: "The Barber Room",
-        salon_id: "3",
-        service_name: "Premium Haircut",
-        service_price: 45,
-        service_duration: 40,
-        booking_date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString(),
-        time_slot: "10:00",
-        status: "completed",
-        customer_email: user?.email,
-        customer_phone: "",
-        merchant_id: "3"
+
+      // Fetch user bookings
+      try {
+        setIsLoading(true);
+        const userBookings = await fetchUserBookings(user.id);
+        setBookings(userBookings);
+      } catch (error: any) {
+        console.error('Error loading bookings:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load your bookings. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
       }
-    ];
-  };
-  
+    };
+
+    loadBookings();
+  }, [user, loading, navigate, toast]);
+
   const handleCancelBooking = async (bookingId: string) => {
+    if (!user) return;
+    
     try {
-      await updateBookingStatus(bookingId, "cancelled");
-      
-      // Update local state
-      setBookings(bookings.map(booking => 
-        booking.id === bookingId 
-          ? { ...booking, status: "cancelled" } 
-          : booking
-      ));
-      
+      await cancelBookingAndRefund(bookingId);
       toast({
-        title: "Booking Cancelled",
-        description: "Your booking has been successfully cancelled.",
+        title: 'Booking Cancelled',
+        description: 'Your booking has been cancelled successfully and any used PLYN coins have been refunded.',
       });
-    } catch (error) {
-      console.error("Error cancelling booking:", error);
+      
+      // Refresh bookings
+      const updatedBookings = await fetchUserBookings(user.id);
+      setBookings(updatedBookings);
+    } catch (error: any) {
+      console.error('Error cancelling booking:', error);
       toast({
-        title: "Error cancelling booking",
-        description: "We couldn't cancel your booking. Please try again later.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to cancel your booking. Please try again.',
+        variant: 'destructive',
       });
     }
   };
-  
-  const handleRescheduleBooking = (bookingId: string) => {
-    const booking = bookings.find(b => b.id === bookingId);
-    if (booking) {
-      console.log("Rescheduling booking:", booking);
-      // Store the booking ID in session storage for retrieval on the booking page
-      sessionStorage.setItem('rescheduleBookingId', bookingId);
-      navigate(`/book/${booking.salon_id || booking.merchant_id}`, { 
-        state: { 
-          reschedule: true, 
-          bookingId: bookingId 
-        } 
-      });
-    }
-  };
-  
-  const filteredBookings = bookings.filter(booking => {
-    if (activeTab === "upcoming") {
-      return booking.status === "upcoming";
-    } else if (activeTab === "completed") {
-      return booking.status === "completed";
-    } else if (activeTab === "cancelled") {
-      return booking.status === "cancelled";
+
+  const filteredBookings = bookings.filter((booking) => {
+    if (selectedTab === 'upcoming') {
+      return booking.status === 'upcoming';
+    } else if (selectedTab === 'completed') {
+      return booking.status === 'completed';
+    } else if (selectedTab === 'cancelled') {
+      return booking.status === 'cancelled' || booking.status === 'missed';
     }
     return true;
   });
-  
-  const renderBookingCard = (booking: any) => {
-    // Check if the booking date is in the past
-    const bookingDate = new Date(booking.booking_date);
-    const currentDate = new Date();
-    const isPast = bookingDate < currentDate;
-    
-    // Check if the booking is cancelled
-    const isCancelled = booking.status === "cancelled";
-    
-    return (
-      <motion.div
-        key={booking.id}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className={`glass-card p-5 rounded-lg border ${
-          isCancelled
-            ? "border-destructive/30 bg-destructive/5"
-            : isPast
-              ? "border-muted"
-              : "border-border"
-        }`}
-      >
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h3 className="font-semibold text-lg">{booking.salon_name}</h3>
-            <p className="text-sm text-muted-foreground">Ref: {booking.id.substring(0, 8)}</p>
-          </div>
-          <div className={`px-2 py-1 rounded-md text-xs font-medium ${
-            isCancelled
-              ? "bg-destructive/10 text-destructive"
-              : booking.status === "completed"
-                ? "bg-green-500/10 text-green-500"
-                : "bg-primary/10 text-primary"
-          }`}>
-            {isCancelled
-              ? "Cancelled"
-              : booking.status === "completed"
-                ? "Completed"
-                : "Upcoming"}
-          </div>
-        </div>
-        
-        <div className="space-y-3 mb-4">
-          <div className="flex items-start">
-            <Calendar className="w-4 h-4 mt-1 mr-2 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">
-                {format(new Date(booking.booking_date), "EEEE, MMMM d, yyyy")}
-              </p>
-              <p className="text-xs text-muted-foreground">Date</p>
-            </div>
-          </div>
-          
-          <div className="flex items-start">
-            <Clock className="w-4 h-4 mt-1 mr-2 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">{booking.time_slot}</p>
-              <p className="text-xs text-muted-foreground">
-                Duration: {booking.service_duration} min
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-start">
-            <MapPin className="w-4 h-4 mt-1 mr-2 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">Salon Location</p>
-              <p className="text-xs text-muted-foreground">Address information</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="border-t border-border pt-3">
-          <h4 className="font-medium text-sm mb-2">Service(s):</h4>
-          <div className="space-y-1 mb-3">
-            <div className="flex justify-between text-sm">
-              <span>{booking.service_name}</span>
-              <span className="font-medium">${booking.service_price}</span>
-            </div>
-          </div>
-          <div className="flex justify-between font-medium text-sm">
-            <span>Total:</span>
-            <span>${booking.service_price}</span>
-          </div>
-        </div>
-        
-        {/* Fixed: Show buttons for upcoming bookings that are not cancelled */}
-        {booking.status === "upcoming" && !isCancelled && (
-          <div className="flex gap-2 mt-4 pt-3 border-t border-border">
-            <AnimatedButton
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={() => handleRescheduleBooking(booking.id)}
-            >
-              Reschedule
-            </AnimatedButton>
-            <AnimatedButton
-              variant="destructive"
-              size="sm"
-              className="flex-1"
-              onClick={() => handleCancelBooking(booking.id)}
-            >
-              Cancel
-            </AnimatedButton>
-          </div>
-        )}
-        
-        {booking.status === "completed" && (
-          <div className="mt-4 pt-3 border-t border-border">
-            <AnimatedButton
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => navigate(`/book/${booking.salon_id || booking.merchant_id}`)}
-            >
-              Book Again
-            </AnimatedButton>
-          </div>
-        )}
-      </motion.div>
-    );
-  };
-  
+
   return (
     <PageTransition>
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        
-        <main className="flex-grow pt-20">
-          <section className="py-8 px-4">
-            <div className="container mx-auto max-w-3xl">
-              <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl md:text-3xl font-bold">My Bookings</h1>
-                <AnimatedButton
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate('/book-now')}
-                >
-                  Book New Appointment
-                </AnimatedButton>
-              </div>
-              
-              <Tabs 
-                defaultValue="upcoming" 
-                value={activeTab}
-                onValueChange={setActiveTab}
-                className="mb-6"
-              >
-                <TabsList className="w-full grid grid-cols-3 mb-4">
-                  <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-                  <TabsTrigger value="completed">Completed</TabsTrigger>
-                  <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="upcoming" className="mt-0">
-                  {loading ? (
-                    <div className="flex justify-center py-12">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                    </div>
-                  ) : filteredBookings.length > 0 ? (
-                    <div className="space-y-4">
-                      {filteredBookings.map(renderBookingCard)}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 bg-muted/20 rounded-lg border border-border">
-                      <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                      <h3 className="text-lg font-medium mb-2">No upcoming bookings</h3>
-                      <p className="text-muted-foreground mb-4">
-                        You don't have any upcoming salon appointments.
-                      </p>
-                      <AnimatedButton 
-                        variant="default" 
-                        onClick={() => navigate('/book-now')}
-                      >
-                        Book an Appointment
-                      </AnimatedButton>
-                    </div>
-                  )}
-                </TabsContent>
-                
-                <TabsContent value="completed" className="mt-0">
-                  {loading ? (
-                    <div className="flex justify-center py-12">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                    </div>
-                  ) : filteredBookings.length > 0 ? (
-                    <div className="space-y-4">
-                      {filteredBookings.map(renderBookingCard)}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 bg-muted/20 rounded-lg border border-border">
-                      <Check className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                      <h3 className="text-lg font-medium mb-2">No completed bookings</h3>
-                      <p className="text-muted-foreground">
-                        You don't have any completed salon appointments yet.
-                      </p>
-                    </div>
-                  )}
-                </TabsContent>
-                
-                <TabsContent value="cancelled" className="mt-0">
-                  {loading ? (
-                    <div className="flex justify-center py-12">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                    </div>
-                  ) : filteredBookings.length > 0 ? (
-                    <div className="space-y-4">
-                      {filteredBookings.map(renderBookingCard)}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 bg-muted/20 rounded-lg border border-border">
-                      <X className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                      <h3 className="text-lg font-medium mb-2">No cancelled bookings</h3>
-                      <p className="text-muted-foreground">
-                        You don't have any cancelled salon appointments.
-                      </p>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </div>
-          </section>
-        </main>
-        
-        <Footer />
+      <div className="container mx-auto py-8 px-4">
+        <h1 className="text-3xl font-bold mb-6">My Bookings</h1>
+
+        <Tabs defaultValue="upcoming" onValueChange={setSelectedTab}>
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
+            <TabsTrigger value="cancelled">Cancelled/Missed</TabsTrigger>
+          </TabsList>
+
+          {['upcoming', 'completed', 'cancelled'].map((tab) => (
+            <TabsContent key={tab} value={tab} className="space-y-4">
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
+                </div>
+              ) : filteredBookings.length > 0 ? (
+                filteredBookings.map((booking) => (
+                  <Card key={booking.id} className="overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="p-4 md:p-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
+                          <div>
+                            <h2 className="text-xl font-semibold">{booking.salon_name}</h2>
+                            <p className="text-muted-foreground">{booking.service_name}</p>
+                          </div>
+                          <Badge
+                            className={`mt-2 md:mt-0 ${booking.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-400' : 
+                            booking.status === 'upcoming' ? 'bg-blue-100 text-blue-800 dark:bg-blue-800/30 dark:text-blue-400' : 
+                            booking.status === 'missed' ? 'bg-amber-100 text-amber-800 dark:bg-amber-800/30 dark:text-amber-400' :
+                            'bg-red-100 text-red-800 dark:bg-red-800/30 dark:text-red-400'}`}
+                          >
+                            {booking.status === 'missed' ? 'Missed' : booking.status}
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex flex-col md:flex-row justify-between">
+                          <div className="flex items-center mb-4 md:mb-0">
+                            <Calendar className="h-5 w-5 mr-2 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">{booking.booking_date}</p>
+                              <p className="text-sm text-muted-foreground">{booking.time_slot}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center">
+                            <div className="text-right">
+                              <p className="text-sm text-muted-foreground">Price</p>
+                              <p className="font-medium">${booking.service_price}</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {booking.status === 'upcoming' && (
+                          <div className="mt-4 flex justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleCancelBooking(booking.id)}
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Cancel Booking
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-muted-foreground">No {tab} bookings found.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
     </PageTransition>
   );

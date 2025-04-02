@@ -12,7 +12,7 @@ export interface Appointment {
   date: string | undefined;
   time: string | undefined;
   duration: string;
-  status: 'pending' | 'confirmed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'missed';
 }
 
 export interface AppointmentsListProps {
@@ -56,9 +56,11 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({
                         ? 'default' 
                         : appointment.status === 'cancelled' 
                           ? 'destructive' 
-                          : 'outline'
+                          : appointment.status === 'missed'
+                            ? 'outline'
+                            : 'outline'
                     }
-                    className="text-xs"
+                    className={`text-xs ${appointment.status === 'missed' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500' : ''}`}
                   >
                     {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                   </Badge>

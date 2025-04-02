@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { checkSlotAvailability, createBooking, bookSlot } from '@/utils/bookingUtils';
+import { checkSlotAvailability, createBooking, bookSlot, cancelBookingAndRefund } from '@/utils/bookingUtils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -129,9 +129,26 @@ const Payment = () => {
       } else {
         // If no slotId was provided, try to find the slot based on date and time
         try {
-          const { available, slotId: foundSlotId } = await checkSlotAvailability(salonId, date, timeSlot);
+          const { data: slots } = await supabase
+            .from('slots')
+            .select('id, is_booked')
+            .eq('merchant_id', salonId)
+            .eq('date', date)
+            .eq('start_time', timeSlot);
           
-          if (!available) {
+          if (!slots || slots.length === 0) {
+            toast({
+              title: "Slot not found",
+              description: "The selected time slot is no longer available. Please select another time.",
+              variant: "destructive",
+            });
+            navigate(`/book/${salonId}`);
+            return;
+          }
+          
+          const availableSlot = slots.find(slot => !slot.is_booked);
+          
+          if (!availableSlot) {
             toast({
               title: "Slot no longer available",
               description: "Sorry, this time slot has just been booked. Please select another time.",
@@ -142,7 +159,7 @@ const Payment = () => {
           }
           
           // Use the found slotId
-          const slotToUse = foundSlotId;
+          const slotToUse = availableSlot.id;
           
           // Book the slot
           await bookSlot(slotToUse);
