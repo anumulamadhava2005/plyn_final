@@ -2,22 +2,26 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { checkSlotAvailability, createBooking, bookSlot } from '@/utils/bookingUtils';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
+import { usePayment } from '@/hooks/usePayment';
 import PageTransition from '@/components/transitions/PageTransition';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const Payment = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { processPayment, isProcessing } = usePayment();
   const [userCoins, setUserCoins] = useState(0);
   const [plyCoinsEnabled, setPlyCoinsEnabled] = useState(false);
+  const [paymentCanceled, setPaymentCanceled] = useState(false);
   
   const { 
     salonId, 
@@ -34,6 +38,12 @@ const Payment = () => {
   } = location.state || {};
   
   useEffect(() => {
+    // Check if payment was canceled (returned from payment page)
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('canceled') === 'true' || location.state?.canceled) {
+      setPaymentCanceled(true);
+    }
+    
     if (!salonId || !services || !date || !timeSlot || !totalPrice) {
       toast({
         title: "Invalid Booking Details",
@@ -84,11 +94,9 @@ const Payment = () => {
     };
     
     fetchUserData();
-  }, [user, navigate, toast, salonId, services, date, timeSlot, totalPrice]);
+  }, [user, navigate, toast, salonId, services, date, timeSlot, totalPrice, location]);
   
   const handleSubmit = async (values: PaymentFormValues) => {
-    setIsSubmitting(true);
-    
     try {
       // Verify slot is still available
       const { available } = await checkSlotAvailability(salonId, date, timeSlot);
@@ -124,25 +132,7 @@ const Payment = () => {
         console.error("Error finding available worker:", error);
       }
       
-      // Create a record in the payments table (if needed)
-      const { data: paymentRecord, error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          amount: totalPrice,
-          payment_method: values.paymentMethod,
-          payment_status: 'completed',
-          user_id: user?.id,
-          coins_earned: 0,
-          coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
-        })
-        .select('id')
-        .single();
-        
-      if (paymentError) {
-        console.error("Error creating payment record:", paymentError);
-      }
-      
-      // Prepare booking data
+      // Create booking record first
       const bookingData = {
         user_id: user?.id,
         user_profile_id: user?.id,
@@ -157,40 +147,33 @@ const Payment = () => {
         customer_email: values.email,
         customer_phone: values.phone,
         additional_notes: values.notes,
-        status: 'confirmed',
+        status: 'pending', // Will be updated to confirmed after payment
         slot_id: slotId,
         worker_id: workerId,
         coins_earned: 0,
         coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
-        payment_id: paymentRecord?.id,
       };
       
-      // Create booking
       const { id: bookingId } = await createBooking(bookingData);
       
-      // If using coins, update user's coin balance
-      if (values.paymentMethod === 'plyn_coins') {
-        const coinsToUse = totalPrice * 2;
-        const newCoinsBalance = Math.max(0, userCoins - coinsToUse);
-        
-        const { error: updateCoinsError } = await supabase
-          .from('profiles')
-          .update({ coins: newCoinsBalance })
-          .eq('id', user?.id);
-          
-        if (updateCoinsError) {
-          console.error("Error updating user coins:", updateCoinsError);
+      // Now process the payment
+      await processPayment({
+        paymentMethod: values.paymentMethod,
+        amount: totalPrice,
+        booking: {
+          id: bookingId,
+          salonName,
+          services,
+          date,
+          timeSlot,
+          totalPrice,
+          totalDuration,
+          coinsUsed: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
         }
-      }
-      
-      // Redirect to booking confirmation
-      navigate('/booking-confirmation', { state: { bookingId } });
-      
-      toast({
-        title: "Booking Confirmed",
-        description: "Your appointment has been successfully booked.",
-        variant: "default",
       });
+      
+      // Navigation is handled inside processPayment
+      
     } catch (error: any) {
       console.error("Error during payment:", error);
       toast({
@@ -198,8 +181,6 @@ const Payment = () => {
         description: error.message || "An error occurred during payment. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
   
@@ -218,6 +199,16 @@ const Payment = () => {
                 Confirm your booking details and complete your payment.
               </p>
             </div>
+            
+            {paymentCanceled && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Payment Canceled</AlertTitle>
+                <AlertDescription>
+                  Your previous payment attempt was canceled. Please try again.
+                </AlertDescription>
+              </Alert>
+            )}
             
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-2">Booking Summary</h2>
@@ -249,9 +240,10 @@ const Payment = () => {
               defaultValues={{
                 email: email || '',
                 phone: phone || '',
+                notes: notes || '',
               }}
               onSubmit={handleSubmit}
-              isSubmitting={isSubmitting}
+              isSubmitting={isProcessing}
               totalPrice={totalPrice}
               userCoins={userCoins}
               plyCoinsEnabled={plyCoinsEnabled}

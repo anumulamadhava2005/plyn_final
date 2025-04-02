@@ -25,6 +25,7 @@ import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 import MyBookings from "./pages/MyBookings";
 import HairRecommendation from "./pages/HairRecommendation";
+import PaymentSimulator from "./components/payment/PaymentSimulator";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
               <Route path="/book-now" element={<BookNow />} />
               <Route path="/book/:id" element={<SalonDetails />} />
               <Route path="/payment" element={<Payment />} />
+              <Route path="/payment/simulator" element={<PaymentSimulator />} />
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
               <Route path="/merchant-signup" element={<MerchantSignup />} />
               <Route path="/merchant-dashboard" element={<MerchantDashboard />} />
