@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -97,7 +98,9 @@ const MerchantDashboard = () => {
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select('*')
-        .eq('merchant_id', user.id);
+        .eq('merchant_id', user.id)
+        .order('booking_date', { ascending: false }) // Sort by booking date, newest first
+        .order('time_slot', { ascending: true });    // Then by time slot
         
       if (bookingsError) {
         console.error("Error loading bookings data:", bookingsError);
@@ -205,7 +208,7 @@ const MerchantDashboard = () => {
   
   const processedAppointments: Appointment[] = bookings.map(booking => ({
     id: booking.id,
-    customerName: booking.profiles?.username || 'Unknown User',
+    customerName: booking.profiles?.username || (booking.customer_email ? booking.customer_email.split('@')[0] : 'Unknown User'),
     service: booking.service_name,
     date: booking.booking_date,
     time: booking.time_slot,

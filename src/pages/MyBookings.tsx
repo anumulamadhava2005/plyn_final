@@ -138,6 +138,9 @@ const MyBookings = () => {
   const handleRescheduleBooking = (bookingId: string) => {
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
+      console.log("Rescheduling booking:", booking);
+      // Store the booking ID in session storage for retrieval on the booking page
+      sessionStorage.setItem('rescheduleBookingId', bookingId);
       navigate(`/book/${booking.salon_id || booking.merchant_id}`, { 
         state: { 
           reschedule: true, 

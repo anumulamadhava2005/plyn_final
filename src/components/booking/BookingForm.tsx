@@ -151,9 +151,23 @@ const BookingForm: React.FC<BookingFormProps> = ({
         setIsSubmitting(false);
         return;
       }
-      
+
       // Book the slot
       await bookSlot(selectedSlotId);
+      
+      console.log("Navigating to payment with state:", {
+        salonId,
+        salonName,
+        services: selectedServices,
+        date: formattedDate,
+        timeSlot: selectedTime,
+        email,
+        phone,
+        notes,
+        totalPrice,
+        totalDuration,
+        slotId: selectedSlotId
+      });
       
       // Proceed to payment page
       navigate('/payment', {
