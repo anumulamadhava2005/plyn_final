@@ -124,10 +124,28 @@ const Payment = () => {
         console.error("Error finding available worker:", error);
       }
       
+      // Create a record in the payments table (if needed)
+      const { data: paymentRecord, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          amount: totalPrice,
+          payment_method: values.paymentMethod,
+          payment_status: 'completed',
+          user_id: user?.id,
+          coins_earned: 0,
+          coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
+        })
+        .select('id')
+        .single();
+        
+      if (paymentError) {
+        console.error("Error creating payment record:", paymentError);
+      }
+      
       // Prepare booking data
       const bookingData = {
         user_id: user?.id,
-        user_profile_id: user?.id, // Assuming profile ID is the same as user ID
+        user_profile_id: user?.id,
         merchant_id: salonId,
         salon_id: salonId,
         salon_name: salonName,
@@ -140,15 +158,30 @@ const Payment = () => {
         customer_phone: values.phone,
         additional_notes: values.notes,
         status: 'confirmed',
-        payment_method: values.paymentMethod,
         slot_id: slotId,
         worker_id: workerId,
         coins_earned: 0,
-        coins_used: 0
+        coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
+        payment_id: paymentRecord?.id,
       };
       
       // Create booking
       const { id: bookingId } = await createBooking(bookingData);
+      
+      // If using coins, update user's coin balance
+      if (values.paymentMethod === 'plyn_coins') {
+        const coinsToUse = totalPrice * 2;
+        const newCoinsBalance = Math.max(0, userCoins - coinsToUse);
+        
+        const { error: updateCoinsError } = await supabase
+          .from('profiles')
+          .update({ coins: newCoinsBalance })
+          .eq('id', user?.id);
+          
+        if (updateCoinsError) {
+          console.error("Error updating user coins:", updateCoinsError);
+        }
+      }
       
       // Redirect to booking confirmation
       navigate('/booking-confirmation', { state: { bookingId } });
@@ -188,26 +221,28 @@ const Payment = () => {
             
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-2">Booking Summary</h2>
-              <p>
-                <Badge variant="secondary" className="mr-2">Salon:</Badge>
-                {salonName}
-              </p>
-              <p>
-                <Badge variant="secondary" className="mr-2">Services:</Badge>
-                {services.map((s: any) => s.name).join(', ')}
-              </p>
-              <p>
-                <Badge variant="secondary" className="mr-2">Date:</Badge>
-                {date}
-              </p>
-              <p>
-                <Badge variant="secondary" className="mr-2">Time:</Badge>
-                {timeSlot}
-              </p>
-              <p>
-                <Badge variant="secondary" className="mr-2">Total:</Badge>
-                ${totalPrice}
-              </p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Salon:</Badge>
+                  <span>{salonName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Services:</Badge>
+                  <span>{services.map((s: any) => s.name).join(', ')}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Date:</Badge>
+                  <span>{date}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Time:</Badge>
+                  <span>{timeSlot}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Total:</Badge>
+                  <span>${totalPrice}</span>
+                </div>
+              </div>
             </div>
             
             <PaymentForm

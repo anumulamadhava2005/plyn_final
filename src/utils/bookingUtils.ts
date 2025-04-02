@@ -1,3 +1,4 @@
+
 import { addDays, format, isAfter, isBefore, parse, parseISO } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { getAvailableTimeSlots, generateSalonTimeSlots, findAvailableTimeSlots } from './slotUtils';
@@ -82,6 +83,17 @@ export const bookSlot = async (slotId: string): Promise<void> => {
 // Create a booking
 export const createBooking = async (bookingData: any): Promise<{ id: string }> => {
   try {
+    // Remove payment_method field if it exists in bookingData
+    if (bookingData.payment_method) {
+      // Store it temporarily if we need it for a payment record
+      const paymentMethod = bookingData.payment_method;
+      delete bookingData.payment_method;
+      
+      // If we need to create a payment record with this method, we could do it here
+      // For now, let's just log it
+      console.log(`Payment will be processed using: ${paymentMethod}`);
+    }
+    
     const { data, error } = await supabase
       .from('bookings')
       .insert(bookingData)
