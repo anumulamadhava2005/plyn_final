@@ -39,22 +39,31 @@ export const checkSlotAvailability = async (
   time: string
 ): Promise<{ available: boolean; slotId: string }> => {
   try {
+    // Use limit(1) to handle potential duplicates
     const { data, error } = await supabase
       .from('slots')
       .select('id, is_booked')
       .eq('merchant_id', merchantId)
       .eq('date', date)
       .eq('start_time', time)
-      .single();
+      .limit(1);
 
     if (error) {
       console.error("Error checking slot availability:", error);
       throw new Error(`Error checking availability: ${error.message}`);
     }
 
+    // Check if we got any results
+    if (!data || data.length === 0) {
+      console.error("No slot found matching the criteria");
+      throw new Error("No slot found for the selected time");
+    }
+
+    // Use the first slot if multiple were returned
+    const slot = data[0];
     return {
-      available: !data.is_booked,
-      slotId: data.id
+      available: !slot.is_booked,
+      slotId: slot.id
     };
   } catch (error) {
     console.error("Error in checkSlotAvailability:", error);
