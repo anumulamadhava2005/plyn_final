@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, AlertCircle, Check, X, Bell } from 'lucide-react';
 import { format } from 'date-fns';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/AuthContext';
@@ -162,7 +162,12 @@ const MyBookings = () => {
   });
   
   const renderBookingCard = (booking: any) => {
-    const isPast = new Date(booking.booking_date) < new Date();
+    // Check if the booking date is in the past
+    const bookingDate = new Date(booking.booking_date);
+    const currentDate = new Date();
+    const isPast = bookingDate < currentDate;
+    
+    // Check if the booking is cancelled
     const isCancelled = booking.status === "cancelled";
     
     return (
@@ -243,7 +248,8 @@ const MyBookings = () => {
           </div>
         </div>
         
-        {!isCancelled && !isPast && (
+        {/* Fixed: Show buttons for upcoming bookings that are not cancelled */}
+        {booking.status === "upcoming" && !isCancelled && (
           <div className="flex gap-2 mt-4 pt-3 border-t border-border">
             <AnimatedButton
               variant="outline"
@@ -264,7 +270,7 @@ const MyBookings = () => {
           </div>
         )}
         
-        {isPast && booking.status === "completed" && (
+        {booking.status === "completed" && (
           <div className="mt-4 pt-3 border-t border-border">
             <AnimatedButton
               variant="outline"

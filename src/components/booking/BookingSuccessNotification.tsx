@@ -19,10 +19,12 @@ export const showBookingSuccessNotification = (booking: BookingDetails) => {
     description: (
       <div className="flex flex-col gap-1">
         <p className="mb-1">Your appointment has been successfully booked!</p>
-        <div className="flex items-center gap-2 mt-1">
-          <Calendar className="h-4 w-4 text-primary" />
+        <div className="flex items-start gap-2 mt-1">
+          <Calendar className="h-4 w-4 mt-1 text-primary" />
           <span>{booking.date || 'Date scheduled'}</span>
-          <Clock className="h-4 w-4 ml-2 text-primary" />
+        </div>
+        <div className="flex items-start gap-2 mt-1">
+          <Clock className="h-4 w-4 mt-1 text-primary" />
           <span>{booking.time || booking.timeSlot || 'Time scheduled'}</span>
         </div>
         <p className="font-medium mt-1">{booking.salonName || 'Salon'}</p>

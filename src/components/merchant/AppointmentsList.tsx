@@ -19,6 +19,9 @@ export interface AppointmentsListProps {
   appointments: Appointment[];
   onConfirm?: (id: string) => void;
   onCancel?: (id: string) => void;
+  selectedDate?: Date;
+  onDateChange?: React.Dispatch<React.SetStateAction<Date>>;
+  onSlotsUpdated?: () => void;
 }
 
 const AppointmentsList: React.FC<AppointmentsListProps> = ({ 
