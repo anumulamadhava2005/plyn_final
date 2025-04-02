@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { format, addMinutes, addDays, parseISO, subDays, isBefore } from "date-fns";
 import { TimeSlot, SlotAvailability } from "@/types/admin";
@@ -371,6 +370,116 @@ export const findAvailableTimeSlots = async (merchantId: string, date: string): 
     return data || [];
   } catch (error) {
     console.error("Error finding available time slots:", error);
+    throw error;
+  }
+};
+
+// Get time slots for a specific date
+export const getTimeSlotsForDate = async (merchantId: string, date: string) => {
+  try {
+    // Check if slots exist for this date, if not, generate them
+    const existingSlots = await findAvailableTimeSlots(merchantId, date);
+    
+    if (existingSlots.length === 0) {
+      // Generate slots for this date if none exist
+      await generateSalonTimeSlots(merchantId, new Date(date));
+    }
+    
+    // Get all slots for this date (both available and booked)
+    const { data, error } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .eq("date", date)
+      .order("start_time");
+    
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error getting time slots:", error);
+    throw error;
+  }
+};
+
+// Create a new slot
+export const createSlot = async (merchantId: string, date: string, startTime: string, endTime: string) => {
+  try {
+    // Check if a slot with the same time already exists
+    const { data: existingSlots, error: checkError } = await supabase
+      .from("slots")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .eq("date", date)
+      .eq("start_time", startTime)
+      .eq("end_time", endTime);
+    
+    if (checkError) throw checkError;
+    
+    // If slot already exists, don't create a duplicate
+    if (existingSlots && existingSlots.length > 0) {
+      throw new Error("A slot for this time already exists");
+    }
+    
+    // Calculate duration in minutes (for service duration)
+    const startParts = startTime.split(':').map(Number);
+    const endParts = endTime.split(':').map(Number);
+    const startMinutes = startParts[0] * 60 + startParts[1];
+    const endMinutes = endParts[0] * 60 + endParts[1];
+    const durationMinutes = endMinutes - startMinutes;
+    
+    // Create the new slot
+    const { data, error } = await supabase
+      .from("slots")
+      .insert([
+        {
+          merchant_id: merchantId,
+          date: date,
+          start_time: startTime,
+          end_time: endTime,
+          is_booked: false,
+          service_duration: durationMinutes
+        }
+      ])
+      .select();
+    
+    if (error) throw error;
+    
+    return data?.[0];
+  } catch (error) {
+    console.error("Error creating slot:", error);
+    throw error;
+  }
+};
+
+// Delete a slot
+export const deleteSlot = async (slotId: string) => {
+  try {
+    // First check if the slot is booked
+    const { data: slotData, error: getError } = await supabase
+      .from("slots")
+      .select("is_booked")
+      .eq("id", slotId)
+      .single();
+    
+    if (getError) throw getError;
+    
+    // Don't delete booked slots
+    if (slotData?.is_booked) {
+      throw new Error("Cannot delete a booked slot");
+    }
+    
+    // Delete the slot if not booked
+    const { error } = await supabase
+      .from("slots")
+      .delete()
+      .eq("id", slotId);
+    
+    if (error) throw error;
+    
+    return { success: true, message: "Slot deleted successfully" };
+  } catch (error) {
+    console.error("Error deleting slot:", error);
     throw error;
   }
 };
