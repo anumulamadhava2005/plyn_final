@@ -1,4 +1,3 @@
-
 import { addDays, format, isAfter, isBefore, parse, parseISO } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { getAvailableTimeSlots, generateSalonTimeSlots, findAvailableTimeSlots } from './slotUtils';
@@ -129,18 +128,9 @@ export const createBooking = async (bookingData: any): Promise<{ id: string }> =
       console.log(`Payment will be processed using: ${paymentMethod}`);
     }
     
-    // If there's a worker ID, ensure it's included in the booking
-    if (bookingData.worker_id) {
-      // Get worker details
-      const { data: workerData, error: workerError } = await supabase
-        .from('workers')
-        .select('name')
-        .eq('id', bookingData.worker_id)
-        .single();
-        
-      if (!workerError && workerData) {
-        bookingData.worker_name = workerData.name;
-      }
+    // Remove worker_name if it exists since the column doesn't exist in the database
+    if (bookingData.worker_name) {
+      delete bookingData.worker_name;
     }
     
     const { data, error } = await supabase
