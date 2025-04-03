@@ -72,8 +72,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       // Create a map of existing slots
       const existingSlotsMap: {[key: string]: {id: string, workerId: string, isBooked: boolean}} = {};
       
-      if (data) {
+      if (data && data.length > 0) {
         data.forEach(slot => {
+          // Only add to map if not booked or if it's not already in the map
           if (!existingSlotsMap[slot.start_time] || !slot.is_booked) {
             existingSlotsMap[slot.start_time] = {
               id: slot.id,
@@ -82,6 +83,11 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
             };
           }
         });
+        
+        console.log(`Found ${data.length} existing slots in database`);
+        console.log("Existing slots map:", existingSlotsMap);
+      } else {
+        console.log("No existing slots found in database");
       }
       
       // Update the state with existing slots
@@ -124,9 +130,12 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           const isSelected = time === selectedTime;
           const slotInfo = hasExistingSlots[time];
           
-          // Check if there's an existing slot in the database for this time
-          // If not, we'll create it later with worker assignment
-          const slotId = slotInfo && !slotInfo.isBooked ? slotInfo.id : '';
+          // Determine the slot ID to use
+          let slotId = '';
+          if (slotInfo && !slotInfo.isBooked) {
+            slotId = slotInfo.id;
+            console.log(`Using existing slot ID ${slotId} for time ${time}`);
+          }
           
           // Use the first available worker for this slot
           const firstWorker = availableWorkers[0];
@@ -137,12 +146,15 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
               size="sm"
               variant={isSelected ? "default" : "outline"}
               className={`${isSelected ? '' : 'hover:bg-primary/10'}`}
-              onClick={() => onTimeSelect(
-                time, 
-                slotId, 
-                firstWorker.workerId,
-                firstWorker.name
-              )}
+              onClick={() => {
+                console.log(`Selected time ${time} with slot ID: ${slotId}`);
+                onTimeSelect(
+                  time, 
+                  slotId, // Either an existing slot ID or empty string for new slot
+                  firstWorker.workerId,
+                  firstWorker.name
+                );
+              }}
             >
               {time}
               {availableWorkers.length > 1 && (

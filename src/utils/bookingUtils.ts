@@ -134,9 +134,17 @@ export const bookSlot = async (
   servicePrice?: number
 ): Promise<{workerId?: string, workerName?: string}> => {
   try {
-    // If no slotId provided or slotId is empty string or "new", we can't proceed
-    if (!slotId || slotId === 'new') {
+    // If no slotId provided or the slotId is 'new', we can't proceed
+    if (!slotId || slotId === 'new' || slotId === '' || slotId === null || slotId === undefined) {
+      console.error("Invalid slot ID provided:", slotId);
       throw new Error("No valid slot ID provided. Please select a valid time slot.");
+    }
+
+    // Validate the slot ID format (simple UUID format check)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(slotId)) {
+      console.error("Slot ID is not a valid UUID format:", slotId);
+      throw new Error("Invalid slot ID format. Please select a valid time slot.");
     }
 
     console.log(`Booking slot with ID: ${slotId}`);
@@ -147,17 +155,28 @@ export const bookSlot = async (
       .select(`
         id, 
         worker_id,
+        is_booked,
         workers (
           id,
           name
         )
       `)
       .eq('id', slotId)
-      .single();
+      .maybeSingle();
       
     if (getError) {
       console.error("Error getting slot details:", getError);
       throw getError;
+    }
+    
+    if (!slot) {
+      console.error("Slot not found with ID:", slotId);
+      throw new Error("Selected time slot was not found. Please select another time.");
+    }
+    
+    if (slot.is_booked) {
+      console.error("Slot already booked:", slotId);
+      throw new Error("This time slot has already been booked. Please select another time.");
     }
     
     console.log(`Found slot with worker ID: ${slot.worker_id}`);

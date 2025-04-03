@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getUserCoins } from '@/utils/userUtils';
-import { createBooking } from '@/utils/bookingUtils';
+import { createBooking, bookSlot } from '@/utils/bookingUtils';
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
 import PaymentSimulator from '@/components/payment/PaymentSimulator';
 import { Button } from '@/components/ui/button';
@@ -127,11 +127,24 @@ const Payment = () => {
         return;
       }
       
+      if (!state.slotId || state.slotId === 'new') {
+        toast({
+          title: "Invalid Slot",
+          description: "No valid slot was selected. Please go back and select another time.",
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
+      console.log(`Processing payment for slot ID: ${state.slotId}`);
+      
       // First check if slot is still available before processing payment
       const { data: slot, error: slotError } = await supabase
         .from('slots')
         .select('is_booked, worker_id')
-        .eq('id', state.slotId);
+        .eq('id', state.slotId)
+        .maybeSingle();
       
       if (slotError) {
         console.error("Error checking slot availability:", slotError);
@@ -139,26 +152,32 @@ const Payment = () => {
       }
       
       // Make sure we found the slot
-      if (!slot || slot.length === 0) {
+      if (!slot) {
+        console.error("Slot not found:", state.slotId);
         throw new Error('Slot not found. Please go back and select another time.');
       }
       
       // Check if slot is already booked
-      if (slot[0].is_booked) {
+      if (slot.is_booked) {
+        console.error("Slot is already booked:", state.slotId);
         throw new Error('This time slot has already been booked. Please select another time.');
       }
       
-      console.log("Slot status:", slot[0]);
+      console.log("Slot status:", slot);
       
-      // Mark the slot as booked
-      const { error: updateError } = await supabase
-        .from('slots')
-        .update({ is_booked: true })
-        .eq('id', state.slotId);
-      
-      if (updateError) {
-        console.error("Error updating slot status:", updateError);
-        throw new Error(`Error updating slot: ${updateError.message}`);
+      try {
+        // Book the slot
+        const bookingResult = await bookSlot(
+          state.slotId,
+          state.services.map((service: any) => service.name).join(", "),
+          state.totalDuration,
+          state.totalPrice
+        );
+        
+        console.log("Booking result:", bookingResult);
+      } catch (bookError: any) {
+        console.error("Error booking slot:", bookError);
+        throw new Error(`Failed to book slot: ${bookError.message}`);
       }
       
       // Update user's coins if used
@@ -187,7 +206,7 @@ const Payment = () => {
         additional_notes: state.notes || '',
         status: 'pending',
         slot_id: state.slotId,
-        worker_id: state.workerId || slot[0].worker_id || null,
+        worker_id: state.workerId || slot.worker_id || null,
         coins_earned: 0,
         coins_used: coinsUsed
       };

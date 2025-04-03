@@ -57,7 +57,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
   };
 
   const handleTimeSelect = (time: string, slotId: string, workerId?: string, workerName?: string) => {
-    console.log(`Time selected: ${time}, SlotId: ${slotId}, WorkerId: ${workerId}`);
+    console.log(`Time selected: ${time}, SlotId: ${slotId || 'new'}, WorkerId: ${workerId || 'none'}`);
     setSelectedTime(time);
     setSelectedSlotId(slotId);
     setSelectedWorkerId(workerId || null);
@@ -146,8 +146,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
       let workerIdToUse = selectedWorkerId;
       let workerNameToUse = selectedWorkerName;
       
-      // If no slot ID or the slot ID is 'new', we need to check availability and possibly create a new slot
-      if (!slotIdToUse || slotIdToUse === 'new') {
+      // If no slot ID or empty slot ID, check availability and create a new slot
+      if (!slotIdToUse || slotIdToUse === '') {
         console.log("No valid slot ID, checking availability...");
         const { available, slotId, workerId, workerName } = await checkSlotAvailability(
           salonId, 
@@ -156,7 +156,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
           totalDuration
         );
         
-        if (!available) {
+        if (!available || !slotId) {
           toast({
             title: "Slot no longer available",
             description: "Sorry, this time slot has just been booked. Please select another time.",
@@ -171,11 +171,14 @@ const BookingForm: React.FC<BookingFormProps> = ({
         }
         
         slotIdToUse = slotId;
+        console.log(`Created new slot with ID: ${slotId}`);
+        
         if (workerId) workerIdToUse = workerId;
         if (workerName) workerNameToUse = workerName;
       }
       
-      if (!slotIdToUse || slotIdToUse === 'new') {
+      // Final check for valid slot ID before proceeding
+      if (!slotIdToUse || slotIdToUse === '') {
         toast({
           title: "No available slot",
           description: "Could not find or create an available slot. Please try another time.",
@@ -188,20 +191,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
       console.log(`Using slot ID: ${slotIdToUse}`);
       
       const serviceName = selectedServices.map(s => s.name).join(', ');
-      const { workerId: confirmedWorkerId, workerName: confirmedWorkerName } = await bookSlot(
-        slotIdToUse,
-        serviceName,
-        totalDuration,
-        totalPrice
-      );
-
-      console.log("Navigating to payment with data:", {
-        date: formattedDate,
-        selectedDate: selectedDate,
-        timeSlot: selectedTime,
-        slotId: slotIdToUse,
-      });
-
+      
       navigate('/payment', {
         state: {
           salonId,
@@ -215,8 +205,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
           totalPrice,
           totalDuration,
           slotId: slotIdToUse,
-          workerId: workerIdToUse || confirmedWorkerId,
-          workerName: workerNameToUse || confirmedWorkerName
+          workerId: workerIdToUse,
+          workerName: workerNameToUse
         }
       });
     } catch (error: any) {
