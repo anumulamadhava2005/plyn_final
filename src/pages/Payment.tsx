@@ -158,6 +158,9 @@ const Payment = () => {
       
       const bookingId = await createBooking(bookingData);
       
+      // Generate a transaction ID for the payment
+      const transactionId = `payment_${Date.now()}`;
+      
       // Create payment record directly in database
       const { data: paymentRecord, error: paymentError } = await supabase
         .from('payments')
@@ -167,7 +170,7 @@ const Payment = () => {
           amount: totalPrice,
           payment_status: 'completed',
           coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
-          transaction_id: `payment_${Date.now()}`
+          transaction_id: transactionId
         })
         .select('id')
         .single();
@@ -186,10 +189,9 @@ const Payment = () => {
         })
         .eq('id', bookingId);
       
-      // Navigate to confirmation page
+      // Navigate to confirmation page with only primitive values
       navigate('/booking-confirmation', { 
         state: { 
-          id: bookingId,
           bookingId: bookingId,
           salonName,
           services,
@@ -201,7 +203,7 @@ const Payment = () => {
           coinsEarned: 0,
           paymentDetails: {
             paymentMethod: values.paymentMethod,
-            paymentId: paymentRecord.id
+            paymentId: transactionId
           },
           paymentStatus: 'completed'
         }

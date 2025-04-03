@@ -39,9 +39,9 @@ interface BookingData {
     paymentId?: string;
     cardNumber?: string;
   };
+  paymentStatus?: string;
   coinsUsed?: number;
   coinsEarned?: number;
-  // Add any other fields that might be in your booking data
 }
 
 const BookingConfirmation = () => {
@@ -53,7 +53,7 @@ const BookingConfirmation = () => {
   
   useEffect(() => {
     // Show success notification when component mounts
-    if (bookingData) {
+    if (bookingData && (bookingData.bookingId || bookingData.id)) {
       showBookingSuccessNotification(bookingData);
     }
   }, [bookingData]);
@@ -202,7 +202,7 @@ const BookingConfirmation = () => {
                   <div>
                     <h3 className="font-medium mb-3">Services Booked</h3>
                     <ul className="space-y-2">
-                      {bookingData.services && bookingData.services.map((service: any, index: number) => (
+                      {bookingData.services && bookingData.services.map((service, index) => (
                         <li key={index} className="flex justify-between text-sm">
                           <div className="flex items-center">
                             <CheckCircle className="h-4 w-4 mr-2 text-green-500" />

@@ -27,17 +27,6 @@ interface MerchantData {
   updated_at: string;
 }
 
-// Add missing prop types
-interface MerchantSidebarProps {
-  activeView: string;
-  onViewChange: React.Dispatch<React.SetStateAction<string>>;
-  merchantData: MerchantData | null;
-}
-
-interface DashboardMetricsProps {
-  merchantId: string;
-}
-
 const MerchantDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -175,11 +164,13 @@ const MerchantDashboard = () => {
   return (
     <PageTransition>
       <div className="flex min-h-screen bg-background">
-        <MerchantSidebar 
-          activeView={selectedView} 
-          onViewChange={setSelectedView}
-          merchantData={merchantData}
-        />
+        {merchantData && (
+          <MerchantSidebar 
+            activeView={selectedView} 
+            onViewChange={setSelectedView}
+            merchantData={merchantData}
+          />
+        )}
         
         <div className="flex-1 p-6 lg:p-10 overflow-y-auto">
           {loading ? (
@@ -188,46 +179,49 @@ const MerchantDashboard = () => {
             </div>
           ) : (
             <>
-              {selectedView === 'dashboard' && (
+              {selectedView === 'dashboard' && merchantId && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Dashboard</h1>
+                  
                   <DashboardMetrics 
-                    merchantId={merchantId || ''} 
+                    merchantId={merchantId} 
                   />
                   
                   <div className="mt-8">
-                    <AppointmentsList 
-                      merchantId={merchantId || ''} 
-                    />
+                    {merchantId && (
+                      <AppointmentsList 
+                        merchantId={merchantId} 
+                      />
+                    )}
                   </div>
                 </div>
               )}
 
-              {selectedView === 'slots' && (
+              {selectedView === 'slots' && merchantId && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Manage Slots</h1>
-                  <SlotManager merchantId={merchantId || ''} />
+                  <SlotManager merchantId={merchantId} />
                 </div>
               )}
 
-              {selectedView === 'workers' && (
+              {selectedView === 'workers' && merchantId && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Manage Workers</h1>
-                  <WorkerManager merchantId={merchantId || ''} />
+                  <WorkerManager merchantId={merchantId} />
                 </div>
               )}
 
-              {selectedView === 'services' && (
+              {selectedView === 'services' && merchantId && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Manage Services</h1>
-                  <MerchantServices merchantId={merchantId || ''} />
+                  <MerchantServices merchantId={merchantId} />
                 </div>
               )}
 
-              {selectedView === 'settings' && (
+              {selectedView === 'settings' && merchantId && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Settings</h1>
-                  <MerchantSettingsManager merchantId={merchantId || ''} />
+                  <MerchantSettingsManager merchantId={merchantId} />
                 </div>
               )}
 

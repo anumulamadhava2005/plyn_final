@@ -94,8 +94,14 @@ export const usePayment = (): PaymentHookReturn => {
         // Navigate to confirmation page - ensure all values are primitive types, not objects
         navigate('/booking-confirmation', {
           state: {
-            ...booking,
-            bookingId: booking.id,
+            // Only include primitive values from booking, converting objects to primitives
+            bookingId: booking?.id || '',
+            salonName: booking?.salonName || '',
+            services: booking?.services || [],
+            date: booking?.date || '',
+            timeSlot: booking?.timeSlot || '',
+            totalPrice: booking?.totalPrice || 0,
+            totalDuration: booking?.totalDuration || 0,
             paymentDetails: {
               paymentMethod: 'plyn_coins',
               paymentId: transactionId
