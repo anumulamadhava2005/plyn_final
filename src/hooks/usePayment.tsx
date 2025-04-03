@@ -56,7 +56,8 @@ export const usePayment = (): PaymentHookReturn => {
           throw new Error('Failed to update coin balance');
         }
         
-        // Create payment record
+        // Create payment record - ensure we're using string transaction_id, not an object
+        const transactionId = `coins_${Date.now()}`;
         const { data: payment, error: paymentError } = await supabase
           .from('payments')
           .insert({
@@ -65,7 +66,7 @@ export const usePayment = (): PaymentHookReturn => {
             amount: amount,
             payment_status: 'completed',
             coins_used: coinsRequired,
-            transaction_id: `coins_${Date.now()}`
+            transaction_id: transactionId
           })
           .select()
           .single();
@@ -90,13 +91,14 @@ export const usePayment = (): PaymentHookReturn => {
           }
         }
         
-        // Navigate to confirmation page
+        // Navigate to confirmation page - ensure all values are primitive types, not objects
         navigate('/booking-confirmation', {
           state: {
             ...booking,
+            bookingId: booking.id,
             paymentDetails: {
               paymentMethod: 'plyn_coins',
-              paymentId: payment.transaction_id
+              paymentId: transactionId
             },
             paymentStatus: 'completed',
             coinsUsed: coinsRequired

@@ -27,6 +27,17 @@ interface MerchantData {
   updated_at: string;
 }
 
+// Add missing prop types
+interface MerchantSidebarProps {
+  activeView: string;
+  onViewChange: React.Dispatch<React.SetStateAction<string>>;
+  merchantData: MerchantData | null;
+}
+
+interface DashboardMetricsProps {
+  merchantId: string;
+}
+
 const MerchantDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();

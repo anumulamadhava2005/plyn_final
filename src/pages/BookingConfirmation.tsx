@@ -21,12 +21,35 @@ import PageTransition from '@/components/transitions/PageTransition';
 import { useEffect } from 'react';
 import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
 
+interface BookingData {
+  bookingId?: string;
+  id?: string; // Support both formats
+  salonName?: string;
+  serviceName?: string;
+  services?: Array<{name: string, price: number}>;
+  date?: string;
+  time?: string;
+  timeSlot?: string;
+  totalDuration?: number;
+  servicePrice?: number;
+  totalPrice?: number;
+  finalPrice?: number;
+  paymentDetails?: {
+    paymentMethod?: string;
+    paymentId?: string;
+    cardNumber?: string;
+  };
+  coinsUsed?: number;
+  coinsEarned?: number;
+  // Add any other fields that might be in your booking data
+}
+
 const BookingConfirmation = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
   // Get booking data from location state
-  const bookingData = location.state;
+  const bookingData: BookingData = location.state || {};
   
   useEffect(() => {
     // Show success notification when component mounts
@@ -36,7 +59,7 @@ const BookingConfirmation = () => {
   }, [bookingData]);
   
   // If no booking data, redirect to book now page
-  if (!bookingData) {
+  if (!bookingData || (!bookingData.bookingId && !bookingData.id)) {
     navigate('/book-now');
     return null;
   }
@@ -46,10 +69,10 @@ const BookingConfirmation = () => {
   };
 
   // Format payment method for display
-  const getFormattedPaymentMethod = (method) => {
+  const getFormattedPaymentMethod = (method?: string): string => {
     if (!method) return 'Payment complete';
     
-    const methodMap = {
+    const methodMap: {[key: string]: string} = {
       'credit_card': 'Credit Card',
       'plyn_coins': 'PLYN Coins',
       'phonepe': 'PhonePe',
@@ -62,6 +85,9 @@ const BookingConfirmation = () => {
     
     return methodMap[method] || method.replace('_', ' ');
   };
+
+  // Ensure we have a valid booking ID for display
+  const displayBookingId = bookingData.bookingId || bookingData.id || 'Unknown';
 
   return (
     <PageTransition>
@@ -105,7 +131,7 @@ const BookingConfirmation = () => {
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h2 className="text-xl font-semibold">Booking Details</h2>
-                    <p className="text-sm text-muted-foreground">Reference: {bookingData.bookingId}</p>
+                    <p className="text-sm text-muted-foreground">Reference: {displayBookingId}</p>
                   </div>
                   <div className="print:hidden flex gap-2">
                     <button onClick={handlePrint} className="p-2 rounded-md hover:bg-accent/50">
