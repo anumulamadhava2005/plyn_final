@@ -73,9 +73,17 @@ const MyBookings = () => {
     }
   };
 
+  // Helper function to determine which tab a booking belongs to
+  const getBookingStatus = (status: string) => {
+    if (status === 'completed') return 'completed';
+    if (status === 'cancelled' || status === 'missed') return 'cancelled';
+    return 'upcoming'; // pending, confirmed are all considered upcoming
+  };
+
   const filteredBookings = bookings.filter((booking) => {
     if (selectedTab === 'upcoming') {
-      return booking.status === 'upcoming';
+      // Include pending and confirmed bookings in the upcoming tab
+      return ['pending', 'confirmed', 'upcoming'].includes(booking.status);
     } else if (selectedTab === 'completed') {
       return booking.status === 'completed';
     } else if (selectedTab === 'cancelled') {
@@ -83,6 +91,23 @@ const MyBookings = () => {
     }
     return true;
   });
+
+  // Helper function to get badge styling based on status
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-800/30 dark:text-blue-400';
+      case 'completed':
+        return 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-400';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 dark:bg-red-800/30 dark:text-red-400';
+      case 'missed':
+        return 'bg-amber-100 text-amber-800 dark:bg-amber-800/30 dark:text-amber-400';
+      case 'pending':
+      default:
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/30 dark:text-yellow-400';
+    }
+  };
 
   return (
     <PageTransition>
@@ -121,12 +146,9 @@ const MyBookings = () => {
                             <p className="text-muted-foreground">{booking.service_name}</p>
                           </div>
                           <Badge
-                            className={`mt-2 md:mt-0 ${booking.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-400' : 
-                            booking.status === 'upcoming' ? 'bg-blue-100 text-blue-800 dark:bg-blue-800/30 dark:text-blue-400' : 
-                            booking.status === 'missed' ? 'bg-amber-100 text-amber-800 dark:bg-amber-800/30 dark:text-amber-400' :
-                            'bg-red-100 text-red-800 dark:bg-red-800/30 dark:text-red-400'}`}
+                            className={`mt-2 md:mt-0 ${getStatusBadgeStyle(booking.status)}`}
                           >
-                            {booking.status === 'missed' ? 'Missed' : booking.status}
+                            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                           </Badge>
                         </div>
                         
@@ -147,7 +169,7 @@ const MyBookings = () => {
                           </div>
                         </div>
                         
-                        {booking.status === 'upcoming' && (
+                        {(['pending', 'confirmed'].includes(booking.status)) && (
                           <div className="mt-4 flex justify-end">
                             <Button
                               variant="outline"

@@ -130,12 +130,14 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           const isSelected = time === selectedTime;
           const slotInfo = hasExistingSlots[time];
           
-          // Determine the slot ID to use
-          let slotId = '';
-          if (slotInfo && !slotInfo.isBooked) {
-            slotId = slotInfo.id;
-            console.log(`Using existing slot ID ${slotId} for time ${time}`);
+          // Skip slots that are already booked
+          if (slotInfo && slotInfo.isBooked) {
+            return null;
           }
+          
+          // Determine the slot ID to use - either an existing one or empty string
+          // We'll create a new slot on backend if empty
+          let slotId = slotInfo ? slotInfo.id : '';
           
           // Use the first available worker for this slot
           const firstWorker = availableWorkers[0];
@@ -150,7 +152,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                 console.log(`Selected time ${time} with slot ID: ${slotId}`);
                 onTimeSelect(
                   time, 
-                  slotId, // Either an existing slot ID or empty string for new slot
+                  slotId, 
                   firstWorker.workerId,
                   firstWorker.name
                 );
