@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { checkSlotAvailability, createBooking, bookSlot, cancelBookingAndRefund } from '@/utils/bookingUtils';
+import { checkSlotAvailability, createBooking, bookSlot } from '@/utils/bookingUtils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -35,7 +35,7 @@ const Payment = () => {
     totalPrice, 
     totalDuration,
     slotId,
-    selectedWorkerId
+    workerId
   } = location.state || {};
   
   useEffect(() => {
@@ -101,7 +101,7 @@ const Payment = () => {
     try {
       // If a specific slotId was provided (from booking form)
       let slotToUse = slotId;
-      let workerId = selectedWorkerId;
+      let workerIdToUse = workerId;
       
       if (slotToUse) {
         // Just verify that the slot still exists
@@ -133,7 +133,7 @@ const Payment = () => {
         
         // Store worker ID from the slot if available
         if (slotExists.worker_id) {
-          workerId = slotExists.worker_id;
+          workerIdToUse = slotExists.worker_id;
         }
       } else {
         // If no slotId was provided, try to find the slot based on date and time
@@ -172,11 +172,11 @@ const Payment = () => {
           
           // Get worker ID if available
           if (availableSlot.worker_id) {
-            workerId = availableSlot.worker_id;
+            workerIdToUse = availableSlot.worker_id;
           }
           
           // If no worker assigned yet, try to find one
-          if (!workerId) {
+          if (!workerIdToUse) {
             try {
               const { data: availableWorkers, error: workersError } = await supabase
                 .from('workers')
@@ -186,7 +186,7 @@ const Payment = () => {
                 .limit(1);
               
               if (!workersError && availableWorkers && availableWorkers.length > 0) {
-                workerId = availableWorkers[0].id;
+                workerIdToUse = availableWorkers[0].id;
               }
             } catch (error) {
               console.error("Error finding available worker:", error);
@@ -224,9 +224,9 @@ const Payment = () => {
         additional_notes: values.notes,
         status: 'pending', // Will be updated to confirmed after payment
         slot_id: slotToUse,
-        worker_id: workerId || null,
-        coins_earned: 0,
-        coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
+        worker_id: workerIdToUse || null,
+        coins_earned: 0, // Using snake_case to match database columns
+        coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0, // Using snake_case to match database columns
       };
       
       const { id: bookingId } = await createBooking(bookingData);

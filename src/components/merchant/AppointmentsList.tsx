@@ -178,7 +178,7 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
             <Card key={appointment.id} className="p-5 relative">
               <div className="absolute top-4 right-4">
                 {appointment.status === 'confirmed' && (
-                  <Badge variant="success" className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-1">
+                  <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-1">
                     <CheckCircle2 className="h-4 w-4" />
                     Confirmed
                   </Badge>
