@@ -1,17 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { fetchUserBookings, cancelBookingAndRefund } from '@/utils/bookingUtils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { format } from 'date-fns';
-import { X, Calendar, ChevronLeft } from 'lucide-react';
+import { Calendar, ChevronLeft, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PageTransition from '@/components/transitions/PageTransition';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const MyBookings = () => {
   const navigate = useNavigate();
@@ -74,22 +71,14 @@ const MyBookings = () => {
   };
 
   // Helper function to determine which tab a booking belongs to
-  const getBookingStatus = (status: string) => {
+  const getBookingTab = (status: string) => {
     if (status === 'completed') return 'completed';
-    if (status === 'cancelled' || status === 'missed') return 'cancelled';
-    return 'upcoming'; // pending, confirmed are all considered upcoming
+    if (['cancelled', 'missed'].includes(status)) return 'cancelled';
+    return 'upcoming'; // pending and confirmed are considered upcoming
   };
 
   const filteredBookings = bookings.filter((booking) => {
-    if (selectedTab === 'upcoming') {
-      // Include pending and confirmed bookings in the upcoming tab
-      return ['pending', 'confirmed', 'upcoming'].includes(booking.status);
-    } else if (selectedTab === 'completed') {
-      return booking.status === 'completed';
-    } else if (selectedTab === 'cancelled') {
-      return booking.status === 'cancelled' || booking.status === 'missed';
-    }
-    return true;
+    return getBookingTab(booking.status) === selectedTab;
   });
 
   // Helper function to get badge styling based on status

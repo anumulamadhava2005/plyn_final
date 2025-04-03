@@ -1,4 +1,3 @@
-
 import { addDays, format, isAfter, isBefore, parse, parseISO, addMinutes } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { getAvailableTimeSlots, generateSalonTimeSlots, findAvailableTimeSlots } from './slotUtils';
@@ -421,18 +420,14 @@ export const fetchUserBookings = async (userId: string): Promise<any[]> => {
     // Run the missed appointment check when fetching bookings
     await markMissedAppointments();
 
-    // Convert status to match the expected format in the UI
+    // Convert status to display format for UI
     return (data || []).map(booking => ({
       ...booking,
-      status: booking.status === 'confirmed' 
-        ? 'upcoming' 
-        : booking.status === 'cancelled' 
-          ? 'cancelled' 
-          : booking.status === 'missed'
-            ? 'missed'
-            : isBookingInPast(booking.booking_date) 
-              ? 'completed' 
-              : 'upcoming'
+      // Keep the original status from database instead of overriding it
+      // Only override the status if it's not explicitly set and is in the past
+      status: booking.status === 'confirmed' && isBookingInPast(booking.booking_date, booking.time_slot)
+        ? 'completed'
+        : booking.status
     }));
   } catch (error) {
     console.error("Error in fetchUserBookings:", error);
@@ -441,17 +436,17 @@ export const fetchUserBookings = async (userId: string): Promise<any[]> => {
 };
 
 // Helper function to check if a booking is in the past
-const isBookingInPast = (bookingDate: string | null): boolean => {
-  if (!bookingDate) return false;
+const isBookingInPast = (bookingDate: string | null, timeSlot: string | null): boolean => {
+  if (!bookingDate || !timeSlot) return false;
   
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
     
-    const date = new Date(bookingDate);
-    date.setHours(0, 0, 0, 0);
+    // Parse the booking datetime
+    const [startTime] = timeSlot.split(' - ');
+    const bookingDateTime = new Date(`${bookingDate}T${startTime}`);
     
-    return date < today;
+    return bookingDateTime < now;
   } catch {
     return false;
   }
