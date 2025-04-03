@@ -1,227 +1,177 @@
 
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Clock, Check } from 'lucide-react';
-import { format, addMinutes, parseISO } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
+import { format, addDays, isBefore, startOfDay } from 'date-fns';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/components/ui/use-toast';
-import { fetchAvailableSlots, createDynamicTimeSlots } from '@/utils/bookingUtils';
-import { supabase } from "@/integrations/supabase/client";
+import { getAvailableSlotsWithWorkers } from '@/utils/workerSchedulingUtils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface BookingCalendarProps {
   salonId: string;
-  onDateChange: (date: Date) => void;
-  onTimeSelect: (time: string, slotId: string) => void;
   selectedDate: Date;
   selectedTime: string | null;
+  serviceDuration?: number;
+  onDateChange: (date: Date) => void;
+  onTimeSelect: (time: string, slotId: string, workerId?: string, workerName?: string) => void;
 }
 
-const BookingCalendar: React.FC<BookingCalendarProps> = ({
+const BookingCalendar: React.FC<BookingCalendarProps> = ({ 
   salonId,
-  onDateChange,
-  onTimeSelect,
   selectedDate,
-  selectedTime
+  selectedTime,
+  serviceDuration = 30,
+  onDateChange,
+  onTimeSelect
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [generatingSlots, setGeneratingSlots] = useState(false);
-  const { toast } = useToast();
-
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<Array<{
+    time: string; 
+    availableWorkers: Array<{
+      workerId: string;
+      name: string;
+      nextAvailableTime: string;
+      specialty?: string;
+    }>;
+  }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasExistingSlots, setHasExistingSlots] = useState<{[key: string]: boolean}>({});
+  
+  // When date changes, fetch available slots
   useEffect(() => {
     if (salonId && selectedDate) {
-      loadAvailableSlots();
+      fetchAvailableSlots();
     }
-  }, [salonId, selectedDate]);
-
-  const loadAvailableSlots = async () => {
-    setIsLoading(true);
+  }, [salonId, selectedDate, serviceDuration]);
+  
+  // Fetch available time slots for the selected date
+  const fetchAvailableSlots = async () => {
+    setLoading(true);
     try {
-      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+      const dateString = format(selectedDate, 'yyyy-MM-dd');
       
-      // First, check if any slots exist for this date
-      let slots = await fetchAvailableSlots(salonId, formattedDate);
+      // Get available time slots with workers for this date and service duration
+      const slots = await getAvailableSlotsWithWorkers(
+        salonId, 
+        dateString, 
+        serviceDuration
+      );
       
-      // If no slots exist, try to generate dynamic slots
-      if (slots.length === 0) {
-        setGeneratingSlots(true);
+      setAvailableTimeSlots(slots);
+      
+      // Check if we have any existing slots in the database
+      const { data } = await supabase
+        .from('slots')
+        .select('id, start_time, worker_id, is_booked')
+        .eq('merchant_id', salonId)
+        .eq('date', dateString);
         
-        // Fetch service durations for this merchant to create appropriate slots
-        const { data: serviceData, error: serviceError } = await supabase
-          .from('services')
-          .select('duration')
-          .eq('merchant_id', salonId);
-        
-        if (!serviceError && serviceData && serviceData.length > 0) {
-          // Extract unique service durations
-          const durations = [...new Set(serviceData.map(s => s.duration))];
-          
-          // Generate slots based on service durations
-          await createDynamicTimeSlots(salonId, selectedDate);
-        } else {
-          // If no service durations are found, create default slots with
-          // multiple durations for flexibility
-          await createDynamicTimeSlots(salonId, selectedDate);
-        }
-        
-        // Now fetch the newly created slots
-        slots = await fetchAvailableSlots(salonId, formattedDate);
-        setGeneratingSlots(false);
+      // Create a map of existing slots
+      const existingSlotsMap: {[key: string]: {id: string, workerId: string, isBooked: boolean}} = {};
+      
+      if (data) {
+        data.forEach(slot => {
+          if (!existingSlotsMap[slot.start_time] || !slot.is_booked) {
+            existingSlotsMap[slot.start_time] = {
+              id: slot.id,
+              workerId: slot.worker_id,
+              isBooked: slot.is_booked
+            };
+          }
+        });
       }
       
-      setAvailableSlots(slots);
-    } catch (error: any) {
-      console.error('Error loading slots:', error);
-      toast({
-        title: 'Error loading available times',
-        description: error.message || 'Could not load available time slots',
-        variant: 'destructive',
+      // Update the state with existing slots
+      const hasSlots: {[key: string]: boolean} = {};
+      Object.keys(existingSlotsMap).forEach(time => {
+        hasSlots[time] = true;
       });
-      setAvailableSlots([]);
-      setGeneratingSlots(false);
+      
+      setHasExistingSlots(hasSlots);
+    } catch (error) {
+      console.error("Error fetching available slots:", error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
-
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      onDateChange(date);
-      // Clear selected time when date changes
-      onTimeSelect('', '');
-    }
+  
+  // Disable dates before today
+  const disabledDates = {
+    before: startOfDay(new Date())
   };
 
-  const groupSlotsByHour = () => {
-    const grouped: Record<string, any[]> = {};
-    
-    availableSlots.forEach(slot => {
-      const hour = slot.start_time.split(':')[0];
-      if (!grouped[hour]) {
-        grouped[hour] = [];
-      }
-      grouped[hour].push(slot);
-    });
-    
-    return Object.entries(grouped).sort(([hourA], [hourB]) => 
-      parseInt(hourA) - parseInt(hourB)
+  // Format slots for display
+  const renderTimeSlots = () => {
+    if (loading) {
+      return (
+        <div className="grid grid-cols-3 gap-2">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-10 rounded-md" />
+          ))}
+        </div>
+      );
+    }
+
+    if (availableTimeSlots.length === 0) {
+      return (
+        <div className="text-center py-4 text-muted-foreground">
+          No available slots for this date.
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-3 gap-2">
+        {availableTimeSlots.map(({ time, availableWorkers }) => {
+          const isSelected = time === selectedTime;
+          const slotId = hasExistingSlots[time] ? 
+            hasExistingSlots[time].id : 
+            'new';
+          
+          // Use the first available worker for this slot
+          const firstWorker = availableWorkers[0];
+          
+          return (
+            <Button
+              key={time}
+              size="sm"
+              variant={isSelected ? "default" : "outline"}
+              className={`${isSelected ? '' : 'hover:bg-primary/10'}`}
+              onClick={() => onTimeSelect(
+                time, 
+                slotId, 
+                firstWorker.workerId,
+                firstWorker.name
+              )}
+            >
+              {time}
+              {availableWorkers.length > 1 && (
+                <span className="ml-1 text-xs opacity-70">
+                  ({availableWorkers.length})
+                </span>
+              )}
+            </Button>
+          );
+        })}
+      </div>
     );
   };
 
-  // Format duration to display to the user (e.g., "30 min")
-  const formatDuration = (slot: any) => {
-    if (!slot.service_duration) return '';
-    return `${slot.service_duration} min`;
-  };
-
-  // Calculate end time display for a slot
-  const calculateEndTime = (startTime: string, durationMinutes: number) => {
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const startDate = new Date();
-    startDate.setHours(hours, minutes, 0, 0);
-    const endDate = addMinutes(startDate, durationMinutes);
-    return format(endDate, 'HH:mm');
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <Calendar
+        mode="single"
+        selected={selectedDate}
+        onSelect={(date) => date && onDateChange(date)}
+        disabled={disabledDates}
+        className="rounded-md border"
+      />
+      
       <div>
-        <label className="block text-sm font-medium mb-2">Select Date</label>
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className="w-full justify-start text-left"
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'Select date'}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleDateSelect}
-              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Available Times</label>
-        {isLoading || generatingSlots ? (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            {generatingSlots && <p className="text-xs text-muted-foreground text-center mt-2">Generating available slots...</p>}
-          </div>
-        ) : availableSlots.length > 0 ? (
-          <div className="space-y-4">
-            {groupSlotsByHour().map(([hour, slots]) => (
-              <div key={hour} className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  {parseInt(hour) < 12 
-                    ? `${hour} AM` 
-                    : parseInt(hour) === 12 
-                      ? '12 PM' 
-                      : `${parseInt(hour) - 12} PM`}
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {slots.map((slot) => (
-                    <Button
-                      key={slot.id}
-                      variant={selectedTime === slot.start_time ? "default" : "outline"}
-                      size="sm"
-                      className="justify-start relative"
-                      onClick={() => onTimeSelect(slot.start_time, slot.id)}
-                    >
-                      <div className="flex items-center">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{slot.start_time} - {slot.end_time}</span>
-                        <span className="ml-1 text-xs opacity-70">{formatDuration(slot)}</span>
-                      </div>
-                      {selectedTime === slot.start_time && (
-                        <div className="absolute -top-1 -right-1">
-                          <div className="bg-primary rounded-full p-0.5">
-                            <Check className="h-3 w-3 text-primary-foreground" />
-                          </div>
-                        </div>
-                      )}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-muted/40 rounded-md p-4 text-center">
-            <p className="text-muted-foreground">
-              {selectedDate 
-                ? 'No available time slots for the selected date' 
-                : 'Please select a date to see available times'}
-            </p>
-            {selectedDate && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="mt-2"
-                onClick={() => {
-                  const tomorrow = new Date(selectedDate);
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  handleDateSelect(tomorrow);
-                }}
-              >
-                Try tomorrow
-              </Button>
-            )}
-          </div>
-        )}
+        <h3 className="text-sm font-medium mb-2">
+          Available Times for {format(selectedDate, 'EEEE, MMMM d')}
+        </h3>
+        {renderTimeSlots()}
       </div>
     </div>
   );

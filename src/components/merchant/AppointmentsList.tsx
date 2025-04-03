@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,6 +41,8 @@ type Booking = {
   additional_notes?: string;
   user_id?: string;
   customer_name?: string;
+  worker_id?: string;
+  worker_name?: string;
 };
 
 const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
@@ -71,7 +74,8 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
           customer_email, 
           customer_phone, 
           additional_notes,
-          user_id
+          user_id,
+          worker_id
         `)
         .eq('merchant_id', merchantId)
         .order('booking_date', { ascending: false });
@@ -85,8 +89,10 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
       if (error) throw error;
 
       if (data) {
-        const bookingsWithUserInfo = await Promise.all(
+        const bookingsWithInfo = await Promise.all(
           data.map(async (booking) => {
+            // Get user info for the customer
+            let customerName = 'Anonymous';
             if (booking.user_id) {
               const { data: userData } = await supabase
                 .from('profiles')
@@ -94,16 +100,34 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
                 .eq('id', booking.user_id)
                 .single();
 
-              return {
-                ...booking,
-                customer_name: userData?.username || 'Anonymous'
-              };
+              if (userData) {
+                customerName = userData.username;
+              }
             }
-            return booking;
+            
+            // Get worker info
+            let workerName = 'Not assigned';
+            if (booking.worker_id) {
+              const { data: workerData } = await supabase
+                .from('workers')
+                .select('name')
+                .eq('id', booking.worker_id)
+                .single();
+
+              if (workerData) {
+                workerName = workerData.name;
+              }
+            }
+
+            return {
+              ...booking,
+              customer_name: customerName,
+              worker_name: workerName
+            };
           })
         );
 
-        setBookings(bookingsWithUserInfo);
+        setBookings(bookingsWithInfo);
       }
     } catch (error) {
       console.error("Error fetching bookings:", error);
@@ -213,6 +237,7 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
               <TableHead>Time</TableHead>
               <TableHead>Services</TableHead>
               <TableHead>Customer</TableHead>
+              <TableHead>Stylist</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -244,6 +269,9 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
                       </div>
                     )}
                   </div>
+                </TableCell>
+                <TableCell>
+                  <span className="font-medium">{booking.worker_name || "Not assigned"}</span>
                 </TableCell>
                 <TableCell>{getStatusBadge(booking.status)}</TableCell>
                 <TableCell className="text-right">

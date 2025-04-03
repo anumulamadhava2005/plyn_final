@@ -1,8 +1,8 @@
-
 import { addDays, format, isAfter, isBefore, parse, parseISO } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { getAvailableTimeSlots, generateSalonTimeSlots, findAvailableTimeSlots } from './slotUtils';
 import { WorkerAvailability } from '@/types/admin';
+import { findAvailableWorker } from './workerSchedulingUtils';
 
 // Export functions from slotUtils that are imported by other files
 export { getAvailableTimeSlots as fetchAvailableSlots } from './slotUtils';
@@ -32,46 +32,83 @@ export const fetchMerchantSlots = async (merchantId: string) => {
   return data || [];
 };
 
-// Check slot availability
+// Check slot availability with dynamic worker assignment
 export const checkSlotAvailability = async (
   merchantId: string,
   date: string,
-  time: string
-): Promise<{ available: boolean; slotId: string; workerId?: string }> => {
+  time: string,
+  serviceDuration: number = 30
+): Promise<{ available: boolean; slotId: string; workerId?: string, workerName?: string }> => {
   try {
-    // Get all slots matching the criteria to handle potential duplicates
-    const { data, error } = await supabase
+    // First check if there's an existing slot that matches the criteria
+    const { data: existingSlots, error: slotsError } = await supabase
       .from('slots')
-      .select('id, is_booked, worker_id')
+      .select(`
+        id, 
+        is_booked,
+        worker_id,
+        workers (
+          id,
+          name
+        )
+      `)
       .eq('merchant_id', merchantId)
       .eq('date', date)
       .eq('start_time', time);
 
-    if (error) {
-      console.error("Error checking slot availability:", error);
-      throw new Error(`Error checking availability: ${error.message}`);
+    if (slotsError) {
+      console.error("Error checking existing slots:", slotsError);
+      throw new Error(`Error checking available slots: ${slotsError.message}`);
     }
 
-    // Check if we got any results
-    if (!data || data.length === 0) {
-      console.error("No slot found matching the criteria");
-      throw new Error("No slot found for the selected time");
-    }
-
-    // Find the first available slot if there are multiple
-    const availableSlot = data.find(slot => !slot.is_booked);
+    // Find an available slot from existing ones
+    const availableSlot = (existingSlots || []).find(slot => !slot.is_booked);
     
-    if (!availableSlot) {
+    if (availableSlot) {
+      return {
+        available: true,
+        slotId: availableSlot.id,
+        workerId: availableSlot.worker_id,
+        workerName: availableSlot.workers?.name
+      };
+    }
+    
+    // If no existing slot is available, find an available worker
+    const availableWorker = await findAvailableWorker(merchantId, date, time, serviceDuration);
+    
+    if (!availableWorker) {
+      // No workers are available at this time
       return {
         available: false,
-        slotId: data[0].id // Return any slot ID since none are available
+        slotId: (existingSlots && existingSlots.length > 0) ? existingSlots[0].id : ''
       };
+    }
+    
+    // Create a new slot for the available worker
+    const { data: newSlot, error: createError } = await supabase
+      .from('slots')
+      .insert({
+        merchant_id: merchantId,
+        date,
+        start_time: time,
+        end_time: format(addMinutes(new Date(`${date}T${time}`), serviceDuration), 'HH:mm'),
+        worker_id: availableWorker.workerId,
+        service_duration: serviceDuration,
+        is_booked: false
+      })
+      .select('id')
+      .single();
+      
+    if (createError) {
+      console.error("Error creating new slot:", createError);
+      throw new Error(`Error creating new slot: ${createError.message}`);
     }
     
     return {
       available: true,
-      slotId: availableSlot.id,
-      workerId: availableSlot.worker_id
+      slotId: newSlot.id,
+      workerId: availableWorker.workerId,
+      workerName: availableWorker.name
     };
   } catch (error: any) {
     console.error("Error in checkSlotAvailability:", error);
@@ -80,17 +117,52 @@ export const checkSlotAvailability = async (
 };
 
 // Book a slot
-export const bookSlot = async (slotId: string): Promise<void> => {
+export const bookSlot = async (
+  slotId: string,
+  serviceName?: string,
+  serviceDuration?: number,
+  servicePrice?: number
+): Promise<{workerId?: string, workerName?: string}> => {
   try {
+    // First get the slot details to get worker information
+    const { data: slot, error: getError } = await supabase
+      .from('slots')
+      .select(`
+        id, 
+        worker_id,
+        workers (
+          id,
+          name
+        )
+      `)
+      .eq('id', slotId)
+      .single();
+      
+    if (getError) {
+      console.error("Error getting slot details:", getError);
+      throw getError;
+    }
+    
+    // Update the slot to mark it as booked
     const { error } = await supabase
       .from('slots')
-      .update({ is_booked: true })
+      .update({ 
+        is_booked: true,
+        service_name: serviceName || null,
+        service_duration: serviceDuration || 30,
+        service_price: servicePrice || null
+      })
       .eq('id', slotId);
 
     if (error) {
       console.error("Error booking slot:", error);
-      throw new Error(`Error booking slot: ${error.message}`);
+      throw error;
     }
+    
+    return {
+      workerId: slot.worker_id,
+      workerName: slot.workers?.name
+    };
   } catch (error) {
     console.error("Error in bookSlot:", error);
     throw new Error("Could not book the slot");
@@ -115,7 +187,7 @@ export const releaseSlot = async (slotId: string): Promise<void> => {
   }
 };
 
-// Create a booking
+// Create a booking with worker assignment
 export const createBooking = async (bookingData: any): Promise<{ id: string }> => {
   try {
     // Remove payment_method field if it exists in bookingData
@@ -123,10 +195,6 @@ export const createBooking = async (bookingData: any): Promise<{ id: string }> =
       // Store it temporarily if we need it for a payment record
       const paymentMethod = bookingData.payment_method;
       delete bookingData.payment_method;
-      
-      // If we need to create a payment record with this method, we could do it here
-      // For now, let's just log it
-      console.log(`Payment will be processed using: ${paymentMethod}`);
     }
     
     // Remove any fields that don't exist in the bookings table schema

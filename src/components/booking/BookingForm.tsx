@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -30,6 +29,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+  const [selectedWorkerName, setSelectedWorkerName] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -50,12 +50,14 @@ const BookingForm: React.FC<BookingFormProps> = ({
     setSelectedTime(null);
     setSelectedSlotId('');
     setSelectedWorkerId(null);
+    setSelectedWorkerName(null);
   };
 
-  const handleTimeSelect = (time: string, slotId: string, workerId?: string) => {
+  const handleTimeSelect = (time: string, slotId: string, workerId?: string, workerName?: string) => {
     setSelectedTime(time);
     setSelectedSlotId(slotId);
     setSelectedWorkerId(workerId || null);
+    setSelectedWorkerName(workerName || null);
   };
 
   const validateForm = () => {
@@ -120,6 +122,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
         selectedTime,
         selectedSlotId,
         selectedWorkerId,
+        selectedWorkerName,
         email,
         phone,
         notes
@@ -134,10 +137,11 @@ const BookingForm: React.FC<BookingFormProps> = ({
     try {
       const formattedDate = selectedDate.toISOString().split('T')[0];
       
-      const { available, slotId, workerId } = await checkSlotAvailability(
+      const { available, slotId, workerId, workerName } = await checkSlotAvailability(
         salonId, 
         formattedDate, 
-        selectedTime || ''
+        selectedTime || '',
+        totalDuration
       );
       
       if (!available) {
@@ -149,6 +153,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
         setSelectedTime(null);
         setSelectedSlotId('');
         setSelectedWorkerId(null);
+        setSelectedWorkerName(null);
         setIsSubmitting(false);
         return;
       }
@@ -160,9 +165,19 @@ const BookingForm: React.FC<BookingFormProps> = ({
       if (workerId) {
         setSelectedWorkerId(workerId);
       }
-
-      await bookSlot(selectedSlotId);
       
+      if (workerName) {
+        setSelectedWorkerName(workerName);
+      }
+
+      const serviceName = selectedServices.map(s => s.name).join(', ');
+      const { workerId: confirmedWorkerId, workerName: confirmedWorkerName } = await bookSlot(
+        selectedSlotId,
+        serviceName,
+        totalDuration,
+        totalPrice
+      );
+
       navigate('/payment', {
         state: {
           salonId,
@@ -176,7 +191,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
           totalPrice,
           totalDuration,
           slotId: selectedSlotId,
-          workerId: selectedWorkerId || workerId
+          workerId: selectedWorkerId || confirmedWorkerId,
+          workerName: selectedWorkerName || confirmedWorkerName
         }
       });
     } catch (error: any) {
@@ -202,7 +218,15 @@ const BookingForm: React.FC<BookingFormProps> = ({
               selectedTime={selectedTime}
               onDateChange={handleDateChange}
               onTimeSelect={handleTimeSelect}
+              serviceDuration={totalDuration}
             />
+            
+            {selectedWorkerName && (
+              <div className="mt-4 p-3 bg-primary/10 rounded-md">
+                <p className="text-sm font-medium">Your stylist will be:</p>
+                <p className="text-lg font-semibold text-primary">{selectedWorkerName}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
         
