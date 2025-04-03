@@ -22,7 +22,9 @@ interface MerchantData {
   business_phone: string;
   service_category: string;
   status: string;
-  is_active: boolean;
+  is_active?: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 const MerchantDashboard = () => {
@@ -72,7 +74,11 @@ const MerchantDashboard = () => {
           throw merchantError;
         }
 
-        setMerchantData(merchant);
+        // Add is_active property if it doesn't exist
+        setMerchantData({
+          ...merchant,
+          is_active: merchant.status === 'approved'
+        });
       } else {
         // If no merchant ID, redirect to merchant onboarding
         navigate('/merchant-onboarding');
@@ -93,11 +99,19 @@ const MerchantDashboard = () => {
     try {
       const { error } = await supabase
         .from('merchants')
-        .update({ is_active: true })
+        .update({ status: 'approved' })
         .eq('id', merchantId);
 
       if (error) {
         throw error;
+      }
+
+      if (merchantData) {
+        setMerchantData({
+          ...merchantData,
+          status: 'approved',
+          is_active: true
+        });
       }
 
       toast({
@@ -118,11 +132,19 @@ const MerchantDashboard = () => {
     try {
       const { error } = await supabase
         .from('merchants')
-        .update({ is_active: false })
+        .update({ status: 'inactive' })
         .eq('id', merchantId);
 
       if (error) {
         throw error;
+      }
+
+      if (merchantData) {
+        setMerchantData({
+          ...merchantData,
+          status: 'inactive',
+          is_active: false
+        });
       }
 
       toast({
@@ -158,7 +180,9 @@ const MerchantDashboard = () => {
               {selectedView === 'dashboard' && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Dashboard</h1>
-                  <DashboardMetrics merchantId={merchantId || ''} />
+                  <DashboardMetrics 
+                    merchantId={merchantId || ''} 
+                  />
                   
                   <div className="mt-8">
                     <AppointmentsList 
@@ -196,7 +220,7 @@ const MerchantDashboard = () => {
                 </div>
               )}
 
-              {merchantData && !merchantData.is_active && (
+              {merchantData && merchantData.status !== 'approved' && (
                 <Card className="w-full">
                   <CardContent className="py-4">
                     <p className="text-center text-lg">

@@ -166,9 +166,8 @@ const Payment = () => {
           payment_method: values.paymentMethod,
           amount: totalPrice,
           payment_status: 'completed',
-          provider: values.paymentMethod === 'plyn_coins' ? 'plyn_coins' : 'other',
-          payment_id: `payment_${Date.now()}`,
-          coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
+          coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
+          transaction_id: `payment_${Date.now()}`
         })
         .select('id')
         .single();

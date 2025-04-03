@@ -33,12 +33,12 @@ export const usePayment = (): PaymentHookReturn => {
       
       // Handle PLYN Coins payment
       if (paymentMethod === 'plyn_coins') {
-        const { user } = await supabase.auth.getUser();
-        if (!user.data.user) {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user) {
           throw new Error('User not authenticated');
         }
         
-        const userId = user.data.user.id;
+        const userId = userData.user.id;
         
         // Get user's coin balance
         const userCoins = await getUserCoins(userId);
@@ -64,9 +64,8 @@ export const usePayment = (): PaymentHookReturn => {
             payment_method: 'plyn_coins',
             amount: amount,
             payment_status: 'completed',
-            provider: 'plyn_coins',
-            payment_id: `coins_${Date.now()}`,
-            coins_used: coinsRequired
+            coins_used: coinsRequired,
+            transaction_id: `coins_${Date.now()}`
           })
           .select()
           .single();
@@ -97,7 +96,7 @@ export const usePayment = (): PaymentHookReturn => {
             ...booking,
             paymentDetails: {
               paymentMethod: 'plyn_coins',
-              paymentId: payment.payment_id
+              paymentId: payment.transaction_id
             },
             paymentStatus: 'completed',
             coinsUsed: coinsRequired
