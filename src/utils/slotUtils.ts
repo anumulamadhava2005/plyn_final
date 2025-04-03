@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { format, addMinutes, addDays, parseISO, subDays, isBefore } from "date-fns";
 import { TimeSlot, SlotAvailability } from "@/types/admin";
@@ -37,7 +38,8 @@ export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
       : [30, 60];
     
     // Get smallest duration to use as increment
-    const minDuration = Math.min(...serviceDurations);
+    // Use 10 as the minimum slot duration to ensure consistent slot creation
+    const minDuration = 10;
     
     // Default business hours
     const startHour = 9; // 9 AM
@@ -100,7 +102,7 @@ export const generateSalonTimeSlots = async (salonId: string, date: Date) => {
         }
       }
       
-      // Move to the next time increment using minDuration
+      // Move to the next time increment using minDuration (10 minutes)
       currentTime = addMinutes(currentTime, minDuration);
     }
     

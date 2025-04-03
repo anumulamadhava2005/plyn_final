@@ -132,11 +132,11 @@ const SlotManager: React.FC<SlotManagerProps> = ({
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = 9; hour < 21; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
+      for (let minute = 0; minute < 60; minute += 10) { // Changed from 30 to 10-minute intervals
         const startHour = hour;
         const startMinute = minute;
-        const endHour = minute === 30 ? hour + 1 : hour;
-        const endMinute = minute === 30 ? 0 : 30;
+        const endHour = minute === 50 ? hour + 1 : hour; // Adjusted for 10-minute intervals
+        const endMinute = minute === 50 ? 0 : minute + 10; // Adjusted for 10-minute intervals
         
         const startTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
         const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;

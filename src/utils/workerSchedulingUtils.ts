@@ -171,7 +171,7 @@ export const getAvailableSlotsWithWorkers = async (
   merchantId: string,
   date: string,
   serviceDuration: number,
-  interval: number = 15 // Default: show slots at 15-minute intervals
+  interval: number = 10 // Changed from 15 to 10 minutes to match the backend
 ): Promise<Array<{time: string, availableWorkers: WorkerAvailability[]}>> => {
   try {
     // Get merchant settings for business hours
