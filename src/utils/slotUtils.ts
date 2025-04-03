@@ -399,16 +399,9 @@ export const findAvailableTimeSlots = async (merchantId: string, date: string): 
 
 // Get time slots for a specific date
 export const getTimeSlotsForDate = async (merchantId: string, date: string) => {
+  console.log(`Getting slots for merchant: ${merchantId} and date: ${date}`);
   try {
-    // Check if slots exist for this date, if not, generate them
-    const existingSlots = await findAvailableTimeSlots(merchantId, date);
-    
-    if (existingSlots.length === 0) {
-      // Generate slots for this date if none exist
-      await generateSalonTimeSlots(merchantId, new Date(date));
-    }
-    
-    // Get all slots for this date (both available and booked)
+    // Direct query to get all slots for this date (both available and booked)
     const { data, error } = await supabase
       .from("slots")
       .select("*")
@@ -416,12 +409,22 @@ export const getTimeSlotsForDate = async (merchantId: string, date: string) => {
       .eq("date", date)
       .order("start_time");
     
-    if (error) throw error;
+    if (error) {
+      console.error("Error fetching slots:", error);
+      throw new Error(`Error fetching time slots: ${error.message}`);
+    }
     
-    return data || [];
-  } catch (error) {
-    console.error("Error getting time slots:", error);
-    throw error;
+    if (!data || data.length === 0) {
+      // If no slots exist, generate them
+      console.log(`No slots found for ${date}, generating new slots`);
+      return await generateSalonTimeSlots(merchantId, new Date(date));
+    }
+    
+    console.log(`Found ${data.length} slots for ${date}`);
+    return data;
+  } catch (error: any) {
+    console.error("Error in getTimeSlotsForDate:", error);
+    throw new Error(`Failed to get time slots: ${error.message}`);
   }
 };
 

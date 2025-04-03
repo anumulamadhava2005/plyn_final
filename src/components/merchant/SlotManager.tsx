@@ -27,6 +27,7 @@ const SlotManager: React.FC<SlotManagerProps> = ({
   const [internalSelectedDate, setInternalSelectedDate] = useState<Date>(selectedDate);
   const [slots, setSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   // If the component receives a new selected date prop, update the internal state
@@ -37,16 +38,34 @@ const SlotManager: React.FC<SlotManagerProps> = ({
   // Fetch slots for the selected date
   const fetchSlots = async () => {
     setLoading(true);
+    setError(null);
     try {
       const dateStr = format(internalSelectedDate, 'yyyy-MM-dd');
-      const fetchedSlots = await getTimeSlotsForDate(merchantId, dateStr);
-      setSlots(fetchedSlots);
+      console.log(`Fetching slots for date: ${dateStr} and merchant: ${merchantId}`);
+      
+      // Direct Supabase query rather than using the helper function
+      const { data, error } = await supabase
+        .from('slots')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .eq('date', dateStr)
+        .order('start_time');
+        
+      if (error) {
+        console.error('Supabase error fetching slots:', error);
+        throw error;
+      }
+      
+      console.log(`Retrieved ${data?.length || 0} slots`);
+      setSlots(data || []);
+      
     } catch (error: any) {
       console.error('Error fetching slots:', error);
+      setError('Failed to load time slots. Please try again.');
       toast({
-        title: 'Error',
-        description: 'Failed to load time slots',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to load time slots",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -55,8 +74,9 @@ const SlotManager: React.FC<SlotManagerProps> = ({
 
   // Fetch slots when the selected date changes
   useEffect(() => {
-    fetchSlots();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (merchantId) {
+      fetchSlots();
+    }
   }, [internalSelectedDate, merchantId]);
 
   // Handle date selection
@@ -73,17 +93,17 @@ const SlotManager: React.FC<SlotManagerProps> = ({
       const dateStr = format(internalSelectedDate, 'yyyy-MM-dd');
       await createSlot(merchantId, dateStr, startTime, endTime);
       toast({
-        title: 'Success',
-        description: 'Slot added successfully',
+        title: "Success",
+        description: "Slot added successfully",
       });
       fetchSlots();
       onSlotsUpdated();
     } catch (error: any) {
       console.error('Error adding slot:', error);
       toast({
-        title: 'Error',
+        title: "Error",
         description: error.message || 'Failed to add slot',
-        variant: 'destructive',
+        variant: "destructive",
       });
     }
   };
@@ -93,17 +113,17 @@ const SlotManager: React.FC<SlotManagerProps> = ({
     try {
       await deleteSlot(slotId);
       toast({
-        title: 'Success',
-        description: 'Slot deleted successfully',
+        title: "Success",
+        description: "Slot deleted successfully",
       });
       fetchSlots();
       onSlotsUpdated();
     } catch (error: any) {
       console.error('Error deleting slot:', error);
       toast({
-        title: 'Error',
+        title: "Error",
         description: error.message || 'Failed to delete slot',
-        variant: 'destructive',
+        variant: "destructive",
       });
     }
   };
@@ -157,6 +177,8 @@ const SlotManager: React.FC<SlotManagerProps> = ({
                   <div className="flex justify-center py-4">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
+                ) : error ? (
+                  <div className="text-center py-4 text-red-500">{error}</div>
                 ) : slots.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                     {slots.map((slot) => (

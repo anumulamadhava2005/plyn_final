@@ -1,291 +1,289 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { createBooking, bookSlot } from '@/utils/bookingUtils';
-import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
+import PaymentForm from '@/components/payment/PaymentForm';
+import BookingSummary from '@/components/payment/BookingSummary';
 import PageTransition from '@/components/transitions/PageTransition';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
-import { getUserCoins, updateUserCoins } from '@/utils/userUtils';
+import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { getUserCoins } from '@/utils/userUtils';
+import { createBooking, bookSlot } from '@/utils/bookingUtils';
+import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
+import PaymentSimulator from '@/components/payment/PaymentSimulator';
+
+interface PaymentState {
+  salonId: string;
+  salonName: string;
+  services: any[];
+  date: string;
+  timeSlot: string;
+  email: string;
+  phone: string;
+  notes: string;
+  totalPrice: number;
+  totalDuration: number;
+  slotId: string;
+  workerId: string;
+}
 
 const Payment = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { user } = useAuth();
-  const [userCoins, setUserCoins] = useState(0);
+  const { toast } = useToast();
+  const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [plyCoinsEnabled, setPlyCoinsEnabled] = useState(true);
-  const [paymentCanceled, setPaymentCanceled] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>('credit_card');
+  const [paymentInfo, setPaymentInfo] = useState({
+    cardNumber: '',
+    expiryDate: '',
+    cvv: '',
+    nameOnCard: ''
+  });
+  const [userCoins, setUserCoins] = useState<number>(0);
+
+  // Redirect if accessing directly without booking data
+  const state = location.state as PaymentState;
   
-  const { 
-    salonId, 
-    salonName, 
-    services, 
-    date, 
-    timeSlot, 
-    email, 
-    phone, 
-    notes, 
-    totalPrice, 
-    totalDuration,
-    slotId,
-    workerId
-  } = location.state || {};
-  
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    if (searchParams.get('canceled') === 'true' || location.state?.canceled) {
-      setPaymentCanceled(true);
-    }
-    
-    if (!salonId || !services || !date || !timeSlot || !totalPrice) {
-      toast({
-        title: "Invalid Booking Details",
-        description: "Missing booking details. Please book again.",
-        variant: "destructive",
-      });
-      navigate('/book-now');
-      return;
-    }
-    
-    const fetchUserData = async () => {
+  if (!state?.salonId) {
+    navigate('/book');
+    // This return prevents the component from rendering further
+    // when there is no state (the user is being redirected)
+    return null;
+  }
+
+  React.useEffect(() => {
+    const fetchUserCoins = async () => {
       if (user) {
         const coins = await getUserCoins(user.id);
         setUserCoins(coins);
       }
     };
-    
-    fetchUserData();
-  }, [user, navigate, toast, salonId, services, date, timeSlot, totalPrice, location]);
-  
-  const handlePayment = async (values: PaymentFormValues) => {
+
+    fetchUserCoins();
+  }, [user]);
+
+  const handlePaymentMethodChange = (method: string) => {
+    setPaymentMethod(method);
+  };
+
+  const handlePaymentInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPaymentInfo({
+      ...paymentInfo,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const calculateCoinsUsed = () => {
+    // Calculate coins needed based on payment method
+    if (paymentMethod === 'plyn_coins') {
+      // Full payment with coins (2 coins = $1)
+      return state.totalPrice * 2;
+    } else if (paymentMethod === 'partial_coins' && userCoins > 0) {
+      // Partial payment - use available coins up to half the price
+      const maxCoinsToUse = Math.min(userCoins, state.totalPrice);
+      return maxCoinsToUse;
+    }
+    return 0;
+  };
+
+  const handleProcessPayment = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to complete a booking",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+
     try {
-      setIsProcessing(true);
-      let slotToUse = slotId;
-      let workerIdToUse = workerId;
+      const coinsUsed = calculateCoinsUsed();
+      const remainingCoinsAfterBooking = userCoins - coinsUsed;
       
-      if (slotToUse) {
-        const { data: slotExists, error: slotError } = await supabase
-          .from('slots')
-          .select('is_booked, worker_id')
-          .eq('id', slotToUse)
-          .single();
-        
-        if (slotError) {
-          toast({
-            title: "Slot not found",
-            description: "The selected time slot is no longer available. Please select another time.",
-            variant: "destructive",
-          });
-          navigate(`/book/${salonId}`);
-          return;
-        }
-        
-        if (slotExists.is_booked) {
-          toast({
-            title: "Slot already booked",
-            description: "Sorry, this time slot has just been booked. Please select another time.",
-            variant: "destructive",
-          });
-          navigate(`/book/${salonId}`);
-          return;
-        }
-        
-        if (slotExists.worker_id) {
-          workerIdToUse = slotExists.worker_id;
-        }
+      // Validate sufficient coins if using coins payment
+      if (paymentMethod === 'plyn_coins' && coinsUsed > userCoins) {
+        toast({
+          title: "Insufficient Coins",
+          description: `You need ${coinsUsed} coins but only have ${userCoins} available.`,
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
       }
-
-      // Book the slot
-      await bookSlot(slotToUse);
-
-      // Process PLYN Coins payment if that's the selected method
-      if (values.paymentMethod === 'plyn_coins') {
-        const coinsRequired = totalPrice * 2; // 2 coins per dollar
-        
-        if (userCoins < coinsRequired) {
-          toast({
-            title: "Insufficient PLYN Coins",
-            description: `You need ${coinsRequired} coins, but you only have ${userCoins}.`,
-            variant: "destructive",
-          });
-          setIsProcessing(false);
-          return;
-        }
-        
-        // Deduct coins from user's balance
-        const updatedCoins = userCoins - coinsRequired;
-        const updateSuccess = await updateUserCoins(user!.id, updatedCoins);
-        
-        if (!updateSuccess) {
-          toast({
-            title: "Payment Failed",
-            description: "Failed to process PLYN Coins payment.",
-            variant: "destructive",
-          });
-          setIsProcessing(false);
-          return;
-        }
-        
-        setUserCoins(updatedCoins);
+      
+      // First check if slot is still available before processing payment
+      const { data: slot, error: slotError } = await supabase
+        .from('slots')
+        .select('is_booked, worker_id')
+        .eq('id', state.slotId)
+        .single();
+      
+      if (slotError) {
+        throw new Error(`Error checking slot availability: ${slotError.message}`);
       }
-          
-      // Create booking record
-      const bookingData = {
-        user_id: user?.id,
-        merchant_id: salonId,
-        salon_name: salonName,
-        service_name: services.map((s: any) => s.name).join(', '),
-        service_price: totalPrice,
-        service_duration: totalDuration,
-        booking_date: date,
-        time_slot: timeSlot,
-        customer_email: values.email,
-        customer_phone: values.phone,
-        additional_notes: values.notes,
-        status: 'pending',
-        slot_id: slotToUse,
-        worker_id: workerIdToUse || null,
-        coins_earned: 0,
-        coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
-      };
       
-      const bookingId = await createBooking(bookingData);
+      if (slot.is_booked) {
+        throw new Error('This time slot has already been booked. Please select another time.');
+      }
       
-      // Generate a transaction ID for the payment
+      // Mark the slot as booked
+      await supabase
+        .from('slots')
+        .update({ is_booked: true })
+        .eq('id', state.slotId);
+      
+      // Update user's coins if used
+      if (coinsUsed > 0) {
+        await supabase
+          .from('profiles')
+          .update({ coins: remainingCoinsAfterBooking })
+          .eq('id', user.id);
+      }
+      
+      // Generate a unique transaction ID
       const transactionId = `payment_${Date.now()}`;
       
-      // Create payment record directly in database
-      const { data: paymentRecord, error: paymentError } = await supabase
+      // Create a booking record
+      const bookingData = {
+        user_id: user.id,
+        merchant_id: state.salonId,
+        salon_name: state.salonName,
+        service_name: state.services.map((service: any) => service.name).join(", "),
+        service_price: state.totalPrice,
+        service_duration: state.totalDuration,
+        booking_date: state.date,
+        time_slot: state.timeSlot,
+        customer_email: state.email,
+        customer_phone: state.phone || '',
+        additional_notes: state.notes || '',
+        status: 'pending',
+        slot_id: state.slotId,
+        worker_id: state.workerId || slot.worker_id || null,
+        coins_earned: 0,
+        coins_used: coinsUsed
+      };
+      
+      const bookingResponse = await createBooking(bookingData);
+      
+      // Create a payment record
+      const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
         .insert({
-          user_id: user?.id,
-          payment_method: values.paymentMethod,
-          amount: totalPrice,
+          user_id: user.id,
+          payment_method: paymentMethod,
+          amount: state.totalPrice,
           payment_status: 'completed',
-          coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
+          coins_used: coinsUsed,
           transaction_id: transactionId
         })
         .select('id')
         .single();
       
       if (paymentError) {
-        throw new Error("Failed to record payment");
+        throw paymentError;
       }
       
-      // Update booking with payment information
+      // Update the booking with payment information
       await supabase
         .from('bookings')
-        .update({ 
-          payment_id: paymentRecord.id,
+        .update({
+          payment_id: paymentData.id,
           payment_status: 'completed',
           status: 'confirmed'
         })
-        .eq('id', bookingId);
+        .eq('id', bookingResponse.id);
       
-      // Navigate to confirmation page with only primitive values
+      // Navigate to confirmation page
       navigate('/booking-confirmation', { 
         state: { 
-          bookingId: bookingId,
-          salonName,
-          services,
-          date,
-          timeSlot,
-          totalPrice,
-          totalDuration,
-          coinsUsed: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
-          coinsEarned: 0,
-          paymentDetails: {
-            paymentMethod: values.paymentMethod,
-            paymentId: transactionId
-          },
-          paymentStatus: 'completed'
+          booking: {
+            ...bookingData,
+            id: bookingResponse.id,
+            payment_id: paymentData.id,
+            payment_method: paymentMethod,
+            payment_status: 'completed',
+            transaction_id: transactionId
+          }
         }
       });
+      
     } catch (error: any) {
-      console.error("Payment error:", error);
+      console.error("Payment processing error:", error);
       toast({
         title: "Payment Failed",
-        description: error.message || "An error occurred during payment. Please try again.",
-        variant: "destructive",
+        description: error.message || "There was an error processing your payment. Please try again.",
+        variant: "destructive"
       });
-    } finally {
       setIsProcessing(false);
     }
   };
-  
-  if (!salonId || !services || !date || !timeSlot || !totalPrice) {
-    return null;
-  }
-  
+
+  const formattedDate = state.date 
+    ? format(new Date(state.date), "EEEE, MMMM d, yyyy")
+    : "Unknown date";
+
   return (
     <PageTransition>
-      <div className="container mx-auto py-12">
-        <Card className="shadow-md rounded-md">
-          <CardContent className="p-8">
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold">Payment</h1>
-              <p className="text-muted-foreground">
-                Confirm your booking details and complete your payment.
-              </p>
-            </div>
-            
-            {paymentCanceled && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Payment Canceled</AlertTitle>
-                <AlertDescription>
-                  Your previous payment attempt was canceled. Please try again.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold mb-2">Booking Summary</h2>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Salon:</Badge>
-                  <span>{salonName}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Services:</Badge>
-                  <span>{services.map((s: any) => s.name).join(', ')}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Date:</Badge>
-                  <span>{date}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Time:</Badge>
-                  <span>{timeSlot}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Total:</Badge>
-                  <span>${totalPrice}</span>
+      <div className="container mx-auto py-8 px-4">
+        <h1 className="text-2xl font-bold mb-8 text-center">Complete Your Booking</h1>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="order-2 md:order-1">
+            {step === 1 ? (
+              <div className="space-y-6">
+                <PaymentMethodSelector 
+                  selectedMethod={paymentMethod} 
+                  onSelectMethod={handlePaymentMethodChange} 
+                  userCoins={userCoins}
+                  totalPrice={state.totalPrice}
+                />
+                
+                {paymentMethod === 'credit_card' && (
+                  <PaymentForm 
+                    paymentInfo={paymentInfo}
+                    onChange={handlePaymentInfoChange}
+                  />
+                )}
+                
+                <div className="pt-4">
+                  <Button 
+                    onClick={() => setStep(2)} 
+                    className="w-full"
+                  >
+                    Continue
+                  </Button>
                 </div>
               </div>
-            </div>
-            
-            <PaymentForm
-              defaultValues={{
-                email: email || '',
-                phone: phone || '',
-                notes: notes || '',
-              }}
-              onSubmit={handlePayment}
-              isSubmitting={isProcessing}
-              totalPrice={totalPrice}
-              userCoins={userCoins}
-              plyCoinsEnabled={plyCoinsEnabled}
+            ) : (
+              <div className="space-y-6">
+                <PaymentSimulator 
+                  paymentMethod={paymentMethod}
+                  amount={state.totalPrice} 
+                  coinsUsed={calculateCoinsUsed()}
+                  isProcessing={isProcessing}
+                  onProcessPayment={handleProcessPayment}
+                  onBack={() => setStep(1)}
+                />
+              </div>
+            )}
+          </div>
+          
+          <div className="order-1 md:order-2">
+            <BookingSummary
+              salonName={state.salonName}
+              services={state.services}
+              date={formattedDate}
+              time={state.timeSlot}
+              totalPrice={state.totalPrice}
+              totalDuration={state.totalDuration}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </PageTransition>
   );
