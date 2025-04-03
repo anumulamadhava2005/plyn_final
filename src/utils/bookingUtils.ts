@@ -1,4 +1,3 @@
-
 import { addDays, format, isAfter, isBefore, parse, parseISO, addMinutes } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { getAvailableTimeSlots, generateSalonTimeSlots, findAvailableTimeSlots } from './slotUtils';
@@ -125,6 +124,11 @@ export const bookSlot = async (
   servicePrice?: number
 ): Promise<{workerId?: string, workerName?: string}> => {
   try {
+    // If no slotId provided or slotId is empty, we can't proceed
+    if (!slotId) {
+      throw new Error("No slot ID provided. Please select a valid time slot.");
+    }
+
     // First get the slot details to get worker information
     const { data: slot, error: getError } = await supabase
       .from('slots')

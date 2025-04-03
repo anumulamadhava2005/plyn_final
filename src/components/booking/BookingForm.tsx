@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -137,6 +138,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
     try {
       const formattedDate = selectedDate.toISOString().split('T')[0];
       
+      // First, check slot availability and potentially create a new slot
       const { available, slotId, workerId, workerName } = await checkSlotAvailability(
         salonId, 
         formattedDate, 
@@ -158,9 +160,21 @@ const BookingForm: React.FC<BookingFormProps> = ({
         return;
       }
 
-      if (slotId && slotId !== selectedSlotId) {
-        setSelectedSlotId(slotId);
+      // Use the slotId from availability check if we don't have a valid slotId
+      const finalSlotId = selectedSlotId || slotId;
+      
+      if (!finalSlotId) {
+        toast({
+          title: "No available slot",
+          description: "Could not find or create an available slot. Please try another time.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
       }
+      
+      // Update our local state with the confirmed slot details
+      setSelectedSlotId(finalSlotId);
       
       if (workerId) {
         setSelectedWorkerId(workerId);
@@ -172,7 +186,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
 
       const serviceName = selectedServices.map(s => s.name).join(', ');
       const { workerId: confirmedWorkerId, workerName: confirmedWorkerName } = await bookSlot(
-        selectedSlotId,
+        finalSlotId,
         serviceName,
         totalDuration,
         totalPrice
@@ -190,7 +204,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
           notes,
           totalPrice,
           totalDuration,
-          slotId: selectedSlotId,
+          slotId: finalSlotId,
           workerId: selectedWorkerId || confirmedWorkerId,
           workerName: selectedWorkerName || confirmedWorkerName
         }

@@ -120,7 +120,8 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         {availableTimeSlots.map(({ time, availableWorkers }) => {
           const isSelected = time === selectedTime;
           const slotInfo = hasExistingSlots[time];
-          const slotId = slotInfo ? slotInfo.id : 'new';
+          // Use empty string for slotId instead of "new" when no existing slot
+          const slotId = slotInfo ? slotInfo.id : '';
           
           // Use the first available worker for this slot
           const firstWorker = availableWorkers[0];
