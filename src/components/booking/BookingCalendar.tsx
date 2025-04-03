@@ -124,8 +124,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           const isSelected = time === selectedTime;
           const slotInfo = hasExistingSlots[time];
           
-          // Only empty string if no existing slot
-          const slotId = slotInfo ? slotInfo.id : '';
+          // Check if there's an existing slot in the database for this time
+          // If not, we'll create it later with worker assignment
+          const slotId = slotInfo && !slotInfo.isBooked ? slotInfo.id : '';
           
           // Use the first available worker for this slot
           const firstWorker = availableWorkers[0];

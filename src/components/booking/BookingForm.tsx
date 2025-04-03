@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -141,30 +142,40 @@ const BookingForm: React.FC<BookingFormProps> = ({
       const formattedDate = formatToISODate(selectedDate);
       console.log(`Proceeding with date: ${formattedDate} and time: ${selectedTime}`);
       
-      const { available, slotId, workerId, workerName } = await checkSlotAvailability(
-        salonId, 
-        formattedDate, 
-        selectedTime || '',
-        totalDuration
-      );
+      let slotIdToUse = selectedSlotId;
+      let workerIdToUse = selectedWorkerId;
+      let workerNameToUse = selectedWorkerName;
       
-      if (!available) {
-        toast({
-          title: "Slot no longer available",
-          description: "Sorry, this time slot has just been booked. Please select another time.",
-          variant: "destructive",
-        });
-        setSelectedTime(null);
-        setSelectedSlotId('');
-        setSelectedWorkerId(null);
-        setSelectedWorkerName(null);
-        setIsSubmitting(false);
-        return;
+      // If no slot ID or the slot ID is 'new', we need to check availability and possibly create a new slot
+      if (!slotIdToUse || slotIdToUse === 'new') {
+        console.log("No valid slot ID, checking availability...");
+        const { available, slotId, workerId, workerName } = await checkSlotAvailability(
+          salonId, 
+          formattedDate, 
+          selectedTime || '',
+          totalDuration
+        );
+        
+        if (!available) {
+          toast({
+            title: "Slot no longer available",
+            description: "Sorry, this time slot has just been booked. Please select another time.",
+            variant: "destructive",
+          });
+          setSelectedTime(null);
+          setSelectedSlotId('');
+          setSelectedWorkerId(null);
+          setSelectedWorkerName(null);
+          setIsSubmitting(false);
+          return;
+        }
+        
+        slotIdToUse = slotId;
+        if (workerId) workerIdToUse = workerId;
+        if (workerName) workerNameToUse = workerName;
       }
-
-      const finalSlotId = selectedSlotId || slotId;
       
-      if (!finalSlotId) {
+      if (!slotIdToUse || slotIdToUse === 'new') {
         toast({
           title: "No available slot",
           description: "Could not find or create an available slot. Please try another time.",
@@ -174,19 +185,11 @@ const BookingForm: React.FC<BookingFormProps> = ({
         return;
       }
       
-      setSelectedSlotId(finalSlotId);
+      console.log(`Using slot ID: ${slotIdToUse}`);
       
-      if (workerId) {
-        setSelectedWorkerId(workerId);
-      }
-      
-      if (workerName) {
-        setSelectedWorkerName(workerName);
-      }
-
       const serviceName = selectedServices.map(s => s.name).join(', ');
       const { workerId: confirmedWorkerId, workerName: confirmedWorkerName } = await bookSlot(
-        finalSlotId,
+        slotIdToUse,
         serviceName,
         totalDuration,
         totalPrice
@@ -196,7 +199,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
         date: formattedDate,
         selectedDate: selectedDate,
         timeSlot: selectedTime,
-        slotId: finalSlotId,
+        slotId: slotIdToUse,
       });
 
       navigate('/payment', {
@@ -211,9 +214,9 @@ const BookingForm: React.FC<BookingFormProps> = ({
           notes,
           totalPrice,
           totalDuration,
-          slotId: finalSlotId,
-          workerId: selectedWorkerId || confirmedWorkerId,
-          workerName: selectedWorkerName || confirmedWorkerName
+          slotId: slotIdToUse,
+          workerId: workerIdToUse || confirmedWorkerId,
+          workerName: workerNameToUse || confirmedWorkerName
         }
       });
     } catch (error: any) {
