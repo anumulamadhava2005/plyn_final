@@ -2,7 +2,7 @@
 import React from 'react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CreditCard, Smartphone, Building, ArrowDownToLine, QrCode, Settings, Coins } from 'lucide-react';
+import { Coins } from 'lucide-react';
 
 interface PaymentMethodSelectorProps {
   selectedMethod: string;
@@ -15,52 +15,6 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   onMethodChange,
   plyCoinsEnabled = true
 }) => {
-  // Basic payment methods always available
-  const basicPaymentMethods = [
-    {
-      id: 'razorpay',
-      name: 'RazorPay',
-      icon: <ArrowDownToLine className="h-5 w-5 text-blue-500" />,
-      description: 'Pay securely with RazorPay (Credit/Debit Cards, UPI, Wallets)'
-    },
-    {
-      id: 'credit_card',
-      name: 'Credit/Debit Card',
-      icon: <CreditCard className="h-5 w-5" />,
-      description: 'Pay securely with your credit or debit card'
-    },
-    {
-      id: 'phonepe',
-      name: 'PhonePe',
-      icon: <Smartphone className="h-5 w-5 text-indigo-600" />,
-      description: 'Pay using PhonePe mobile wallet'
-    },
-    {
-      id: 'paytm',
-      name: 'Paytm',
-      icon: <Smartphone className="h-5 w-5 text-blue-600" />,
-      description: 'Pay using Paytm wallet or UPI'
-    },
-    {
-      id: 'netbanking',
-      name: 'Net Banking',
-      icon: <Building className="h-5 w-5 text-green-600" />,
-      description: 'Pay directly from your bank account'
-    },
-    {
-      id: 'qr_code',
-      name: 'QR Code',
-      icon: <QrCode className="h-5 w-5" />,
-      description: 'Scan and pay using any UPI app'
-    },
-    {
-      id: 'other',
-      name: 'Other Payment Methods',
-      icon: <Settings className="h-5 w-5" />,
-      description: 'Choose from other available payment options'
-    }
-  ];
-  
   // PLYN Coins payment method (only shown if enabled)
   const plyCoinsMethod = {
     id: 'plyn_coins',
@@ -69,10 +23,8 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     description: 'Pay using your PLYN Coins (2 coins = $1)'
   };
   
-  // Combine payment methods based on whether PLYN Coins are enabled
-  const paymentMethods = plyCoinsEnabled 
-    ? [plyCoinsMethod, ...basicPaymentMethods]
-    : basicPaymentMethods;
+  // Only show PLYN coins since that's all we need
+  const paymentMethods = plyCoinsEnabled ? [plyCoinsMethod] : [];
 
   return (
     <RadioGroup value={selectedMethod} onValueChange={onMethodChange} className="space-y-3">

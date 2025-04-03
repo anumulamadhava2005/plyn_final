@@ -21,7 +21,6 @@ export interface Appointment {
 
 interface AppointmentsListProps {
   merchantId: string;
-  // Removed appointments prop as it's not expected by the component
 }
 
 const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
@@ -54,8 +53,7 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
           .from('bookings')
           .select(`
             *,
-            profiles:user_id (username),
-            workers:worker_id (name)
+            profiles:user_id (*)
           `)
           .eq('merchant_id', merchantId)
           .order('booking_date', { ascending: false });
@@ -67,13 +65,14 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
         if (data) {
           const mappedAppointments: Appointment[] = data.map(booking => ({
             id: booking.id,
-            customerName: booking.customer_email || (booking.profiles?.username || 'Guest'),
+            customerName: booking.customer_email || 
+              (booking.profiles ? (booking.profiles.username || 'Guest') : 'Guest'),
             service: booking.service_name,
             date: booking.booking_date || 'No date',
             time: booking.time_slot || 'No time',
             duration: booking.service_duration ? `${booking.service_duration} min` : '30 min',
             status: booking.status as 'confirmed' | 'cancelled' | 'pending' | 'missed',
-            worker: booking.workers?.name || 'Not Assigned'
+            worker: 'Worker information not available'
           }));
           
           setAppointments(mappedAppointments);
@@ -212,9 +211,6 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
                     <p className="text-sm font-medium">Date: <span className="font-normal">{appointment.date}</span></p>
                     <p className="text-sm font-medium">Time: <span className="font-normal">{appointment.time}</span></p>
                     <p className="text-sm font-medium">Duration: <span className="font-normal">{appointment.duration}</span></p>
-                    {appointment.worker && (
-                      <p className="text-sm font-medium">Worker: <span className="font-normal">{appointment.worker}</span></p>
-                    )}
                   </div>
                   
                   <div className="space-y-2">

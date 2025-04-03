@@ -1,25 +1,26 @@
+
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { checkSlotAvailability, createBooking, bookSlot } from '@/utils/bookingUtils';
+import { createBooking, bookSlot } from '@/utils/bookingUtils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import PaymentForm, { PaymentFormValues } from '@/components/payment/PaymentForm';
-import { usePayment } from '@/hooks/usePayment';
 import PageTransition from '@/components/transitions/PageTransition';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { getUserCoins, updateUserCoins } from '@/utils/userUtils';
 
 const Payment = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { processPayment, isProcessing } = usePayment();
   const [userCoins, setUserCoins] = useState(0);
-  const [plyCoinsEnabled, setPlyCoinsEnabled] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [plyCoinsEnabled, setPlyCoinsEnabled] = useState(true);
   const [paymentCanceled, setPaymentCanceled] = useState(false);
   
   const { 
@@ -55,35 +56,8 @@ const Payment = () => {
     
     const fetchUserData = async () => {
       if (user) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('coins')
-          .eq('id', user.id)
-          .single();
-          
-        if (profileError) {
-          console.error("Error fetching user profile:", profileError);
-        } else {
-          setUserCoins(profileData?.coins || 0);
-        }
-      }
-      
-      try {
-        const { data: settingsData, error: settingsError } = await supabase
-          .from('merchant_settings')
-          .select('*')
-          .eq('merchant_id', salonId)
-          .limit(1);
-          
-        if (!settingsError && settingsData && settingsData.length > 0) {
-          setPlyCoinsEnabled(true);
-        } else {
-          console.log("No merchant settings found, defaulting to enabled");
-          setPlyCoinsEnabled(true);
-        }
-      } catch (error) {
-        console.error("Error checking settings:", error);
-        setPlyCoinsEnabled(true);
+        const coins = await getUserCoins(user.id);
+        setUserCoins(coins);
       }
     };
     
@@ -92,6 +66,7 @@ const Payment = () => {
   
   const handlePayment = async (values: PaymentFormValues) => {
     try {
+      setIsProcessing(true);
       let slotToUse = slotId;
       let workerIdToUse = workerId;
       
@@ -125,77 +100,46 @@ const Payment = () => {
         if (slotExists.worker_id) {
           workerIdToUse = slotExists.worker_id;
         }
-      } else {
-        try {
-          const { data: slots } = await supabase
-            .from('slots')
-            .select('id, is_booked, worker_id')
-            .eq('merchant_id', salonId)
-            .eq('date', date)
-            .eq('start_time', timeSlot);
-          
-          if (!slots || slots.length === 0) {
-            toast({
-              title: "Slot not found",
-              description: "The selected time slot is no longer available. Please select another time.",
-              variant: "destructive",
-            });
-            navigate(`/book/${salonId}`);
-            return;
-          }
-          
-          const availableSlot = slots.find(slot => !slot.is_booked);
-          
-          if (!availableSlot) {
-            toast({
-              title: "Slot no longer available",
-              description: "Sorry, this time slot has just been booked. Please select another time.",
-              variant: "destructive",
-            });
-            navigate(`/book/${salonId}`);
-            return;
-          }
-          
-          slotToUse = availableSlot.id;
-          
-          if (availableSlot.worker_id) {
-            workerIdToUse = availableSlot.worker_id;
-          }
-          
-          if (!workerIdToUse) {
-            try {
-              const { data: availableWorkers, error: workersError } = await supabase
-                .from('workers')
-                .select('id')
-                .eq('merchant_id', salonId)
-                .eq('is_active', true)
-                .limit(1);
-              
-              if (!workersError && availableWorkers && availableWorkers.length > 0) {
-                workerIdToUse = availableWorkers[0].id;
-              }
-            } catch (error) {
-              console.error("Error finding available worker:", error);
-            }
-          }
-        } catch (error) {
-          console.error("Error with slot:", error);
-          toast({
-            title: "Slot Error",
-            description: error.message || "There was an issue with your selected time slot.",
-            variant: "destructive",
-          });
-          navigate(`/book/${salonId}`);
-          return;
-        }
       }
 
+      // Book the slot
       await bookSlot(slotToUse);
+
+      // Process PLYN Coins payment if that's the selected method
+      if (values.paymentMethod === 'plyn_coins') {
+        const coinsRequired = totalPrice * 2; // 2 coins per dollar
+        
+        if (userCoins < coinsRequired) {
+          toast({
+            title: "Insufficient PLYN Coins",
+            description: `You need ${coinsRequired} coins, but you only have ${userCoins}.`,
+            variant: "destructive",
+          });
+          setIsProcessing(false);
+          return;
+        }
+        
+        // Deduct coins from user's balance
+        const updatedCoins = userCoins - coinsRequired;
+        const updateSuccess = await updateUserCoins(user!.id, updatedCoins);
+        
+        if (!updateSuccess) {
+          toast({
+            title: "Payment Failed",
+            description: "Failed to process PLYN Coins payment.",
+            variant: "destructive",
+          });
+          setIsProcessing(false);
+          return;
+        }
+        
+        setUserCoins(updatedCoins);
+      }
           
+      // Create booking record
       const bookingData = {
         user_id: user?.id,
         merchant_id: salonId,
-        salon_id: salonId,
         salon_name: salonName,
         service_name: services.map((s: any) => s.name).join(', '),
         service_price: totalPrice,
@@ -212,20 +156,55 @@ const Payment = () => {
         coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
       };
       
-      const { id: bookingId } = await createBooking(bookingData);
+      const bookingId = await createBooking(bookingData);
       
-      await processPayment({
-        paymentMethod: values.paymentMethod,
-        amount: totalPrice,
-        booking: {
+      // Create payment record directly in database
+      const { data: paymentRecord, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          user_id: user?.id,
+          payment_method: values.paymentMethod,
+          amount: totalPrice,
+          payment_status: 'completed',
+          provider: values.paymentMethod === 'plyn_coins' ? 'plyn_coins' : 'other',
+          payment_id: `payment_${Date.now()}`,
+          coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
+        })
+        .select('id')
+        .single();
+      
+      if (paymentError) {
+        throw new Error("Failed to record payment");
+      }
+      
+      // Update booking with payment information
+      await supabase
+        .from('bookings')
+        .update({ 
+          payment_id: paymentRecord.id,
+          payment_status: 'completed',
+          status: 'confirmed'
+        })
+        .eq('id', bookingId);
+      
+      // Navigate to confirmation page
+      navigate('/booking-confirmation', { 
+        state: { 
           id: bookingId,
+          bookingId: bookingId,
           salonName,
           services,
           date,
           timeSlot,
           totalPrice,
           totalDuration,
-          coinsUsed: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
+          coinsUsed: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0,
+          coinsEarned: 0,
+          paymentDetails: {
+            paymentMethod: values.paymentMethod,
+            paymentId: paymentRecord.id
+          },
+          paymentStatus: 'completed'
         }
       });
     } catch (error: any) {
@@ -235,6 +214,8 @@ const Payment = () => {
         description: error.message || "An error occurred during payment. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
   

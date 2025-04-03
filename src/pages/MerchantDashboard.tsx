@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -11,8 +12,18 @@ import MerchantServices from '@/components/merchant/MerchantServices';
 import AppointmentsList from '@/components/merchant/AppointmentsList';
 import PageTransition from '@/components/transitions/PageTransition';
 import { useToast } from '@/hooks/use-toast';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
+
+interface MerchantData {
+  id: string;
+  business_name: string;
+  business_address: string;
+  business_email: string;
+  business_phone: string;
+  service_category: string;
+  status: string;
+  is_active: boolean;
+}
 
 const MerchantDashboard = () => {
   const navigate = useNavigate();
@@ -20,7 +31,7 @@ const MerchantDashboard = () => {
   const { toast } = useToast();
   const [selectedView, setSelectedView] = useState<string>('dashboard');
   const [merchantId, setMerchantId] = useState<string | null>(null);
-  const [merchantData, setMerchantData] = useState<any>(null);
+  const [merchantData, setMerchantData] = useState<MerchantData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -34,9 +45,10 @@ const MerchantDashboard = () => {
   const fetchMerchantData = async () => {
     setLoading(true);
     try {
+      // First, get the user profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('id, merchant_id')
+        .select('*')
         .eq('id', user?.id)
         .single();
 
@@ -44,13 +56,16 @@ const MerchantDashboard = () => {
         throw profileError;
       }
 
-      if (profile && profile.merchant_id) {
-        setMerchantId(profile.merchant_id);
+      // Get merchant ID from profile
+      if (profile && profile.is_merchant) {
+        // Use the user's ID as the merchant ID
+        setMerchantId(user?.id || null);
 
+        // Get merchant details
         const { data: merchant, error: merchantError } = await supabase
           .from('merchants')
           .select('*')
-          .eq('id', profile.merchant_id)
+          .eq('id', user?.id)
           .single();
 
         if (merchantError) {
@@ -143,11 +158,11 @@ const MerchantDashboard = () => {
               {selectedView === 'dashboard' && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Dashboard</h1>
-                  <DashboardMetrics merchantId={merchantId!} />
+                  <DashboardMetrics merchantId={merchantId || ''} />
                   
                   <div className="mt-8">
                     <AppointmentsList 
-                      merchantId={merchantId!} 
+                      merchantId={merchantId || ''} 
                     />
                   </div>
                 </div>
@@ -156,28 +171,28 @@ const MerchantDashboard = () => {
               {selectedView === 'slots' && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Manage Slots</h1>
-                  <SlotManager merchantId={merchantId!} />
+                  <SlotManager merchantId={merchantId || ''} />
                 </div>
               )}
 
               {selectedView === 'workers' && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Manage Workers</h1>
-                  <WorkerManager merchantId={merchantId!} />
+                  <WorkerManager merchantId={merchantId || ''} />
                 </div>
               )}
 
               {selectedView === 'services' && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Manage Services</h1>
-                  <MerchantServices merchantId={merchantId!} />
+                  <MerchantServices merchantId={merchantId || ''} />
                 </div>
               )}
 
               {selectedView === 'settings' && (
                 <div className="space-y-6">
                   <h1 className="text-3xl font-bold">Settings</h1>
-                  <MerchantSettingsManager merchantId={merchantId!} />
+                  <MerchantSettingsManager merchantId={merchantId || ''} />
                 </div>
               )}
 
