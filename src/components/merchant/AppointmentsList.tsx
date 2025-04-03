@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 export interface Appointment {
   id: string;
@@ -21,6 +21,7 @@ export interface Appointment {
 
 interface AppointmentsListProps {
   merchantId: string;
+  // Removed appointments prop as it's not expected by the component
 }
 
 const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
@@ -53,7 +54,7 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
           .from('bookings')
           .select(`
             *,
-            profiles:user_profile_id (username),
+            profiles:user_id (username),
             workers:worker_id (name)
           `)
           .eq('merchant_id', merchantId)

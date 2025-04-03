@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { checkSlotAvailability, createBooking, bookSlot } from '@/utils/bookingUtils';
@@ -39,7 +38,6 @@ const Payment = () => {
   } = location.state || {};
   
   useEffect(() => {
-    // Check if payment was canceled (returned from payment page)
     const searchParams = new URLSearchParams(location.search);
     if (searchParams.get('canceled') === 'true' || location.state?.canceled) {
       setPaymentCanceled(true);
@@ -55,7 +53,6 @@ const Payment = () => {
       return;
     }
     
-    // Fetch user coins and ply coins settings
     const fetchUserData = async () => {
       if (user) {
         const { data: profileData, error: profileError } = await supabase
@@ -71,7 +68,6 @@ const Payment = () => {
         }
       }
       
-      // Check merchant_settings table for ply_coins_enabled
       try {
         const { data: settingsData, error: settingsError } = await supabase
           .from('merchant_settings')
@@ -80,16 +76,13 @@ const Payment = () => {
           .limit(1);
           
         if (!settingsError && settingsData && settingsData.length > 0) {
-          // Default to true for now as the schema doesn't have ply_coins_enabled yet
           setPlyCoinsEnabled(true);
         } else {
           console.log("No merchant settings found, defaulting to enabled");
-          // Default to enabled if we can't check
           setPlyCoinsEnabled(true);
         }
       } catch (error) {
         console.error("Error checking settings:", error);
-        // Default to enabled if we can't check
         setPlyCoinsEnabled(true);
       }
     };
@@ -99,12 +92,10 @@ const Payment = () => {
   
   const handlePayment = async (values: PaymentFormValues) => {
     try {
-      // If a specific slotId was provided (from booking form)
       let slotToUse = slotId;
       let workerIdToUse = workerId;
       
       if (slotToUse) {
-        // Just verify that the slot still exists
         const { data: slotExists, error: slotError } = await supabase
           .from('slots')
           .select('is_booked, worker_id')
@@ -131,12 +122,10 @@ const Payment = () => {
           return;
         }
         
-        // Store worker ID from the slot if available
         if (slotExists.worker_id) {
           workerIdToUse = slotExists.worker_id;
         }
       } else {
-        // If no slotId was provided, try to find the slot based on date and time
         try {
           const { data: slots } = await supabase
             .from('slots')
@@ -167,15 +156,12 @@ const Payment = () => {
             return;
           }
           
-          // Use the found slotId
           slotToUse = availableSlot.id;
           
-          // Get worker ID if available
           if (availableSlot.worker_id) {
             workerIdToUse = availableSlot.worker_id;
           }
           
-          // If no worker assigned yet, try to find one
           if (!workerIdToUse) {
             try {
               const { data: availableWorkers, error: workersError } = await supabase
@@ -204,13 +190,10 @@ const Payment = () => {
         }
       }
 
-      // Book the slot
       await bookSlot(slotToUse);
           
-      // Create booking record
       const bookingData = {
         user_id: user?.id,
-        user_profile_id: user?.id,
         merchant_id: salonId,
         salon_id: salonId,
         salon_name: salonName,
@@ -222,16 +205,15 @@ const Payment = () => {
         customer_email: values.email,
         customer_phone: values.phone,
         additional_notes: values.notes,
-        status: 'pending', // Will be updated to confirmed after payment
+        status: 'pending',
         slot_id: slotToUse,
         worker_id: workerIdToUse || null,
-        coins_earned: 0, // Using snake_case to match database columns
-        coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0, // Using snake_case to match database columns
+        coins_earned: 0,
+        coins_used: values.paymentMethod === 'plyn_coins' ? totalPrice * 2 : 0
       };
       
       const { id: bookingId } = await createBooking(bookingData);
       
-      // Process the payment
       await processPayment({
         paymentMethod: values.paymentMethod,
         amount: totalPrice,

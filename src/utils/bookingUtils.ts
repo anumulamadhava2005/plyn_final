@@ -129,9 +129,14 @@ export const createBooking = async (bookingData: any): Promise<{ id: string }> =
       console.log(`Payment will be processed using: ${paymentMethod}`);
     }
     
-    // Remove worker_name if it exists since the column doesn't exist in the database
+    // Remove any fields that don't exist in the bookings table schema
     if (bookingData.worker_name) {
       delete bookingData.worker_name;
+    }
+
+    // Remove user_profile_id if it exists since it doesn't exist in the database
+    if (bookingData.user_profile_id) {
+      delete bookingData.user_profile_id;
     }
     
     // Convert camelCase to snake_case for database columns
