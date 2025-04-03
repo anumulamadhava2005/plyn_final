@@ -1,390 +1,273 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { format, addMinutes } from 'date-fns';
+import { format, addMinutes, parseISO } from 'date-fns';
 import { WorkerAvailability } from '@/types/admin';
 
-/**
- * Check if a specific time slot is available for a given worker
- */
-export const isWorkerAvailableForSlot = async (
-  workerId: string,
-  date: string,
-  startTime: string,
-  endTime: string
-): Promise<boolean> => {
-  try {
-    // Check existing bookings
-    const { data: existingBookings, error: bookingsError } = await supabase
-      .from('slots')
-      .select('*')
-      .eq('date', date)
-      .eq('worker_id', workerId)
-      .eq('is_booked', true);
-      
-    if (bookingsError) throw bookingsError;
-    
-    // Check worker unavailability periods
-    const { data: unavailability, error: unavailabilityError } = await supabase
-      .from('worker_unavailability')
-      .select('*')
-      .eq('date', date)
-      .eq('worker_id', workerId);
-      
-    if (unavailabilityError) throw unavailabilityError;
-    
-    // Check for overlapping bookings
-    const isOverlappingWithBooking = (existingBookings || []).some(booking => 
-      (startTime < booking.end_time && endTime > booking.start_time)
-    );
-    
-    // Check for overlapping with unavailability periods
-    const isOverlappingWithUnavailability = (unavailability || []).some(period => 
-      (startTime < period.end_time && endTime > period.start_time)
-    );
-    
-    return !isOverlappingWithBooking && !isOverlappingWithUnavailability;
-  } catch (error) {
-    console.error('Error checking worker availability:', error);
-    throw error;
-  }
-};
+// Cache for worker availability results
+const workerAvailabilityCache = new Map<string, {
+  timestamp: number;
+  workers: WorkerAvailability[];
+}>();
 
-/**
- * Find the first available worker for a given time slot
- */
+// Cache for available slots with workers
+const availableSlotsCache = new Map<string, {
+  timestamp: number;
+  slots: Array<{
+    time: string; 
+    availableWorkers: Array<{
+      workerId: string;
+      name: string;
+      nextAvailableTime: string;
+      specialty?: string;
+    }>;
+  }>;
+}>();
+
+// Find an available worker for a specific time slot
 export const findAvailableWorker = async (
   merchantId: string,
   date: string,
-  startTime: string,
-  serviceDuration: number
+  time: string,
+  duration: number = 30
 ): Promise<WorkerAvailability | null> => {
   try {
-    // Get all active workers for this merchant
+    // Create a cache key
+    const cacheKey = `worker_${merchantId}_${date}_${time}_${duration}`;
+    const cacheExpiry = 30 * 1000; // 30 seconds
+    
+    // Check cache first
+    const cached = workerAvailabilityCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < cacheExpiry)) {
+      return cached.workers.length > 0 ? cached.workers[0] : null;
+    }
+    
+    // Get all available workers for this time slot
+    const availableWorkers = await getAvailableWorkers(merchantId, date, time, duration);
+    
+    // Update cache
+    workerAvailabilityCache.set(cacheKey, {
+      timestamp: Date.now(),
+      workers: availableWorkers
+    });
+    
+    // Return the first available worker, or null if none are available
+    return availableWorkers.length > 0 ? availableWorkers[0] : null;
+  } catch (error) {
+    console.error("Error finding available worker:", error);
+    return null;
+  }
+};
+
+// Get available workers for a specific time
+export const getAvailableWorkers = async (
+  merchantId: string,
+  date: string,
+  time: string,
+  duration: number = 30
+): Promise<WorkerAvailability[]> => {
+  try {
+    // First get all active workers for this merchant
     const { data: workers, error: workersError } = await supabase
       .from('workers')
       .select('*')
       .eq('merchant_id', merchantId)
       .eq('is_active', true);
-      
-    if (workersError) throw workersError;
-    
-    if (!workers || workers.length === 0) {
-      console.log('No active workers found for merchant:', merchantId);
-      return null;
-    }
-    
-    // Calculate end time based on service duration
-    const startDateTime = new Date(`${date}T${startTime}`);
-    const endDateTime = addMinutes(startDateTime, serviceDuration);
-    const endTime = format(endDateTime, 'HH:mm');
-    
-    // Check each worker's availability
-    for (const worker of workers) {
-      const isAvailable = await isWorkerAvailableForSlot(
-        worker.id, 
-        date, 
-        startTime, 
-        endTime
-      );
-      
-      if (isAvailable) {
-        return {
-          workerId: worker.id,
-          name: worker.name,
-          nextAvailableTime: endTime,
-          specialty: worker.specialty
-        };
-      }
-    }
-    
-    return null; // No available workers found
-  } catch (error) {
-    console.error('Error finding available worker:', error);
-    throw error;
-  }
-};
 
-/**
- * Create a new slot with automatic worker assignment
- */
-export const createSlotWithAutoAssignment = async (
-  merchantId: string,
-  date: string,
-  startTime: string,
-  serviceDuration: number,
-  serviceName?: string,
-  servicePrice?: number
-): Promise<{slotId: string, workerId: string, workerName: string} | null> => {
-  try {
-    // Find an available worker
-    const availableWorker = await findAvailableWorker(
-      merchantId,
-      date,
-      startTime,
-      serviceDuration
-    );
-    
-    if (!availableWorker) {
-      console.log('No available workers found for the requested time');
-      return null;
-    }
-    
-    // Calculate end time
-    const startDateTime = new Date(`${date}T${startTime}`);
-    const endDateTime = addMinutes(startDateTime, serviceDuration);
-    const endTime = format(endDateTime, 'HH:mm');
-    
-    // Create the slot
-    const { data, error } = await supabase
-      .from('slots')
-      .insert({
-        merchant_id: merchantId,
-        date,
-        start_time: startTime,
-        end_time: endTime,
-        worker_id: availableWorker.workerId,
-        service_duration: serviceDuration,
-        service_name: serviceName || null,
-        service_price: servicePrice || 0,
-        is_booked: false
-      })
-      .select('id')
-      .single();
-      
-    if (error) throw error;
-    
-    return {
-      slotId: data.id,
-      workerId: availableWorker.workerId,
-      workerName: availableWorker.name
-    };
-  } catch (error) {
-    console.error('Error creating slot with auto assignment:', error);
-    throw error;
-  }
-};
-
-/**
- * Get all available time slots with assigned workers for a date and service
- */
-export const getAvailableSlotsWithWorkers = async (
-  merchantId: string,
-  date: string,
-  serviceDuration: number,
-  interval: number = 10 // Changed from 15 to 10 minutes to match the backend
-): Promise<Array<{time: string, availableWorkers: WorkerAvailability[]}>> => {
-  try {
-    // Get merchant settings for business hours
-    const { data: settings, error: settingsError } = await supabase
-      .from('merchant_settings')
-      .select('*')
-      .eq('merchant_id', merchantId)
-      .single();
-      
-    if (settingsError) {
-      console.error('Error fetching merchant settings:', settingsError);
-      // Default hours if settings not found
-      return getAvailableSlotsWithWorkersInRange(
-        merchantId, 
-        date, 
-        '09:00', 
-        '17:00', 
-        serviceDuration, 
-        interval
-      );
-    }
-    
-    return getAvailableSlotsWithWorkersInRange(
-      merchantId,
-      date,
-      settings.working_hours_start,
-      settings.working_hours_end,
-      serviceDuration,
-      interval
-    );
-  } catch (error) {
-    console.error('Error getting available slots with workers:', error);
-    throw error;
-  }
-};
-
-/**
- * Helper function to get available slots within a time range
- */
-async function getAvailableSlotsWithWorkersInRange(
-  merchantId: string,
-  date: string,
-  startHour: string,
-  endHour: string,
-  serviceDuration: number,
-  interval: number
-): Promise<Array<{time: string, availableWorkers: WorkerAvailability[]}>> {
-  try {
-    // Get all active workers
-    const { data: workers, error: workersError } = await supabase
-      .from('workers')
-      .select('*')
-      .eq('merchant_id', merchantId)
-      .eq('is_active', true);
-      
     if (workersError) throw workersError;
     
     if (!workers || workers.length === 0) {
       return [];
     }
     
-    // Create time slots at specified intervals
-    const startTime = new Date(`${date}T${startHour}`);
-    const endTime = new Date(`${date}T${endHour}`);
-    const currentTime = new Date();
-    const availableSlots = [];
-    
-    // Generate all possible time slots
-    for (
-      let slotTime = new Date(startTime);
-      slotTime < endTime;
-      slotTime = addMinutes(slotTime, interval)
-    ) {
-      // Skip slots in the past
-      if (slotTime < currentTime && date === format(currentTime, 'yyyy-MM-dd')) {
-        continue;
-      }
-      
-      const slotTimeStr = format(slotTime, 'HH:mm');
-      const slotEndTime = format(addMinutes(slotTime, serviceDuration), 'HH:mm');
-      
-      // For each time slot, find available workers
-      const availableWorkersForSlot: WorkerAvailability[] = [];
-      
-      for (const worker of workers) {
-        const isAvailable = await isWorkerAvailableForSlot(
-          worker.id,
-          date,
-          slotTimeStr,
-          slotEndTime
-        );
+    // Use Promise.all to run all availability checks in parallel
+    const availabilityPromises = workers.map(async (worker) => {
+      // Check worker unavailability and existing bookings in parallel
+      const [unavailabilityResult, bookingsResult] = await Promise.all([
+        // Check if worker has any unavailability for this date
+        supabase
+          .from('worker_unavailability')
+          .select('*')
+          .eq('worker_id', worker.id)
+          .eq('date', date),
         
-        if (isAvailable) {
-          availableWorkersForSlot.push({
-            workerId: worker.id,
-            name: worker.name,
-            nextAvailableTime: slotEndTime,
-            specialty: worker.specialty
-          });
-        }
+        // Check if worker already has a booking at this time
+        supabase
+          .from('slots')
+          .select('*')
+          .eq('worker_id', worker.id)
+          .eq('date', date)
+          .eq('start_time', time)
+          .eq('is_booked', true)
+      ]);
+      
+      const { data: unavailability } = unavailabilityResult;
+      const { data: bookings } = bookingsResult;
+      
+      const isAvailable = 
+        (!unavailability || unavailability.length === 0) && 
+        (!bookings || bookings.length === 0);
+      
+      if (isAvailable) {
+        return {
+          workerId: worker.id,
+          name: worker.name,
+          nextAvailableTime: time,
+          specialty: worker.specialty
+        };
       }
       
-      // Only add slots with available workers
-      if (availableWorkersForSlot.length > 0) {
-        availableSlots.push({
-          time: slotTimeStr,
-          availableWorkers: availableWorkersForSlot
-        });
-      }
+      return null;
+    });
+    
+    const availabilities = await Promise.all(availabilityPromises);
+    return availabilities.filter(Boolean) as WorkerAvailability[];
+    
+  } catch (error) {
+    console.error("Error getting available workers:", error);
+    throw new Error("Could not check worker availability");
+  }
+};
+
+// Get available slots with workers for a specific date
+export const getAvailableSlotsWithWorkers = async (
+  merchantId: string, 
+  date: string,
+  serviceDuration: number = 30
+): Promise<Array<{
+  time: string; 
+  availableWorkers: Array<{
+    workerId: string;
+    name: string;
+    nextAvailableTime: string;
+    specialty?: string;
+  }>;
+}>> => {
+  // Create a cache key
+  const cacheKey = `slots_${merchantId}_${date}_${serviceDuration}`;
+  const cacheExpiry = 30 * 1000; // 30 seconds
+  
+  // Check cache first
+  const cached = availableSlotsCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < cacheExpiry)) {
+    return cached.slots;
+  }
+  
+  try {
+    // Get merchant settings to determine working hours
+    const { data: settings } = await supabase
+      .from('merchant_settings')
+      .select('working_hours_start, working_hours_end')
+      .eq('merchant_id', merchantId)
+      .single();
+    
+    // Default working hours if not set
+    const startTime = settings?.working_hours_start || '09:00:00';
+    const endTime = settings?.working_hours_end || '17:00:00';
+    
+    // Generate time slots based on working hours
+    const slots: string[] = [];
+    let currentTime = new Date(`2000-01-01T${startTime}`);
+    const endTimeDate = new Date(`2000-01-01T${endTime}`);
+    
+    while (currentTime < endTimeDate) {
+      slots.push(format(currentTime, 'HH:mm'));
+      currentTime = addMinutes(currentTime, 30); // 30-minute intervals
     }
+    
+    // Get all active workers for this merchant
+    const { data: workers } = await supabase
+      .from('workers')
+      .select('id, name, specialty')
+      .eq('merchant_id', merchantId)
+      .eq('is_active', true);
+    
+    if (!workers || workers.length === 0) {
+      // No workers available
+      const result: Array<{ time: string; availableWorkers: [] }> = [];
+      return result;
+    }
+    
+    // Get booked slots for this date in a single query
+    const { data: bookedSlots } = await supabase
+      .from('slots')
+      .select('start_time, worker_id')
+      .eq('merchant_id', merchantId)
+      .eq('date', date)
+      .eq('is_booked', true);
+    
+    // Create a map of booked slots by worker and time
+    const bookedSlotMap: Record<string, Set<string>> = {};
+    (bookedSlots || []).forEach(slot => {
+      if (!bookedSlotMap[slot.worker_id]) {
+        bookedSlotMap[slot.worker_id] = new Set();
+      }
+      bookedSlotMap[slot.worker_id].add(slot.start_time);
+    });
+    
+    // Get worker unavailability for this date in a single query
+    const { data: unavailability } = await supabase
+      .from('worker_unavailability')
+      .select('worker_id, start_time, end_time')
+      .eq('date', date);
+    
+    // Create a map of unavailable times by worker
+    const unavailableMap: Record<string, Array<{start: Date, end: Date}>> = {};
+    (unavailability || []).forEach(block => {
+      if (!unavailableMap[block.worker_id]) {
+        unavailableMap[block.worker_id] = [];
+      }
+      
+      const startDate = new Date(`2000-01-01T${block.start_time}`);
+      const endDate = new Date(`2000-01-01T${block.end_time}`);
+      
+      unavailableMap[block.worker_id].push({
+        start: startDate,
+        end: endDate
+      });
+    });
+    
+    // Process each time slot to find available workers
+    const availableSlots = slots.map(time => {
+      const slotTime = new Date(`2000-01-01T${time}`);
+      
+      // Find available workers for this time slot
+      const availableWorkersForSlot = workers.filter(worker => {
+        // Check if worker is booked at this time
+        if (bookedSlotMap[worker.id]?.has(time)) {
+          return false;
+        }
+        
+        // Check if worker has unavailability that overlaps with this time
+        const workerUnavailability = unavailableMap[worker.id] || [];
+        const isUnavailable = workerUnavailability.some(block => {
+          const slotEndTime = addMinutes(slotTime, serviceDuration);
+          return (slotTime >= block.start && slotTime < block.end) || 
+                 (slotEndTime > block.start && slotEndTime <= block.end);
+        });
+        
+        return !isUnavailable;
+      });
+      
+      return {
+        time,
+        availableWorkers: availableWorkersForSlot.map(worker => ({
+          workerId: worker.id,
+          name: worker.name,
+          nextAvailableTime: time,
+          specialty: worker.specialty
+        }))
+      };
+    }).filter(slot => slot.availableWorkers.length > 0);
+    
+    // Update cache
+    availableSlotsCache.set(cacheKey, {
+      timestamp: Date.now(),
+      slots: availableSlots
+    });
     
     return availableSlots;
   } catch (error) {
-    console.error('Error getting available slots in range:', error);
-    throw error;
-  }
-}
-
-/**
- * Update slot booking status and assign worker
- */
-export const bookSlotWithWorker = async (
-  slotId: string,
-  serviceName: string,
-  serviceDuration: number,
-  servicePrice: number,
-  merchantId: string,
-  date: string,
-  startTime: string
-): Promise<{success: boolean, workerId?: string, workerName?: string}> => {
-  try {
-    // First check if the slot is still available
-    const { data: slot, error: slotError } = await supabase
-      .from('slots')
-      .select('*')
-      .eq('id', slotId)
-      .single();
-      
-    if (slotError) throw slotError;
-    
-    if (slot.is_booked) {
-      // If slot is already booked, find an available worker
-      const availableWorker = await findAvailableWorker(
-        merchantId,
-        date,
-        startTime,
-        serviceDuration
-      );
-      
-      if (!availableWorker) {
-        return { success: false };
-      }
-      
-      // Calculate end time
-      const startDateTime = new Date(`${date}T${startTime}`);
-      const endDateTime = addMinutes(startDateTime, serviceDuration);
-      const endTime = format(endDateTime, 'HH:mm');
-      
-      // Create a new slot with the available worker
-      const { data: newSlot, error: createError } = await supabase
-        .from('slots')
-        .insert({
-          merchant_id: merchantId,
-          date,
-          start_time: startTime,
-          end_time: endTime,
-          worker_id: availableWorker.workerId,
-          service_name: serviceName,
-          service_price: servicePrice,
-          service_duration: serviceDuration,
-          is_booked: true
-        })
-        .select('id')
-        .single();
-        
-      if (createError) throw createError;
-      
-      return {
-        success: true,
-        workerId: availableWorker.workerId,
-        workerName: availableWorker.name
-      };
-    } else {
-      // Update the existing slot
-      const { error: updateError } = await supabase
-        .from('slots')
-        .update({
-          is_booked: true,
-          service_name: serviceName,
-          service_price: servicePrice,
-          service_duration: serviceDuration
-        })
-        .eq('id', slotId);
-        
-      if (updateError) throw updateError;
-      
-      // Get the worker's name
-      const { data: worker, error: workerError } = await supabase
-        .from('workers')
-        .select('name')
-        .eq('id', slot.worker_id)
-        .single();
-        
-      if (workerError) throw workerError;
-      
-      return {
-        success: true,
-        workerId: slot.worker_id,
-        workerName: worker.name
-      };
-    }
-  } catch (error) {
-    console.error('Error booking slot with worker:', error);
-    throw error;
+    console.error("Error getting available slots with workers:", error);
+    return [];
   }
 };

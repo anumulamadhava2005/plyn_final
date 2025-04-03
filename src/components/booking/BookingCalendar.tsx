@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, isBefore, startOfDay, parseISO } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
@@ -38,42 +38,62 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
   const [loading, setLoading] = useState(false);
   const [hasExistingSlots, setHasExistingSlots] = useState<{[key: string]: {id: string, workerId: string, isBooked: boolean}}>({});
   
+  // Use useMemo to prevent unnecessary date formatting on rerenders
+  const formattedDate = useMemo(() => {
+    return formatToISODate(selectedDate);
+  }, [selectedDate]);
+  
   // When date changes, fetch available slots
   useEffect(() => {
     if (salonId && selectedDate) {
-      fetchAvailableSlots();
+      const controller = new AbortController();
+      const signal = controller.signal;
+      
+      fetchAvailableSlots(signal);
+      
+      return () => {
+        controller.abort();
+      };
     }
-  }, [salonId, selectedDate, serviceDuration]);
+  }, [salonId, formattedDate, serviceDuration]);
   
   // Fetch available time slots for the selected date
-  const fetchAvailableSlots = async () => {
+  const fetchAvailableSlots = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const dateString = formatToISODate(selectedDate);
-      console.log(`Fetching slots for date: ${dateString}`);
+      console.log(`Fetching slots for date: ${formattedDate}`);
       
-      // Get available time slots with workers for this date and service duration
-      const slots = await getAvailableSlotsWithWorkers(
-        salonId, 
-        dateString, 
-        serviceDuration
-      );
+      // Fetch both available slots and existing slots in parallel
+      const [availableSlotsPromise, existingSlotsPromise] = await Promise.all([
+        // Get available time slots with workers for this date and service duration
+        getAvailableSlotsWithWorkers(
+          salonId, 
+          formattedDate, 
+          serviceDuration
+        ),
+        
+        // Check if we have any existing slots in the database
+        supabase
+          .from('slots')
+          .select('id, start_time, worker_id, is_booked')
+          .eq('merchant_id', salonId)
+          .eq('date', formattedDate)
+      ]);
       
-      console.log(`Found ${slots.length} available slots for ${dateString}`);
+      // If request was aborted, don't update state
+      if (signal?.aborted) return;
+      
+      const slots = availableSlotsPromise;
+      const { data: existingSlots } = existingSlotsPromise;
+      
+      console.log(`Found ${slots.length} available slots for ${formattedDate}`);
       setAvailableTimeSlots(slots);
       
-      // Check if we have any existing slots in the database
-      const { data } = await supabase
-        .from('slots')
-        .select('id, start_time, worker_id, is_booked')
-        .eq('merchant_id', salonId)
-        .eq('date', dateString);
-        
       // Create a map of existing slots
       const existingSlotsMap: {[key: string]: {id: string, workerId: string, isBooked: boolean}} = {};
       
-      if (data && data.length > 0) {
-        data.forEach(slot => {
+      if (existingSlots && existingSlots.length > 0) {
+        existingSlots.forEach(slot => {
           // Only add to map if not booked or if it's not already in the map
           if (!existingSlotsMap[slot.start_time] || !slot.is_booked) {
             existingSlotsMap[slot.start_time] = {
@@ -84,8 +104,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           }
         });
         
-        console.log(`Found ${data.length} existing slots in database`);
-        console.log("Existing slots map:", existingSlotsMap);
+        console.log(`Found ${existingSlots.length} existing slots in database`);
       } else {
         console.log("No existing slots found in database");
       }
@@ -95,17 +114,19 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
     } catch (error) {
       console.error("Error fetching available slots:", error);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   };
   
   // Disable dates before today
-  const disabledDates = {
-    before: startOfDay(new Date())
-  };
+  const disabledDates = useMemo(() => {
+    return { before: startOfDay(new Date()) };
+  }, []);
 
-  // Format slots for display
-  const renderTimeSlots = () => {
+  // Format slots for display - memoized to prevent unnecessary recalculations
+  const renderTimeSlots = useMemo(() => {
     if (loading) {
       return (
         <div className="grid grid-cols-3 gap-2">
@@ -169,7 +190,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         })}
       </div>
     );
-  };
+  }, [loading, availableTimeSlots, selectedTime, hasExistingSlots, onTimeSelect]);
 
   return (
     <div className="space-y-4">
@@ -185,7 +206,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         <h3 className="text-sm font-medium mb-2">
           Available Times for {format(selectedDate, 'EEEE, MMMM d')}
         </h3>
-        {renderTimeSlots()}
+        {renderTimeSlots}
       </div>
     </div>
   );

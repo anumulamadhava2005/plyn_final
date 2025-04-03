@@ -10,8 +10,25 @@ export { generateSalonTimeSlots as createDynamicTimeSlots } from './slotUtils';
 export { generateSalonTimeSlots } from './slotUtils';
 export { findAvailableTimeSlots } from './slotUtils';
 
-// Fetch merchant slots
+// Cache for slot availability results to prevent redundant queries
+const slotAvailabilityCache = new Map<string, {
+  timestamp: number;
+  result: { available: boolean; slotId: string; workerId?: string, workerName?: string };
+}>();
+
+// Fetch merchant slots with caching
 export const fetchMerchantSlots = async (merchantId: string) => {
+  const cacheKey = `merchant_slots_${merchantId}`;
+  const cachedData = sessionStorage.getItem(cacheKey);
+  const cacheExpiry = 60 * 1000; // 1 minute cache
+  
+  if (cachedData) {
+    const { data, timestamp } = JSON.parse(cachedData);
+    if (Date.now() - timestamp < cacheExpiry) {
+      return data;
+    }
+  }
+  
   const { data, error } = await supabase
     .from('slots')
     .select(`
@@ -28,11 +45,17 @@ export const fetchMerchantSlots = async (merchantId: string) => {
     console.error("Error fetching merchant slots:", error);
     throw new Error(`Error fetching slots: ${error.message}`);
   }
-
+  
+  // Store in cache
+  sessionStorage.setItem(cacheKey, JSON.stringify({
+    data: data || [],
+    timestamp: Date.now()
+  }));
+  
   return data || [];
 };
 
-// Check slot availability with dynamic worker assignment
+// Check slot availability with dynamic worker assignment and caching
 export const checkSlotAvailability = async (
   merchantId: string,
   date: string,
@@ -40,6 +63,15 @@ export const checkSlotAvailability = async (
   serviceDuration: number = 30
 ): Promise<{ available: boolean; slotId: string; workerId?: string, workerName?: string }> => {
   try {
+    // Create a cache key based on the input parameters
+    const cacheKey = `${merchantId}-${date}-${time}-${serviceDuration}`;
+    
+    // Check cache first (valid for 30 seconds)
+    const cached = slotAvailabilityCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 30000)) {
+      return cached.result;
+    }
+    
     console.log(`Checking availability for ${date} at ${time}`);
     
     // First check if there's an existing slot that matches the criteria
@@ -68,12 +100,20 @@ export const checkSlotAvailability = async (
     
     if (availableSlot) {
       console.log(`Found available slot: ${availableSlot.id}`);
-      return {
+      const result = {
         available: true,
         slotId: availableSlot.id,
         workerId: availableSlot.worker_id,
         workerName: availableSlot.workers?.name
       };
+      
+      // Store in cache
+      slotAvailabilityCache.set(cacheKey, {
+        timestamp: Date.now(),
+        result
+      });
+      
+      return result;
     }
     
     // If no existing slot is available, find an available worker
@@ -83,10 +123,18 @@ export const checkSlotAvailability = async (
     if (!availableWorker) {
       // No workers are available at this time
       console.log(`No available worker found for ${date} at ${time}`);
-      return {
+      const result = {
         available: false,
         slotId: (existingSlots && existingSlots.length > 0) ? existingSlots[0].id : ''
       };
+      
+      // Store in cache
+      slotAvailabilityCache.set(cacheKey, {
+        timestamp: Date.now(),
+        result
+      });
+      
+      return result;
     }
     
     console.log(`Found available worker: ${availableWorker.workerId}`);
@@ -113,12 +161,20 @@ export const checkSlotAvailability = async (
     
     console.log(`Created new slot: ${newSlot.id}`);
     
-    return {
+    const result = {
       available: true,
       slotId: newSlot.id,
       workerId: availableWorker.workerId,
       workerName: availableWorker.name
     };
+    
+    // Store in cache
+    slotAvailabilityCache.set(cacheKey, {
+      timestamp: Date.now(),
+      result
+    });
+    
+    return result;
   } catch (error: any) {
     console.error("Error in checkSlotAvailability:", error);
     throw new Error("Could not check slot availability");
@@ -402,12 +458,39 @@ export const markMissedAppointments = async (): Promise<void> => {
   }
 };
 
-// Fetch user bookings
+// Fetch user bookings with optimized query
 export const fetchUserBookings = async (userId: string): Promise<any[]> => {
   try {
+    // Use caching for bookings to improve performance
+    const cacheKey = `user_bookings_${userId}`;
+    const cachedData = sessionStorage.getItem(cacheKey);
+    const cacheExpiry = 30 * 1000; // 30 seconds cache
+    
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData);
+      if (Date.now() - timestamp < cacheExpiry) {
+        return data;
+      }
+    }
+    
+    // Select only the fields we need to reduce payload size
     const { data, error } = await supabase
       .from('bookings')
-      .select('*')
+      .select(`
+        id,
+        user_id,
+        merchant_id,
+        salon_id,
+        salon_name,
+        service_name,
+        booking_date,
+        time_slot,
+        service_price,
+        service_duration,
+        status,
+        worker_id,
+        slot_id
+      `)
       .eq('user_id', userId)
       .order('booking_date', { ascending: false })
       .order('time_slot', { ascending: true });
@@ -420,15 +503,25 @@ export const fetchUserBookings = async (userId: string): Promise<any[]> => {
     // Run the missed appointment check when fetching bookings
     await markMissedAppointments();
 
-    // Convert status to display format for UI
-    return (data || []).map(booking => ({
-      ...booking,
-      // Keep the original status from database instead of overriding it
-      // Only override the status if it's not explicitly set and is in the past
-      status: booking.status === 'confirmed' && isBookingInPast(booking.booking_date, booking.time_slot)
-        ? 'completed'
-        : booking.status
+    // Convert status to display format for UI and check for past bookings
+    const processedData = (data || []).map(booking => {
+      return {
+        ...booking,
+        // Keep the original status from database instead of overriding it
+        // Only override the status if it's not explicitly set and is in the past
+        status: booking.status === 'confirmed' && isBookingInPast(booking.booking_date, booking.time_slot)
+          ? 'completed'
+          : booking.status
+      };
+    });
+    
+    // Store in cache
+    sessionStorage.setItem(cacheKey, JSON.stringify({
+      data: processedData,
+      timestamp: Date.now()
     }));
+    
+    return processedData;
   } catch (error) {
     console.error("Error in fetchUserBookings:", error);
     throw new Error("Could not fetch the user bookings");
