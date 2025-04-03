@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { format, addMinutes } from 'date-fns';
 import { WorkerAvailability } from '@/types/admin';
@@ -14,6 +13,38 @@ const slotsCache = new Map<string, {
   timestamp: number;
   slots: Array<{time: string, availableWorkers: WorkerAvailability[]}>;
 }>();
+
+/**
+ * Clear availability cache for a specific date
+ */
+export const clearAvailabilityCache = (merchantId: string, date: string): void => {
+  // Find and clear all relevant cache entries
+  const keysToDelete: string[] = [];
+  
+  slotsCache.forEach((_, key) => {
+    if (key.includes(merchantId) && key.includes(date)) {
+      keysToDelete.push(key);
+    }
+  });
+  
+  availabilityCache.forEach((_, key) => {
+    if (key.includes(date)) {
+      keysToDelete.push(key);
+    }
+  });
+  
+  // Delete found keys
+  keysToDelete.forEach(key => {
+    if (slotsCache.has(key)) {
+      slotsCache.delete(key);
+    }
+    if (availabilityCache.has(key)) {
+      availabilityCache.delete(key);
+    }
+  });
+  
+  console.log(`Cleared ${keysToDelete.length} cache entries for date ${date}`);
+};
 
 /**
  * Optimized batch check if workers are available for a slot
@@ -292,7 +323,7 @@ export const createSlotWithAutoAssignment = async (
     if (error) throw error;
     
     // Clear cache for this date to ensure fresh availability data
-    clearCacheForDate(merchantId, date);
+    clearAvailabilityCache(merchantId, date);
     
     return {
       slotId: data.id,
@@ -602,7 +633,7 @@ export const bookSlotWithWorker = async (
       if (createError) throw createError;
       
       // Clear cache for this date
-      clearCacheForDate(merchantId, date);
+      clearAvailabilityCache(merchantId, date);
       
       return {
         success: true,
@@ -633,7 +664,7 @@ export const bookSlotWithWorker = async (
       if (workerError) throw workerError;
       
       // Clear cache for this date
-      clearCacheForDate(merchantId, date);
+      clearAvailabilityCache(merchantId, date);
       
       return {
         success: true,
@@ -646,35 +677,3 @@ export const bookSlotWithWorker = async (
     throw error;
   }
 };
-
-/**
- * Helper function to clear cache for a specific date
- */
-function clearCacheForDate(merchantId: string, date: string): void {
-  // Find and clear all relevant cache entries
-  const keysToDelete: string[] = [];
-  
-  slotsCache.forEach((_, key) => {
-    if (key.includes(merchantId) && key.includes(date)) {
-      keysToDelete.push(key);
-    }
-  });
-  
-  availabilityCache.forEach((_, key) => {
-    if (key.includes(date)) {
-      keysToDelete.push(key);
-    }
-  });
-  
-  // Delete found keys
-  keysToDelete.forEach(key => {
-    if (slotsCache.has(key)) {
-      slotsCache.delete(key);
-    }
-    if (availabilityCache.has(key)) {
-      availabilityCache.delete(key);
-    }
-  });
-  
-  console.log(`Cleared ${keysToDelete.length} cache entries for date ${date}`);
-}
