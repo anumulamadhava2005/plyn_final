@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import WorkerSchedule from '@/components/merchant/WorkerSchedule';
 
 interface MerchantData {
   id: string;
@@ -39,7 +39,6 @@ const MerchantDashboard = () => {
   const [merchantData, setMerchantData] = useState<MerchantData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   
-  // Get tab from URL or default to dashboard
   const activeTab = searchParams.get('tab') || 'dashboard';
 
   useEffect(() => {
@@ -53,7 +52,6 @@ const MerchantDashboard = () => {
   const fetchMerchantData = async () => {
     setLoading(true);
     try {
-      // First, get the user profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -64,12 +62,9 @@ const MerchantDashboard = () => {
         throw profileError;
       }
 
-      // Get merchant ID from profile
       if (profile && profile.is_merchant) {
-        // Use the user's ID as the merchant ID
         setMerchantId(user?.id || null);
 
-        // Get merchant details
         const { data: merchant, error: merchantError } = await supabase
           .from('merchants')
           .select('*')
@@ -80,13 +75,11 @@ const MerchantDashboard = () => {
           throw merchantError;
         }
 
-        // Add is_active property if it doesn't exist
         setMerchantData({
           ...merchant,
           is_active: merchant.status === 'approved'
         });
       } else {
-        // If no merchant ID, redirect to merchant onboarding
         navigate('/merchant-onboarding');
       }
     } catch (error: any) {
@@ -168,7 +161,6 @@ const MerchantDashboard = () => {
   };
 
   const handleTabChange = (value: string) => {
-    // Update the URL when tab changes
     setSearchParams({ tab: value });
   };
 
@@ -214,11 +206,12 @@ const MerchantDashboard = () => {
 
               {merchantId && (
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                  <TabsList className="grid grid-cols-5 w-full">
+                  <TabsList className="grid grid-cols-6 w-full">
                     <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                     <TabsTrigger value="appointments">Appointments</TabsTrigger>
                     <TabsTrigger value="slots">Time Slots</TabsTrigger>
                     <TabsTrigger value="services">Services</TabsTrigger>
+                    <TabsTrigger value="workers">Workers</TabsTrigger>
                     <TabsTrigger value="settings">Settings</TabsTrigger>
                   </TabsList>
                   
@@ -243,6 +236,13 @@ const MerchantDashboard = () => {
                   <TabsContent value="services" className="pt-6">
                     <div className="space-y-6">
                       <MerchantServices merchantId={merchantId} />
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="workers" className="pt-6">
+                    <div className="space-y-6">
+                      <WorkerSchedule merchantId={merchantId} />
+                      <WorkerManager merchantId={merchantId} />
                     </div>
                   </TabsContent>
                   
