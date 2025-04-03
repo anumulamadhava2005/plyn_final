@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import BookingCalendar from './BookingCalendar';
 import { checkSlotAvailability, bookSlot } from '@/utils/bookingUtils';
 import { useAuth } from '@/context/AuthContext';
 import { formatToISODate } from '@/lib/date-utils';
+import { clearAvailabilityCache } from '@/utils/workerSchedulingUtils';
 
 interface BookingFormProps {
   salonId: string;
@@ -62,6 +62,9 @@ const BookingForm: React.FC<BookingFormProps> = ({
     setSelectedSlotId(slotId);
     setSelectedWorkerId(workerId || null);
     setSelectedWorkerName(workerName || null);
+    
+    const formattedDate = formatToISODate(selectedDate);
+    clearAvailabilityCache(salonId, formattedDate);
   };
 
   const validateForm = () => {
@@ -146,7 +149,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
       let workerIdToUse = selectedWorkerId;
       let workerNameToUse = selectedWorkerName;
       
-      // If no slot ID or empty slot ID, check availability and create a new slot
       if (!slotIdToUse || slotIdToUse === '') {
         console.log("No valid slot ID, checking availability...");
         const { available, slotId, workerId, workerName } = await checkSlotAvailability(
@@ -177,7 +179,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
         if (workerName) workerNameToUse = workerName;
       }
       
-      // Final check for valid slot ID before proceeding
       if (!slotIdToUse || slotIdToUse === '') {
         toast({
           title: "No available slot",
@@ -189,6 +190,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
       }
       
       console.log(`Using slot ID: ${slotIdToUse}`);
+      
+      clearAvailabilityCache(salonId, formattedDate);
       
       const serviceName = selectedServices.map(s => s.name).join(', ');
       

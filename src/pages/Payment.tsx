@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -13,6 +12,7 @@ import { createBooking, bookSlot } from '@/utils/bookingUtils';
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
 import PaymentSimulator from '@/components/payment/PaymentSimulator';
 import { Button } from '@/components/ui/button';
+import { clearAvailabilityCache } from '@/utils/workerSchedulingUtils';
 
 interface PaymentState {
   salonId: string;
@@ -36,6 +36,7 @@ const Payment = () => {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string>('credit_card');
   const [paymentInfo, setPaymentInfo] = useState({
     cardNumber: '',
@@ -45,13 +46,10 @@ const Payment = () => {
   });
   const [userCoins, setUserCoins] = useState<number>(0);
 
-  // Redirect if accessing directly without booking data
   const state = location.state as PaymentState;
   
   if (!state?.salonId) {
     navigate('/book');
-    // This return prevents the component from rendering further
-    // when there is no state (the user is being redirected)
     return null;
   }
 
@@ -63,7 +61,6 @@ const Payment = () => {
       }
     };
 
-    // Log the state for debugging
     if (state) {
       console.log("Payment state:", {
         salonId: state.salonId,
@@ -88,12 +85,9 @@ const Payment = () => {
   };
 
   const calculateCoinsUsed = () => {
-    // Calculate coins needed based on payment method
     if (paymentMethod === 'plyn_coins') {
-      // Full payment with coins (2 coins = $1)
       return state.totalPrice * 2;
     } else if (paymentMethod === 'partial_coins' && userCoins > 0) {
-      // Partial payment - use available coins up to half the price
       const maxCoinsToUse = Math.min(userCoins, state.totalPrice);
       return maxCoinsToUse;
     }
@@ -116,7 +110,6 @@ const Payment = () => {
       const coinsUsed = calculateCoinsUsed();
       const remainingCoinsAfterBooking = userCoins - coinsUsed;
       
-      // Validate sufficient coins if using coins payment
       if (paymentMethod === 'plyn_coins' && coinsUsed > userCoins) {
         toast({
           title: "Insufficient Coins",
@@ -139,7 +132,6 @@ const Payment = () => {
       
       console.log(`Processing payment for slot ID: ${state.slotId}`);
       
-      // First check if slot is still available before processing payment
       const { data: slot, error: slotError } = await supabase
         .from('slots')
         .select('is_booked, worker_id')
@@ -151,13 +143,11 @@ const Payment = () => {
         throw new Error(`Error checking slot availability: ${slotError.message}`);
       }
       
-      // Make sure we found the slot
       if (!slot) {
         console.error("Slot not found:", state.slotId);
         throw new Error('Slot not found. Please go back and select another time.');
       }
       
-      // Check if slot is already booked
       if (slot.is_booked) {
         console.error("Slot is already booked:", state.slotId);
         throw new Error('This time slot has already been booked. Please select another time.');
@@ -166,7 +156,6 @@ const Payment = () => {
       console.log("Slot status:", slot);
       
       try {
-        // Book the slot
         const bookingResult = await bookSlot(
           state.slotId,
           state.services.map((service: any) => service.name).join(", "),
@@ -175,12 +164,13 @@ const Payment = () => {
         );
         
         console.log("Booking result:", bookingResult);
+        
+        clearAvailabilityCache(state.salonId, state.date);
       } catch (bookError: any) {
         console.error("Error booking slot:", bookError);
         throw new Error(`Failed to book slot: ${bookError.message}`);
       }
       
-      // Update user's coins if used
       if (coinsUsed > 0) {
         await supabase
           .from('profiles')
@@ -188,10 +178,8 @@ const Payment = () => {
           .eq('id', user.id);
       }
       
-      // Generate a unique transaction ID
       const transactionId = `payment_${Date.now()}`;
       
-      // Create a booking record
       const bookingData = {
         user_id: user.id,
         merchant_id: state.salonId,
@@ -213,7 +201,6 @@ const Payment = () => {
       
       const bookingResponse = await createBooking(bookingData);
       
-      // Create a payment record
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
         .insert({
@@ -231,7 +218,6 @@ const Payment = () => {
         throw paymentError;
       }
       
-      // Update the booking with payment information
       await supabase
         .from('bookings')
         .update({
@@ -241,7 +227,6 @@ const Payment = () => {
         })
         .eq('id', bookingResponse.id);
       
-      // Navigate to confirmation page
       navigate('/booking-confirmation', { 
         state: { 
           booking: {
@@ -267,7 +252,6 @@ const Payment = () => {
     }
   };
 
-  // Use the date from the booking state and ensure proper formatting
   const formattedDate = state?.date 
     ? format(new Date(state.date), "EEEE, MMMM d, yyyy")
     : "Unknown date";

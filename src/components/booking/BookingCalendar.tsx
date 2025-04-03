@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar } from '@/components/ui/calendar';
-import { format, addDays, isBefore, startOfDay, parseISO } from 'date-fns';
+import { format, addDays, isBefore, startOfDay, parseISO, isPast, addMinutes } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -87,7 +87,24 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       const { data: existingSlots } = existingSlotsPromise;
       
       console.log(`Found ${slots.length} available slots for ${formattedDate}`);
-      setAvailableTimeSlots(slots);
+      
+      // Filter out slots that are in the past (completed)
+      const currentTime = new Date();
+      const filteredSlots = slots.filter(slot => {
+        // Create a date object from the date and time
+        const [hours, minutes] = slot.time.split(':').map(Number);
+        const slotDateTime = new Date(selectedDate);
+        slotDateTime.setHours(hours, minutes, 0, 0);
+        
+        // If the date is today, filter out past times
+        if (formattedDate === formatToISODate(currentTime)) {
+          return !isPast(slotDateTime);
+        }
+        
+        return true;
+      });
+      
+      setAvailableTimeSlots(filteredSlots);
       
       // Create a map of existing slots
       const existingSlotsMap: {[key: string]: {id: string, workerId: string, isBooked: boolean}} = {};
@@ -95,6 +112,16 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       if (existingSlots && existingSlots.length > 0) {
         existingSlots.forEach(slot => {
           // Only add to map if not booked or if it's not already in the map
+          // Also check if the slot is in the past (completed)
+          const [hours, minutes] = slot.start_time.split(':').map(Number);
+          const slotDateTime = new Date(selectedDate);
+          slotDateTime.setHours(hours, minutes, 0, 0);
+          
+          // Skip slots that are in the past
+          if (isPast(slotDateTime) && formattedDate === formatToISODate(currentTime)) {
+            return;
+          }
+          
           if (!existingSlotsMap[slot.start_time] || !slot.is_booked) {
             existingSlotsMap[slot.start_time] = {
               id: slot.id,
@@ -104,7 +131,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           }
         });
         
-        console.log(`Found ${existingSlots.length} existing slots in database`);
+        console.log(`Found ${Object.keys(existingSlotsMap).length} eligible existing slots in database`);
       } else {
         console.log("No existing slots found in database");
       }
@@ -156,6 +183,11 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
             return null;
           }
           
+          // Skip slots with no available workers
+          if (availableWorkers.length === 0) {
+            return null;
+          }
+          
           // Determine the slot ID to use - either an existing one or empty string
           // We'll create a new slot on backend if empty
           let slotId = slotInfo ? slotInfo.id : '';
@@ -180,7 +212,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
               }}
             >
               {time}
-              {availableWorkers.length > 1 && (
+              {availableWorkers.length > 0 && (
                 <span className="ml-1 text-xs opacity-70">
                   ({availableWorkers.length})
                 </span>

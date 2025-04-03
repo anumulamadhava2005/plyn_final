@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { format, addMinutes, parseISO } from 'date-fns';
+import { format, addMinutes, parseISO, isPast } from 'date-fns';
 import { WorkerAvailability } from '@/types/admin';
 
 // Cache for worker availability results
@@ -79,6 +78,15 @@ export const getAvailableWorkers = async (
       return [];
     }
     
+    // Check if the slot is in the past
+    const [hours, minutes] = time.split(':').map(Number);
+    const slotDate = new Date(date);
+    slotDate.setHours(hours, minutes, 0, 0);
+    
+    if (isPast(slotDate)) {
+      return []; // Don't return workers for past slots
+    }
+    
     // Use Promise.all to run all availability checks in parallel
     const availabilityPromises = workers.map(async (worker) => {
       // Check worker unavailability and existing bookings in parallel
@@ -144,7 +152,7 @@ export const getAvailableSlotsWithWorkers = async (
 }>> => {
   // Create a cache key
   const cacheKey = `slots_${merchantId}_${date}_${serviceDuration}`;
-  const cacheExpiry = 30 * 1000; // 30 seconds
+  const cacheExpiry = 15 * 1000; // 15 seconds - reduced for more frequent updates
   
   // Check cache first
   const cached = availableSlotsCache.get(cacheKey);
@@ -226,9 +234,24 @@ export const getAvailableSlotsWithWorkers = async (
       });
     });
     
+    // Check if any slots are in the past
+    const currentDate = new Date();
+    const isToday = date === format(currentDate, 'yyyy-MM-dd');
+    const currentHour = currentDate.getHours();
+    const currentMinute = currentDate.getMinutes();
+    
     // Process each time slot to find available workers
     const availableSlots = slots.map(time => {
+      const [hour, minute] = time.split(':').map(Number);
       const slotTime = new Date(`2000-01-01T${time}`);
+      
+      // Skip slots in the past for today
+      if (isToday && (hour < currentHour || (hour === currentHour && minute <= currentMinute))) {
+        return {
+          time,
+          availableWorkers: []
+        };
+      }
       
       // Find available workers for this time slot
       const availableWorkersForSlot = workers.filter(worker => {
@@ -270,4 +293,37 @@ export const getAvailableSlotsWithWorkers = async (
     console.error("Error getting available slots with workers:", error);
     return [];
   }
+};
+
+// Function to clear the availability cache for a specific date and merchant
+// This should be called when a booking is made to ensure fresh data
+export const clearAvailabilityCache = (merchantId: string, date: string) => {
+  // Clear all cache entries for this merchant and date
+  const keysToDelete: string[] = [];
+  
+  // Find all cache keys related to this merchant and date
+  availableSlotsCache.forEach((_, key) => {
+    if (key.includes(`slots_${merchantId}_${date}`)) {
+      keysToDelete.push(key);
+    }
+  });
+  
+  // Clear worker availability cache too
+  workerAvailabilityCache.forEach((_, key) => {
+    if (key.includes(`worker_${merchantId}_${date}`)) {
+      keysToDelete.push(key);
+    }
+  });
+  
+  // Delete the found cache entries
+  keysToDelete.forEach(key => {
+    if (availableSlotsCache.has(key)) {
+      availableSlotsCache.delete(key);
+    }
+    if (workerAvailabilityCache.has(key)) {
+      workerAvailabilityCache.delete(key);
+    }
+  });
+  
+  console.log(`Cleared ${keysToDelete.length} cache entries for merchant ${merchantId} and date ${date}`);
 };
