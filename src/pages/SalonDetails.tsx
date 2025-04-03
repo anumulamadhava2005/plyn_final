@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -6,30 +7,19 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
-import { CalendarIcon, Clock, MapPin, Phone, Mail, Star, ChevronLeft } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useAuth } from '@/context/AuthContext';
-import { showBookingSuccessNotification } from '@/components/booking/BookingSuccessNotification';
+import { MapPin, Phone, Mail, Star, ChevronLeft } from 'lucide-react';
+import BookingForm from '@/components/booking/BookingForm';
 import PageTransition from '@/components/transitions/PageTransition';
 
 const SalonDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
   
   const [salon, setSalon] = useState<any>(null);
   const [services, setServices] = useState<any[]>([]);
-  const [selectedService, setSelectedService] = useState<any>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isBooking, setIsBooking] = useState(false);
   const [activeTab, setActiveTab] = useState('services');
   
   useEffect(() => {
@@ -37,14 +27,6 @@ const SalonDetails = () => {
       fetchSalonDetails();
     }
   }, [id]);
-  
-  useEffect(() => {
-    if (selectedService && selectedDate) {
-      fetchAvailableSlots();
-    } else {
-      setAvailableSlots([]);
-    }
-  }, [selectedService, selectedDate]);
   
   const fetchSalonDetails = async () => {
     try {
@@ -80,92 +62,35 @@ const SalonDetails = () => {
     }
   };
   
-  const fetchAvailableSlots = async () => {
-    if (!id || !selectedDate || !selectedService) return;
+  const handleServiceSelect = (service: any) => {
+    // Check if service is already selected
+    const serviceIndex = selectedServices.findIndex(s => s.id === service.id);
     
-    try {
-      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-      
-      const { data, error } = await supabase
-        .from('slots')
-        .select('*')
-        .eq('merchant_id', id)
-        .eq('date', formattedDate)
-        .eq('is_booked', false);
-        
-      if (error) throw error;
-      
-      setAvailableSlots(data || []);
-    } catch (error: any) {
-      console.error('Error fetching available slots:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load available time slots.',
-        variant: 'destructive',
-      });
+    if (serviceIndex >= 0) {
+      // If already selected, remove it
+      setSelectedServices(prev => prev.filter(s => s.id !== service.id));
+    } else {
+      // If not selected, add it
+      setSelectedServices(prev => [...prev, service]);
     }
   };
   
-  const handleServiceSelect = (service: any) => {
-    setSelectedService(service);
-    setSelectedSlot(null);
+  const handleProceedToBooking = () => {
+    if (selectedServices.length === 0) {
+      toast({
+        title: 'No services selected',
+        description: 'Please select at least one service to book.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setActiveTab('booking');
   };
   
-  const handleSlotSelect = (slot: any) => {
-    setSelectedSlot(slot);
-  };
-  
-  const handleBookAppointment = async () => {
-    if (!user) {
-      toast({
-        title: 'Login Required',
-        description: 'Please login to book an appointment.',
-        variant: 'default',
-      });
-      navigate('/login', { state: { from: `/salon/${id}` } });
-      return;
-    }
-    
-    if (!selectedService || !selectedSlot) {
-      toast({
-        title: 'Incomplete Booking',
-        description: 'Please select a service and time slot.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    try {
-      setIsBooking(true);
-      
-      navigate('/payment', {
-        state: {
-          salonId: id,
-          salonName: salon.business_name,
-          services: [selectedService],
-          date: selectedSlot.date,
-          timeSlot: selectedSlot.start_time,
-          email: user.email,
-          phone: '',
-          notes: '',
-          totalPrice: selectedService.price,
-          totalDuration: selectedService.duration,
-          slotId: selectedSlot.id
-        }
-      });
-      
-    } catch (error: any) {
-      console.error('Error proceeding to payment:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to proceed to payment. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsBooking(false);
-    }
-  };
+  // Calculate total price and duration from selected services
+  const totalPrice = selectedServices.reduce((sum, service) => sum + (service.price || 0), 0);
+  const totalDuration = selectedServices.reduce((sum, service) => sum + (service.duration || 0), 0);
   
   if (isLoading) {
     return (
@@ -238,7 +163,7 @@ const SalonDetails = () => {
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="services">Services</TabsTrigger>
-                  <TabsTrigger value="booking" disabled={!selectedService}>Booking</TabsTrigger>
+                  <TabsTrigger value="booking" disabled={selectedServices.length === 0}>Booking</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="services" className="mt-6">
@@ -246,7 +171,14 @@ const SalonDetails = () => {
                   <div className="grid grid-cols-1 gap-4">
                     {services.length > 0 ? (
                       services.map((service) => (
-                        <Card key={service.id} className="overflow-hidden">
+                        <Card 
+                          key={service.id} 
+                          className={`overflow-hidden transition-colors ${
+                            selectedServices.some(s => s.id === service.id) 
+                              ? 'border-primary bg-primary/5' 
+                              : ''
+                          }`}
+                        >
                           <CardHeader className="pb-2">
                             <div className="flex justify-between items-start">
                               <div>
@@ -254,7 +186,7 @@ const SalonDetails = () => {
                                 <CardDescription className="mt-1">{service.description}</CardDescription>
                               </div>
                               <div className="text-right">
-                                <span className="text-lg font-bold">${String(service.price)}</span>
+                                <span className="text-lg font-bold">${service.price}</span>
                                 <p className="text-sm text-muted-foreground">{service.duration} min</p>
                               </div>
                             </div>
@@ -262,9 +194,10 @@ const SalonDetails = () => {
                           <CardFooter className="pt-2">
                             <Button 
                               onClick={() => handleServiceSelect(service)}
+                              variant={selectedServices.some(s => s.id === service.id) ? "default" : "outline"}
                               className="w-full"
                             >
-                              Book Now
+                              {selectedServices.some(s => s.id === service.id) ? 'Selected' : 'Select'}
                             </Button>
                           </CardFooter>
                         </Card>
@@ -275,84 +208,50 @@ const SalonDetails = () => {
                       </div>
                     )}
                   </div>
+                  
+                  {selectedServices.length > 0 && (
+                    <div className="mt-6">
+                      <Card className="bg-primary/5">
+                        <CardHeader>
+                          <CardTitle>Selected Services</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {selectedServices.map(service => (
+                              <li key={service.id} className="flex justify-between">
+                                <span>{service.name}</span>
+                                <span>${service.price}</span>
+                              </li>
+                            ))}
+                            <li className="flex justify-between font-bold border-t pt-2 mt-2">
+                              <span>Total</span>
+                              <span>${totalPrice}</span>
+                            </li>
+                            <li className="flex justify-between text-sm text-muted-foreground">
+                              <span>Estimated Duration</span>
+                              <span>{totalDuration} minutes</span>
+                            </li>
+                          </ul>
+                        </CardContent>
+                        <CardFooter>
+                          <Button className="w-full" onClick={handleProceedToBooking}>
+                            Proceed to Booking
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    </div>
+                  )}
                 </TabsContent>
                 
                 <TabsContent value="booking" className="mt-6">
-                  {selectedService && (
-                    <div className="space-y-6">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Selected Service</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <h3 className="font-medium">{selectedService.name}</h3>
-                              <p className="text-sm text-muted-foreground">{selectedService.duration} minutes</p>
-                            </div>
-                            <div>
-                              <span className="text-lg font-bold">${String(selectedService.price)}</span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>Select Date</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <Calendar
-                              mode="single"
-                              selected={selectedDate}
-                              onSelect={setSelectedDate}
-                              disabled={(date) => 
-                                date < new Date(new Date().setHours(0, 0, 0, 0)) ||
-                                date > new Date(new Date().setMonth(new Date().getMonth() + 2))
-                              }
-                              className="rounded-md border"
-                            />
-                          </CardContent>
-                        </Card>
-                        
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>Available Time Slots</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {availableSlots.length > 0 ? (
-                              <div className="grid grid-cols-2 gap-2">
-                                {availableSlots.map((slot) => (
-                                  <Button
-                                    key={slot.id}
-                                    variant={selectedSlot?.id === slot.id ? "default" : "outline"}
-                                    className="justify-start"
-                                    onClick={() => handleSlotSelect(slot)}
-                                  >
-                                    <Clock className="mr-2 h-4 w-4" />
-                                    {slot.start_time}
-                                  </Button>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-center py-8">
-                                <p className="text-muted-foreground">No available slots for the selected date.</p>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
-                      
-                      <Button 
-                        className="w-full" 
-                        size="lg"
-                        disabled={!selectedSlot || isBooking}
-                        onClick={handleBookAppointment}
-                      >
-                        {isBooking ? "Processing..." : "Book Appointment"}
-                      </Button>
-                    </div>
+                  {selectedServices.length > 0 && salon && (
+                    <BookingForm
+                      salonId={salon.id}
+                      salonName={salon.business_name}
+                      selectedServices={selectedServices}
+                      totalPrice={totalPrice}
+                      totalDuration={totalDuration}
+                    />
                   )}
                 </TabsContent>
               </Tabs>
