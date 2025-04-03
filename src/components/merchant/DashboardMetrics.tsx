@@ -52,12 +52,19 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
         .eq('merchant_id', merchantId)
         .eq('booking_date', today);
       
-      // Fetch unique clients
+      // Fetch unique clients - using select instead of distinct
       const { data: clientsData, error: clientsError } = await supabase
         .from('bookings')
         .select('user_id')
-        .eq('merchant_id', merchantId)
-        .distinct();
+        .eq('merchant_id', merchantId);
+      
+      // Count unique user_ids
+      const uniqueUserIds = new Set();
+      clientsData?.forEach(booking => {
+        if (booking.user_id) {
+          uniqueUserIds.add(booking.user_id);
+        }
+      });
       
       // Fetch available slots
       const { data: availableSlotsData, error: availableSlotsError } = await supabase
@@ -70,7 +77,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
       setMetrics({
         totalAppointments: appointmentsData?.length || 0,
         todayAppointments: todayAppointmentsData?.length || 0,
-        totalClients: clientsData?.length || 0,
+        totalClients: uniqueUserIds.size,
         availableSlots: availableSlotsData?.length || 0,
       });
       

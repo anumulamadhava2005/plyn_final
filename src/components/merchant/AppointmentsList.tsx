@@ -116,27 +116,63 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
 
   const updateBookingStatus = async (bookingId: string, newStatus: string) => {
     try {
-      const { error } = await supabase
+      console.log(`Updating booking ${bookingId} to status ${newStatus}`);
+      
+      // First, check if the booking exists
+      const { data: existingBooking, error: checkError } = await supabase
+        .from('bookings')
+        .select('id, status')
+        .eq('id', bookingId)
+        .single();
+      
+      if (checkError) {
+        console.error("Error checking booking:", checkError);
+        throw checkError;
+      }
+      
+      if (!existingBooking) {
+        console.error("Booking not found:", bookingId);
+        throw new Error("Booking not found");
+      }
+      
+      console.log("Current booking status:", existingBooking.status);
+      
+      // Perform the update
+      const { data, error } = await supabase
         .from('bookings')
         .update({ status: newStatus })
-        .eq('id', bookingId);
+        .eq('id', bookingId)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error updating booking:", error);
+        throw error;
+      }
+      
+      console.log("Update result:", data);
 
-      // Update local state
-      setBookings(bookings.map(booking => 
-        booking.id === bookingId ? { ...booking, status: newStatus } : booking
-      ));
+      // Verify the update was successful
+      if (data && data.length > 0) {
+        console.log(`Successfully updated booking ${bookingId} to ${newStatus}`);
+        
+        // Update local state
+        setBookings(bookings.map(booking => 
+          booking.id === bookingId ? { ...booking, status: newStatus } : booking
+        ));
 
-      toast({
-        title: "Status Updated",
-        description: `Booking has been marked as ${newStatus}`,
-      });
-    } catch (error) {
+        toast({
+          title: "Status Updated",
+          description: `Booking has been marked as ${newStatus}`,
+        });
+      } else {
+        console.error("Update didn't return data");
+        throw new Error("Update failed");
+      }
+    } catch (error: any) {
       console.error("Error updating booking status:", error);
       toast({
         title: "Update Failed",
-        description: "Failed to update booking status",
+        description: error.message || "Failed to update booking status",
         variant: "destructive",
       });
     }
