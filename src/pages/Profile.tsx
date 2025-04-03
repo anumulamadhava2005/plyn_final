@@ -1,14 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client'; // Added this import
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CalendarIcon, CreditCard, HelpCircle, LogOut, Settings } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
-import { updateUserCoins } from '@/utils/userUtils';
-// Import getUserCoins from userUtils
+import { CalendarIcon, CreditCard, HelpCircle, LogOut, Settings, Store } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { getUserCoins, getUserProfile } from '@/utils/userUtils';
 import PageTransition from '@/components/transitions/PageTransition';
 
@@ -19,6 +18,7 @@ const Profile = () => {
   const [coins, setCoins] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
+  const [isMerchant, setIsMerchant] = useState(false);
   
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -30,6 +30,17 @@ const Profile = () => {
           
           const userProfile = await getUserProfile(user.id);
           setProfile(userProfile);
+          
+          // Check if user is a merchant
+          const { data, error } = await supabase
+            .from('merchants')
+            .select('id')
+            .eq('id', user.id)
+            .single();
+          
+          if (data && !error) {
+            setIsMerchant(true);
+          }
         } catch (error: any) {
           console.error("Error fetching user data:", error);
           toast({
@@ -55,27 +66,6 @@ const Profile = () => {
       toast({
         title: "Logout Failed",
         description: error.message || "Failed to logout. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-  
-  const handleAddCoins = async () => {
-    if (!user) return;
-    
-    const newCoins = coins + 100;
-    const success = await updateUserCoins(user.id, newCoins);
-    
-    if (success) {
-      setCoins(newCoins);
-      toast({
-        title: "Coins Added",
-        description: "Successfully added 100 coins to your account.",
-      });
-    } else {
-      toast({
-        title: "Failed to Add Coins",
-        description: "Failed to update coins. Please try again.",
         variant: "destructive",
       });
     }
@@ -121,9 +111,6 @@ const Profile = () => {
                 <div className="flex items-center space-x-2">
                   <CreditCard className="h-4 w-4 text-muted-foreground" />
                   <span>{coins} Coins</span>
-                  <Button variant="secondary" size="sm" onClick={handleAddCoins}>
-                    Add Coins
-                  </Button>
                 </div>
               </div>
               
@@ -133,10 +120,21 @@ const Profile = () => {
                   <Settings className="mr-2 h-4 w-4" />
                   Edit Profile
                 </Button>
-                <Button variant="ghost" className="justify-start">
+                <Button variant="ghost" className="justify-start" onClick={() => navigate('/my-bookings')}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   My Bookings
                 </Button>
+                {isMerchant ? (
+                  <Button variant="ghost" className="justify-start" onClick={() => navigate('/merchant-dashboard')}>
+                    <Store className="mr-2 h-4 w-4" />
+                    Merchant Dashboard
+                  </Button>
+                ) : (
+                  <Button variant="ghost" className="justify-start" onClick={() => navigate('/merchant-signup')}>
+                    <Store className="mr-2 h-4 w-4" />
+                    Become a Merchant
+                  </Button>
+                )}
                 <Button variant="ghost" className="justify-start">
                   <HelpCircle className="mr-2 h-4 w-4" />
                   Help & Support

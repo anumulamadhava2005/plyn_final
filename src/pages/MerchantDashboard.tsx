@@ -1,9 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import MerchantSidebar from '@/components/merchant/MerchantSidebar';
 import DashboardMetrics from '@/components/merchant/DashboardMetrics';
 import SlotManager from '@/components/merchant/SlotManager';
 import WorkerManager from '@/components/merchant/WorkerManager';
@@ -12,7 +10,11 @@ import MerchantServices from '@/components/merchant/MerchantServices';
 import AppointmentsList from '@/components/merchant/AppointmentsList';
 import PageTransition from '@/components/transitions/PageTransition';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface MerchantData {
   id: string;
@@ -31,10 +33,13 @@ const MerchantDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selectedView, setSelectedView] = useState<string>('dashboard');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [merchantData, setMerchantData] = useState<MerchantData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  
+  // Get tab from URL or default to dashboard
+  const activeTab = searchParams.get('tab') || 'dashboard';
 
   useEffect(() => {
     if (!user) {
@@ -161,86 +166,91 @@ const MerchantDashboard = () => {
     }
   };
 
+  const handleTabChange = (value: string) => {
+    // Update the URL when tab changes
+    setSearchParams({ tab: value });
+  };
+
   return (
     <PageTransition>
       <div className="flex min-h-screen bg-background">
-        {merchantData && (
-          <MerchantSidebar 
-            activeView={selectedView} 
-            onViewChange={setSelectedView}
-            merchantData={merchantData}
-          />
-        )}
-        
         <div className="flex-1 p-6 lg:p-10 overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-2">
+              <Link to="/">
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <ChevronLeft className="h-4 w-4" />
+                  Return to Site
+                </Button>
+              </Link>
+              <h1 className="text-3xl font-bold">Merchant Dashboard</h1>
+            </div>
+          </div>
+          
           {loading ? (
             <div className="flex justify-center items-center h-[80vh]">
               <p>Loading merchant dashboard...</p>
             </div>
           ) : (
             <>
-              {selectedView === 'dashboard' && merchantId && (
-                <div className="space-y-6">
-                  <h1 className="text-3xl font-bold">Dashboard</h1>
-                  
-                  <DashboardMetrics 
-                    merchantId={merchantId} 
-                  />
-                  
-                  <div className="mt-8">
-                    {merchantId && (
-                      <AppointmentsList 
-                        merchantId={merchantId} 
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {selectedView === 'slots' && merchantId && (
-                <div className="space-y-6">
-                  <h1 className="text-3xl font-bold">Manage Slots</h1>
-                  <SlotManager merchantId={merchantId} />
-                </div>
-              )}
-
-              {selectedView === 'workers' && merchantId && (
-                <div className="space-y-6">
-                  <h1 className="text-3xl font-bold">Manage Workers</h1>
-                  <WorkerManager merchantId={merchantId} />
-                </div>
-              )}
-
-              {selectedView === 'services' && merchantId && (
-                <div className="space-y-6">
-                  <h1 className="text-3xl font-bold">Manage Services</h1>
-                  <MerchantServices merchantId={merchantId} />
-                </div>
-              )}
-
-              {selectedView === 'settings' && merchantId && (
-                <div className="space-y-6">
-                  <h1 className="text-3xl font-bold">Settings</h1>
-                  <MerchantSettingsManager merchantId={merchantId} />
-                </div>
-              )}
-
               {merchantData && merchantData.status !== 'approved' && (
-                <Card className="w-full">
+                <Card className="w-full mb-6">
                   <CardContent className="py-4">
                     <p className="text-center text-lg">
                       Your merchant account is not yet active. Please confirm your details to activate your account.
                     </p>
                     <div className="flex justify-center mt-4 space-x-4">
-                      <button onClick={handleConfirm} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-700">
+                      <Button onClick={handleConfirm} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-700">
                         Confirm
-                      </button>
-                      <button onClick={handleCancel} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-700">
+                      </Button>
+                      <Button onClick={handleCancel} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-700">
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
+              )}
+
+              {merchantId && (
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                  <TabsList className="grid grid-cols-5 w-full">
+                    <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                    <TabsTrigger value="appointments">Appointments</TabsTrigger>
+                    <TabsTrigger value="slots">Time Slots</TabsTrigger>
+                    <TabsTrigger value="services">Services</TabsTrigger>
+                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="dashboard" className="pt-6">
+                    <div className="space-y-6">
+                      <DashboardMetrics merchantId={merchantId} />
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="appointments" className="pt-6">
+                    <div className="space-y-6">
+                      <AppointmentsList merchantId={merchantId} />
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="slots" className="pt-6">
+                    <div className="space-y-6">
+                      <SlotManager merchantId={merchantId} />
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="services" className="pt-6">
+                    <div className="space-y-6">
+                      <MerchantServices merchantId={merchantId} />
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="settings" className="pt-6">
+                    <div className="space-y-6">
+                      <MerchantSettingsManager merchantId={merchantId} />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               )}
             </>
           )}

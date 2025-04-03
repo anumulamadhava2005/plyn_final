@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { fetchUserBookings, cancelBookingAndRefund } from '@/utils/bookingUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
-import { X, Calendar } from 'lucide-react';
+import { X, Calendar, ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PageTransition from '@/components/transitions/PageTransition';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -87,7 +87,15 @@ const MyBookings = () => {
   return (
     <PageTransition>
       <div className="container mx-auto py-8 px-4">
-        <h1 className="text-3xl font-bold mb-6">My Bookings</h1>
+        <div className="flex items-center gap-4 mb-6">
+          <Link to="/">
+            <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </Button>
+          </Link>
+          <h1 className="text-3xl font-bold">My Bookings</h1>
+        </div>
 
         <Tabs defaultValue="upcoming" onValueChange={setSelectedTab}>
           <TabsList className="grid w-full grid-cols-3 mb-6">
