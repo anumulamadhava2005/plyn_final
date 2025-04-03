@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -86,7 +85,6 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
       if (error) throw error;
 
       if (data) {
-        // Fetch user names (optional)
         const bookingsWithUserInfo = await Promise.all(
           data.map(async (booking) => {
             if (booking.user_id) {
@@ -118,7 +116,6 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
     try {
       console.log(`Updating booking ${bookingId} to status ${newStatus}`);
       
-      // First, check if the booking exists
       const { data: existingBooking, error: checkError } = await supabase
         .from('bookings')
         .select('id, status')
@@ -137,37 +134,26 @@ const AppointmentsList: React.FC<AppointmentsListProps> = ({ merchantId }) => {
       
       console.log("Current booking status:", existingBooking.status);
       
-      // Perform the update
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('bookings')
         .update({ status: newStatus })
-        .eq('id', bookingId)
-        .select();
+        .eq('id', bookingId);
 
       if (error) {
         console.error("Error updating booking:", error);
         throw error;
       }
       
-      console.log("Update result:", data);
+      console.log(`Successfully updated booking ${bookingId} to ${newStatus}`);
+      
+      setBookings(bookings.map(booking => 
+        booking.id === bookingId ? { ...booking, status: newStatus } : booking
+      ));
 
-      // Verify the update was successful
-      if (data && data.length > 0) {
-        console.log(`Successfully updated booking ${bookingId} to ${newStatus}`);
-        
-        // Update local state
-        setBookings(bookings.map(booking => 
-          booking.id === bookingId ? { ...booking, status: newStatus } : booking
-        ));
-
-        toast({
-          title: "Status Updated",
-          description: `Booking has been marked as ${newStatus}`,
-        });
-      } else {
-        console.error("Update didn't return data");
-        throw new Error("Update failed");
-      }
+      toast({
+        title: "Status Updated",
+        description: `Booking has been marked as ${newStatus}`,
+      });
     } catch (error: any) {
       console.error("Error updating booking status:", error);
       toast({
