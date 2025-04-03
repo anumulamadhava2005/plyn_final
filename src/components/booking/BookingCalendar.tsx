@@ -195,6 +195,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           // Use the first available worker for this slot
           const firstWorker = availableWorkers[0];
           
+          // Count only actually available workers
+          const availableWorkerCount = availableWorkers.length;
+          
           return (
             <Button
               key={time}
@@ -212,9 +215,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
               }}
             >
               {time}
-              {availableWorkers.length > 0 && (
+              {availableWorkerCount > 0 && (
                 <span className="ml-1 text-xs opacity-70">
-                  ({availableWorkers.length})
+                  ({availableWorkerCount})
                 </span>
               )}
             </Button>

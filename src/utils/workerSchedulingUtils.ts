@@ -257,7 +257,7 @@ export const getAvailableSlotsWithWorkers = async (
 }>> => {
   // Create a cache key
   const cacheKey = `slots_${merchantId}_${date}_${serviceDuration}`;
-  const cacheExpiry = 15 * 1000; // 15 seconds - reduced for more frequent updates
+  const cacheExpiry = 5 * 1000; // 5 seconds - reduced for more frequent updates
   
   // Check cache first
   const cached = availableSlotsCache.get(cacheKey);
@@ -386,16 +386,16 @@ export const getAvailableSlotsWithWorkers = async (
         });
         
         return !isUnavailable;
-      });
+      }).map(worker => ({
+        workerId: worker.id,
+        name: worker.name,
+        nextAvailableTime: time,
+        specialty: worker.specialty
+      }));
       
       return {
         time,
-        availableWorkers: availableWorkersForSlot.map(worker => ({
-          workerId: worker.id,
-          name: worker.name,
-          nextAvailableTime: time,
-          specialty: worker.specialty
-        }))
+        availableWorkers: availableWorkersForSlot
       };
     }).filter(slot => slot.availableWorkers.length > 0);
     
@@ -431,7 +431,7 @@ export const getAvailableSlotsWithWorkersInRange = async (
 }>> => {
   // Create a cache key for this specific range request
   const cacheKey = `range_${merchantId}_${date}_${startHour}_${endHour}_${serviceDuration}_${interval}`;
-  const cacheExpiry = 30 * 1000; // 30 seconds
+  const cacheExpiry = 10 * 1000; // 10 seconds
   
   // Check cache first
   const cached = availableSlotsCache.get(cacheKey);
