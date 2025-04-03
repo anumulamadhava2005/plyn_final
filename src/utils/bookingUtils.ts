@@ -1,3 +1,4 @@
+
 import { addDays, format, isAfter, isBefore, parse, parseISO, addMinutes } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { getAvailableTimeSlots, generateSalonTimeSlots, findAvailableTimeSlots } from './slotUtils';
@@ -40,6 +41,8 @@ export const checkSlotAvailability = async (
   serviceDuration: number = 30
 ): Promise<{ available: boolean; slotId: string; workerId?: string, workerName?: string }> => {
   try {
+    console.log(`Checking availability for ${date} at ${time}`);
+    
     // First check if there's an existing slot that matches the criteria
     const { data: existingSlots, error: slotsError } = await supabase
       .from('slots')
@@ -65,6 +68,7 @@ export const checkSlotAvailability = async (
     const availableSlot = (existingSlots || []).find(slot => !slot.is_booked);
     
     if (availableSlot) {
+      console.log(`Found available slot: ${availableSlot.id}`);
       return {
         available: true,
         slotId: availableSlot.id,
@@ -74,15 +78,19 @@ export const checkSlotAvailability = async (
     }
     
     // If no existing slot is available, find an available worker
+    console.log(`No existing available slot found, finding available worker`);
     const availableWorker = await findAvailableWorker(merchantId, date, time, serviceDuration);
     
     if (!availableWorker) {
       // No workers are available at this time
+      console.log(`No available worker found for ${date} at ${time}`);
       return {
         available: false,
         slotId: (existingSlots && existingSlots.length > 0) ? existingSlots[0].id : ''
       };
     }
+    
+    console.log(`Found available worker: ${availableWorker.workerId}`);
     
     // Create a new slot for the available worker
     const { data: newSlot, error: createError } = await supabase
@@ -103,6 +111,8 @@ export const checkSlotAvailability = async (
       console.error("Error creating new slot:", createError);
       throw new Error(`Error creating new slot: ${createError.message}`);
     }
+    
+    console.log(`Created new slot: ${newSlot.id}`);
     
     return {
       available: true,
@@ -129,6 +139,8 @@ export const bookSlot = async (
       throw new Error("No slot ID provided. Please select a valid time slot.");
     }
 
+    console.log(`Booking slot with ID: ${slotId}`);
+    
     // First get the slot details to get worker information
     const { data: slot, error: getError } = await supabase
       .from('slots')
@@ -147,6 +159,8 @@ export const bookSlot = async (
       console.error("Error getting slot details:", getError);
       throw getError;
     }
+    
+    console.log(`Found slot with worker ID: ${slot.worker_id}`);
     
     // Update the slot to mark it as booked
     const { error } = await supabase

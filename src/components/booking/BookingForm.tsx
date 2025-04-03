@@ -47,6 +47,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
   }, [user]);
 
   const handleDateChange = (date: Date) => {
+    console.log(`Date changed to: ${date.toISOString()}`);
     setSelectedDate(date);
     setSelectedTime(null);
     setSelectedSlotId('');
@@ -55,6 +56,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
   };
 
   const handleTimeSelect = (time: string, slotId: string, workerId?: string, workerName?: string) => {
+    console.log(`Time selected: ${time}, SlotId: ${slotId}, WorkerId: ${workerId}`);
     setSelectedTime(time);
     setSelectedSlotId(slotId);
     setSelectedWorkerId(workerId || null);
@@ -137,6 +139,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
     
     try {
       const formattedDate = selectedDate.toISOString().split('T')[0];
+      console.log(`Proceeding with date: ${formattedDate} and time: ${selectedTime}`);
       
       // First, check slot availability and potentially create a new slot
       const { available, slotId, workerId, workerName } = await checkSlotAvailability(

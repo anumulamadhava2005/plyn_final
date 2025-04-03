@@ -1,18 +1,18 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import PaymentForm from '@/components/payment/PaymentForm';
 import BookingSummary from '@/components/payment/BookingSummary';
 import PageTransition from '@/components/transitions/PageTransition';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getUserCoins } from '@/utils/userUtils';
 import { createBooking, bookSlot } from '@/utils/bookingUtils';
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
 import PaymentSimulator from '@/components/payment/PaymentSimulator';
-import { Button } from '@/components/ui/button';  // Add missing Button import
+import { Button } from '@/components/ui/button';
 
 interface PaymentState {
   salonId: string;
@@ -55,7 +55,7 @@ const Payment = () => {
     return null;
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchUserCoins = async () => {
       if (user) {
         const coins = await getUserCoins(user.id);
@@ -63,8 +63,18 @@ const Payment = () => {
       }
     };
 
+    // Log the state for debugging
+    if (state) {
+      console.log("Payment state:", {
+        salonId: state.salonId,
+        date: state.date,
+        timeSlot: state.timeSlot,
+        slotId: state.slotId
+      });
+    }
+
     fetchUserCoins();
-  }, [user]);
+  }, [user, state]);
 
   const handlePaymentMethodChange = (method: string) => {
     setPaymentMethod(method);
@@ -121,22 +131,35 @@ const Payment = () => {
       const { data: slot, error: slotError } = await supabase
         .from('slots')
         .select('is_booked, worker_id')
-        .eq('id', state.slotId)
-        .single();
+        .eq('id', state.slotId);
       
       if (slotError) {
+        console.error("Error checking slot availability:", slotError);
         throw new Error(`Error checking slot availability: ${slotError.message}`);
       }
       
-      if (slot.is_booked) {
+      // Make sure we found the slot
+      if (!slot || slot.length === 0) {
+        throw new Error('Slot not found. Please go back and select another time.');
+      }
+      
+      // Check if slot is already booked
+      if (slot[0].is_booked) {
         throw new Error('This time slot has already been booked. Please select another time.');
       }
       
+      console.log("Slot status:", slot[0]);
+      
       // Mark the slot as booked
-      await supabase
+      const { error: updateError } = await supabase
         .from('slots')
         .update({ is_booked: true })
         .eq('id', state.slotId);
+      
+      if (updateError) {
+        console.error("Error updating slot status:", updateError);
+        throw new Error(`Error updating slot: ${updateError.message}`);
+      }
       
       // Update user's coins if used
       if (coinsUsed > 0) {
@@ -164,7 +187,7 @@ const Payment = () => {
         additional_notes: state.notes || '',
         status: 'pending',
         slot_id: state.slotId,
-        worker_id: state.workerId || slot.worker_id || null,
+        worker_id: state.workerId || slot[0].worker_id || null,
         coins_earned: 0,
         coins_used: coinsUsed
       };
@@ -220,11 +243,13 @@ const Payment = () => {
         description: error.message || "There was an error processing your payment. Please try again.",
         variant: "destructive"
       });
+    } finally {
       setIsProcessing(false);
     }
   };
 
-  const formattedDate = state.date 
+  // Use the date from the booking state and ensure proper formatting
+  const formattedDate = state?.date 
     ? format(new Date(state.date), "EEEE, MMMM d, yyyy")
     : "Unknown date";
 

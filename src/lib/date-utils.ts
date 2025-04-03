@@ -73,3 +73,17 @@ export const combineDateAndTime = (date: string | Date, timeSlot: string): Date 
   
   return result;
 };
+
+/**
+ * Ensures a date string is in yyyy-MM-dd format
+ * @param dateStr - The date string to format
+ */
+export const ensureDateFormat = (dateStr: string): string => {
+  try {
+    const date = new Date(dateStr);
+    return format(date, 'yyyy-MM-dd');
+  } catch (error) {
+    console.error('Error formatting date string:', error);
+    return dateStr; // Return original if there's an error
+  }
+};

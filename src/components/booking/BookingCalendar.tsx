@@ -49,6 +49,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
     setLoading(true);
     try {
       const dateString = format(selectedDate, 'yyyy-MM-dd');
+      console.log(`Fetching slots for date: ${dateString}`);
       
       // Get available time slots with workers for this date and service duration
       const slots = await getAvailableSlotsWithWorkers(
@@ -57,6 +58,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         serviceDuration
       );
       
+      console.log(`Found ${slots.length} available slots for ${dateString}`);
       setAvailableTimeSlots(slots);
       
       // Check if we have any existing slots in the database
