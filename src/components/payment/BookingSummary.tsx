@@ -13,9 +13,10 @@ interface BookingSummaryProps {
   salonName: string;
   services: Service[];
   date: string | Date;
-  timeSlot: string;
+  timeSlot: string;  // Changed from time to timeSlot for consistency
   totalDuration: number;
   totalPrice: number;
+  time?: string;  // Added for backward compatibility
 }
 
 const BookingSummary: React.FC<BookingSummaryProps> = ({
@@ -23,12 +24,16 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
   services,
   date,
   timeSlot,
+  time,  // For backward compatibility
   totalDuration,
   totalPrice
 }) => {
   const formattedDate = date instanceof Date 
     ? date
     : new Date(date);
+
+  // Use timeSlot if provided, otherwise fall back to time
+  const displayTime = timeSlot || time || "";
 
   return (
     <div className="glass-card p-6 rounded-lg">
@@ -68,7 +73,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
             <Clock className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-medium">{timeSlot}</h3>
+            <h3 className="font-medium">{displayTime}</h3>
             <p className="text-sm text-muted-foreground">
               Duration: {totalDuration} min
             </p>

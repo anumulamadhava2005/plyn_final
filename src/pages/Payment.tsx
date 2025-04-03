@@ -12,6 +12,7 @@ import { getUserCoins } from '@/utils/userUtils';
 import { createBooking, bookSlot } from '@/utils/bookingUtils';
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
 import PaymentSimulator from '@/components/payment/PaymentSimulator';
+import { Button } from '@/components/ui/button';  // Add missing Button import
 
 interface PaymentState {
   salonId: string;
@@ -238,15 +239,28 @@ const Payment = () => {
               <div className="space-y-6">
                 <PaymentMethodSelector 
                   selectedMethod={paymentMethod} 
-                  onSelectMethod={handlePaymentMethodChange} 
+                  onMethodChange={handlePaymentMethodChange} 
                   userCoins={userCoins}
                   totalPrice={state.totalPrice}
                 />
                 
                 {paymentMethod === 'credit_card' && (
                   <PaymentForm 
-                    paymentInfo={paymentInfo}
-                    onChange={handlePaymentInfoChange}
+                    defaultValues={{
+                      cardName: '',
+                      cardNumber: '',
+                      expiryDate: '',
+                      cvv: '',
+                      email: state.email || '',
+                      phone: state.phone || '',
+                      paymentMethod: paymentMethod,
+                      notes: state.notes || ''
+                    }}
+                    onSubmit={async () => {}}
+                    isSubmitting={false}
+                    totalPrice={state.totalPrice}
+                    userCoins={userCoins}
+                    plyCoinsEnabled={true}
                   />
                 )}
                 
@@ -261,14 +275,31 @@ const Payment = () => {
               </div>
             ) : (
               <div className="space-y-6">
-                <PaymentSimulator 
-                  paymentMethod={paymentMethod}
-                  amount={state.totalPrice} 
-                  coinsUsed={calculateCoinsUsed()}
-                  isProcessing={isProcessing}
-                  onProcessPayment={handleProcessPayment}
-                  onBack={() => setStep(1)}
-                />
+                <div className="space-y-4">
+                  <h2 className="text-lg font-semibold">Payment Details</h2>
+                  <p>Payment Method: {paymentMethod === 'plyn_coins' ? 'PLYN Coins' : 'Credit Card'}</p>
+                  {paymentMethod === 'plyn_coins' && (
+                    <p>Using {calculateCoinsUsed()} coins ({userCoins} available)</p>
+                  )}
+                  <p>Total Amount: ${state.totalPrice}</p>
+                  
+                  <div className="flex gap-4 pt-4">
+                    <Button 
+                      variant="outline"
+                      onClick={() => setStep(1)}
+                      className="flex-1"
+                    >
+                      Back
+                    </Button>
+                    <Button 
+                      onClick={handleProcessPayment}
+                      disabled={isProcessing}
+                      className="flex-1"
+                    >
+                      {isProcessing ? 'Processing...' : 'Complete Payment'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -278,7 +309,7 @@ const Payment = () => {
               salonName={state.salonName}
               services={state.services}
               date={formattedDate}
-              time={state.timeSlot}
+              timeSlot={state.timeSlot}
               totalPrice={state.totalPrice}
               totalDuration={state.totalDuration}
             />
