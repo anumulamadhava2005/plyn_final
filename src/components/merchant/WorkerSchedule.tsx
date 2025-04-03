@@ -116,7 +116,7 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
             // Find associated booking for this slot
             const { data: bookingData, error: bookingError } = await supabase
               .from('bookings')
-              .select('id, customer_name, customer_email, status')
+              .select('id, user_id, customer_email, status')
               .eq('slot_id', slot.id)
               .maybeSingle();
               
@@ -126,10 +126,24 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
             }
             
             let customerName = 'Customer';
-            if (bookingData?.customer_name) {
-              customerName = bookingData.customer_name;
-            } else if (bookingData?.customer_email) {
-              customerName = bookingData.customer_email.split('@')[0];
+            if (bookingData) {
+              // Use customer_email if available, otherwise use a generic name
+              if (bookingData.customer_email) {
+                customerName = bookingData.customer_email.split('@')[0];
+              } else {
+                // Try to get username from profiles if user_id is available
+                if (bookingData.user_id) {
+                  const { data: userData, error: userError } = await supabase
+                    .from('profiles')
+                    .select('username')
+                    .eq('id', bookingData.user_id)
+                    .maybeSingle();
+                    
+                  if (!userError && userData && userData.username) {
+                    customerName = userData.username;
+                  }
+                }
+              }
             }
             
             appointmentsData.push({
@@ -293,3 +307,4 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
 };
 
 export default WorkerSchedule;
+
