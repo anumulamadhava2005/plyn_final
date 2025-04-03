@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
-import { format, addDays, isBefore, startOfDay } from 'date-fns';
+import { format, addDays, isBefore, startOfDay, parseISO } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getAvailableSlotsWithWorkers } from '@/utils/workerSchedulingUtils';
 import { supabase } from '@/integrations/supabase/client';
+import { formatToISODate } from '@/lib/date-utils';
 
 interface BookingCalendarProps {
   salonId: string;
@@ -48,7 +49,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
   const fetchAvailableSlots = async () => {
     setLoading(true);
     try {
-      const dateString = format(selectedDate, 'yyyy-MM-dd');
+      const dateString = formatToISODate(selectedDate);
       console.log(`Fetching slots for date: ${dateString}`);
       
       // Get available time slots with workers for this date and service duration
@@ -122,7 +123,8 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         {availableTimeSlots.map(({ time, availableWorkers }) => {
           const isSelected = time === selectedTime;
           const slotInfo = hasExistingSlots[time];
-          // Use empty string for slotId instead of "new" when no existing slot
+          
+          // Only empty string if no existing slot
           const slotId = slotInfo ? slotInfo.id : '';
           
           // Use the first available worker for this slot

@@ -87,3 +87,16 @@ export const ensureDateFormat = (dateStr: string): string => {
     return dateStr; // Return original if there's an error
   }
 };
+
+/**
+ * Formats a Date object to ISO string date (YYYY-MM-DD) without time or timezone
+ * @param date - The date to format
+ */
+export const formatToISODate = (date: Date): string => {
+  try {
+    return format(date, 'yyyy-MM-dd');
+  } catch (error) {
+    console.error('Error formatting to ISO date:', error);
+    return format(new Date(), 'yyyy-MM-dd'); // Fallback to today
+  }
+};

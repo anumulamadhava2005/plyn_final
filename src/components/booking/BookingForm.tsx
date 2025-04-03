@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import BookingCalendar from './BookingCalendar';
 import { checkSlotAvailability, bookSlot } from '@/utils/bookingUtils';
 import { useAuth } from '@/context/AuthContext';
+import { formatToISODate } from '@/lib/date-utils';
 
 interface BookingFormProps {
   salonId: string;
@@ -138,10 +138,9 @@ const BookingForm: React.FC<BookingFormProps> = ({
     setIsSubmitting(true);
     
     try {
-      const formattedDate = selectedDate.toISOString().split('T')[0];
+      const formattedDate = formatToISODate(selectedDate);
       console.log(`Proceeding with date: ${formattedDate} and time: ${selectedTime}`);
       
-      // First, check slot availability and potentially create a new slot
       const { available, slotId, workerId, workerName } = await checkSlotAvailability(
         salonId, 
         formattedDate, 
@@ -163,7 +162,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
         return;
       }
 
-      // Use the slotId from availability check if we don't have a valid slotId
       const finalSlotId = selectedSlotId || slotId;
       
       if (!finalSlotId) {
@@ -176,7 +174,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
         return;
       }
       
-      // Update our local state with the confirmed slot details
       setSelectedSlotId(finalSlotId);
       
       if (workerId) {
@@ -194,6 +191,13 @@ const BookingForm: React.FC<BookingFormProps> = ({
         totalDuration,
         totalPrice
       );
+
+      console.log("Navigating to payment with data:", {
+        date: formattedDate,
+        selectedDate: selectedDate,
+        timeSlot: selectedTime,
+        slotId: finalSlotId,
+      });
 
       navigate('/payment', {
         state: {

@@ -134,7 +134,7 @@ export const bookSlot = async (
   servicePrice?: number
 ): Promise<{workerId?: string, workerName?: string}> => {
   try {
-    // If no slotId provided or slotId is empty, we can't proceed
+    // If no slotId provided or slotId is empty string, we can't proceed
     if (!slotId) {
       throw new Error("No slot ID provided. Please select a valid time slot.");
     }

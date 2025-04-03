@@ -31,6 +31,9 @@ export const usePayment = (): PaymentHookReturn => {
     try {
       const { paymentMethod, amount, booking } = details;
       
+      console.log('Processing payment with method:', paymentMethod);
+      console.log('Payment details:', details);
+      
       // Handle PLYN Coins payment
       if (paymentMethod === 'plyn_coins') {
         const { data: userData } = await supabase.auth.getUser();
@@ -39,10 +42,13 @@ export const usePayment = (): PaymentHookReturn => {
         }
         
         const userId = userData.user.id;
+        console.log('Processing PLYN coins payment for user:', userId);
         
         // Get user's coin balance
         const userCoins = await getUserCoins(userId);
         const coinsRequired = amount * 2; // 2 coins per dollar
+        
+        console.log(`User has ${userCoins} coins, requires ${coinsRequired} coins`);
         
         if (userCoins < coinsRequired) {
           throw new Error(`Insufficient PLYN coins. You need ${coinsRequired} coins, but you have ${userCoins}.`);
@@ -55,6 +61,8 @@ export const usePayment = (): PaymentHookReturn => {
         if (!success) {
           throw new Error('Failed to update coin balance');
         }
+        
+        console.log(`Updated user coins from ${userCoins} to ${updatedCoins}`);
         
         // Create payment record - ensure we're using string transaction_id, not an object
         const transactionId = `coins_${Date.now()}`;
@@ -72,11 +80,15 @@ export const usePayment = (): PaymentHookReturn => {
           .single();
         
         if (paymentError) {
+          console.error('Payment record creation error:', paymentError);
           throw new Error('Failed to record payment');
         }
         
+        console.log('Created payment record:', payment.id);
+        
         // Update booking with payment info if a booking was provided
         if (booking?.id) {
+          console.log('Updating booking with payment info:', booking.id);
           const { error: bookingError } = await supabase
             .from('bookings')
             .update({
@@ -87,6 +99,7 @@ export const usePayment = (): PaymentHookReturn => {
             .eq('id', booking.id);
             
           if (bookingError) {
+            console.error('Booking update error:', bookingError);
             throw new Error('Failed to update booking status');
           }
         }
