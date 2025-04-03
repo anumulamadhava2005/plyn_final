@@ -1,4 +1,5 @@
-import { addDays, format, isAfter, isBefore, parse, parseISO } from 'date-fns';
+
+import { addDays, format, isAfter, isBefore, parse, parseISO, addMinutes } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { getAvailableTimeSlots, generateSalonTimeSlots, findAvailableTimeSlots } from './slotUtils';
 import { WorkerAvailability } from '@/types/admin';

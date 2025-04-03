@@ -35,7 +35,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
     }>;
   }>>([]);
   const [loading, setLoading] = useState(false);
-  const [hasExistingSlots, setHasExistingSlots] = useState<{[key: string]: boolean}>({});
+  const [hasExistingSlots, setHasExistingSlots] = useState<{[key: string]: {id: string, workerId: string, isBooked: boolean}}>({});
   
   // When date changes, fetch available slots
   useEffect(() => {
@@ -82,12 +82,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       }
       
       // Update the state with existing slots
-      const hasSlots: {[key: string]: boolean} = {};
-      Object.keys(existingSlotsMap).forEach(time => {
-        hasSlots[time] = true;
-      });
-      
-      setHasExistingSlots(hasSlots);
+      setHasExistingSlots(existingSlotsMap);
     } catch (error) {
       console.error("Error fetching available slots:", error);
     } finally {
@@ -124,9 +119,8 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       <div className="grid grid-cols-3 gap-2">
         {availableTimeSlots.map(({ time, availableWorkers }) => {
           const isSelected = time === selectedTime;
-          const slotId = hasExistingSlots[time] ? 
-            hasExistingSlots[time].id : 
-            'new';
+          const slotInfo = hasExistingSlots[time];
+          const slotId = slotInfo ? slotInfo.id : 'new';
           
           // Use the first available worker for this slot
           const firstWorker = availableWorkers[0];
