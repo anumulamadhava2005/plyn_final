@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { format, addMinutes, parseISO, isPast } from 'date-fns';
 import { WorkerAvailability } from '@/types/admin';
@@ -87,56 +88,160 @@ export const getAvailableWorkers = async (
       return []; // Don't return workers for past slots
     }
     
-    // Use Promise.all to run all availability checks in parallel
-    const availabilityPromises = workers.map(async (worker) => {
-      // Check worker unavailability and existing bookings in parallel
-      const [unavailabilityResult, bookingsResult] = await Promise.all([
-        // Check if worker has any unavailability for this date
-        supabase
-          .from('worker_unavailability')
-          .select('*')
-          .eq('worker_id', worker.id)
-          .eq('date', date),
-        
-        // Check if worker already has a booking at this time
-        supabase
-          .from('slots')
-          .select('*')
-          .eq('worker_id', worker.id)
-          .eq('date', date)
-          .eq('start_time', time)
-          .eq('is_booked', true)
-      ]);
+    // Fetch all unavailability and bookings for all workers in batch queries
+    const [unavailabilityResult, bookingsResult] = await Promise.all([
+      // Get all worker unavailability for this date
+      supabase
+        .from('worker_unavailability')
+        .select('*')
+        .eq('date', date)
+        .in('worker_id', workers.map(w => w.id)),
       
-      const { data: unavailability } = unavailabilityResult;
-      const { data: bookings } = bookingsResult;
-      
-      const isAvailable = 
-        (!unavailability || unavailability.length === 0) && 
-        (!bookings || bookings.length === 0);
-      
-      if (isAvailable) {
-        return {
-          workerId: worker.id,
-          name: worker.name,
-          nextAvailableTime: time,
-          specialty: worker.specialty
-        };
+      // Get all booked slots for this date and time
+      supabase
+        .from('slots')
+        .select('*')
+        .eq('date', date)
+        .eq('start_time', time)
+        .eq('is_booked', true)
+        .in('worker_id', workers.map(w => w.id))
+    ]);
+    
+    const { data: unavailabilities } = unavailabilityResult;
+    const { data: bookings } = bookingsResult;
+    
+    // Create lookup maps for quick checking
+    const unavailabilityMap: Record<string, Array<{start: string, end: string}>> = {};
+    const bookedMap: Record<string, boolean> = {};
+    
+    // Process unavailabilities
+    if (unavailabilities && unavailabilities.length > 0) {
+      unavailabilities.forEach(unavail => {
+        if (!unavailabilityMap[unavail.worker_id]) {
+          unavailabilityMap[unavail.worker_id] = [];
+        }
+        unavailabilityMap[unavail.worker_id].push({
+          start: unavail.start_time,
+          end: unavail.end_time
+        });
+      });
+    }
+    
+    // Process bookings
+    if (bookings && bookings.length > 0) {
+      bookings.forEach(booking => {
+        bookedMap[booking.worker_id] = true;
+      });
+    }
+    
+    // Process each worker to check availability
+    const availableWorkers = workers.filter(worker => {
+      // Check if worker is already booked
+      if (bookedMap[worker.id]) {
+        return false;
       }
       
-      return null;
-    });
+      // Check for unavailabilities
+      const workerUnavailabilities = unavailabilityMap[worker.id] || [];
+      
+      // Parse time to check against unavailabilities
+      const slotTime = hours * 60 + minutes; // Convert to minutes since midnight
+      const slotEndTime = slotTime + duration;
+      
+      // Check if any unavailability period overlaps with this slot
+      const isUnavailable = workerUnavailabilities.some(period => {
+        const [startHour, startMinute] = period.start.split(':').map(Number);
+        const [endHour, endMinute] = period.end.split(':').map(Number);
+        
+        const periodStartTime = startHour * 60 + startMinute;
+        const periodEndTime = endHour * 60 + endMinute;
+        
+        // Check for overlap
+        return (slotTime < periodEndTime && slotEndTime > periodStartTime);
+      });
+      
+      return !isUnavailable;
+    }).map(worker => ({
+      workerId: worker.id,
+      name: worker.name,
+      nextAvailableTime: time,
+      specialty: worker.specialty
+    }));
     
-    const availabilities = await Promise.all(availabilityPromises);
-    return availabilities.filter(Boolean) as WorkerAvailability[];
-    
+    return availableWorkers;
   } catch (error) {
     console.error("Error getting available workers:", error);
     throw new Error("Could not check worker availability");
   }
 };
 
-// Get available slots with workers for a specific date
+// Helper function to check if a worker is available for a specific slot
+// This is optimized to avoid repeated database queries
+export const isWorkerAvailableForSlot = async (
+  workerId: string,
+  date: string,
+  startTime: string,
+  endTime: string
+): Promise<boolean> => {
+  try {
+    const [unavailabilityResult, bookingsResult] = await Promise.all([
+      // Check if worker has any unavailability for this date
+      supabase
+        .from('worker_unavailability')
+        .select('*')
+        .eq('worker_id', workerId)
+        .eq('date', date),
+      
+      // Check if worker already has a booking at this time
+      supabase
+        .from('slots')
+        .select('*')
+        .eq('worker_id', workerId)
+        .eq('date', date)
+        .eq('start_time', startTime)
+        .eq('is_booked', true)
+    ]);
+    
+    const { data: unavailability } = unavailabilityResult;
+    const { data: bookings } = bookingsResult;
+    
+    // If there are bookings at this time, worker is not available
+    if (bookings && bookings.length > 0) {
+      return false;
+    }
+    
+    // Check if there's unavailability that overlaps with this time slot
+    if (unavailability && unavailability.length > 0) {
+      // Parse times to compare
+      const [startHour, startMinute] = startTime.split(':').map(Number);
+      const [endHour, endMinute] = endTime.split(':').map(Number);
+      
+      const slotStartMinutes = startHour * 60 + startMinute;
+      const slotEndMinutes = endHour * 60 + endMinute;
+      
+      // Check each unavailability period
+      for (const period of unavailability) {
+        const [unavailStartHour, unavailStartMinute] = period.start_time.split(':').map(Number);
+        const [unavailEndHour, unavailEndMinute] = period.end_time.split(':').map(Number);
+        
+        const unavailStartMinutes = unavailStartHour * 60 + unavailStartMinute;
+        const unavailEndMinutes = unavailEndHour * 60 + unavailEndMinute;
+        
+        // Check for overlap
+        if (slotStartMinutes < unavailEndMinutes && slotEndMinutes > unavailStartMinutes) {
+          return false; // Overlap found, worker is not available
+        }
+      }
+    }
+    
+    return true; // No conflicts found, worker is available
+  } catch (error) {
+    console.error('Error checking worker availability:', error);
+    return false;
+  }
+};
+
+// Get available slots with workers for a specific date - optimized version
 export const getAvailableSlotsWithWorkers = async (
   merchantId: string, 
   date: string,
@@ -195,13 +300,26 @@ export const getAvailableSlotsWithWorkers = async (
       return result;
     }
     
-    // Get booked slots for this date in a single query
-    const { data: bookedSlots } = await supabase
-      .from('slots')
-      .select('start_time, worker_id')
-      .eq('merchant_id', merchantId)
-      .eq('date', date)
-      .eq('is_booked', true);
+    // Fetch all relevant data in parallel batches
+    const [bookedSlotsResult, unavailabilityResult] = await Promise.all([
+      // Get booked slots for this date in a single query
+      supabase
+        .from('slots')
+        .select('start_time, worker_id')
+        .eq('merchant_id', merchantId)
+        .eq('date', date)
+        .eq('is_booked', true),
+      
+      // Get worker unavailability for this date in a single query
+      supabase
+        .from('worker_unavailability')
+        .select('worker_id, start_time, end_time')
+        .eq('date', date)
+        .in('worker_id', workers.map(w => w.id))
+    ]);
+    
+    const { data: bookedSlots } = bookedSlotsResult;
+    const { data: unavailability } = unavailabilityResult;
     
     // Create a map of booked slots by worker and time
     const bookedSlotMap: Record<string, Set<string>> = {};
@@ -212,25 +330,23 @@ export const getAvailableSlotsWithWorkers = async (
       bookedSlotMap[slot.worker_id].add(slot.start_time);
     });
     
-    // Get worker unavailability for this date in a single query
-    const { data: unavailability } = await supabase
-      .from('worker_unavailability')
-      .select('worker_id, start_time, end_time')
-      .eq('date', date);
-    
     // Create a map of unavailable times by worker
-    const unavailableMap: Record<string, Array<{start: Date, end: Date}>> = {};
+    const unavailableMap: Record<string, Array<{start: number, end: number}>> = {};
     (unavailability || []).forEach(block => {
       if (!unavailableMap[block.worker_id]) {
         unavailableMap[block.worker_id] = [];
       }
       
-      const startDate = new Date(`2000-01-01T${block.start_time}`);
-      const endDate = new Date(`2000-01-01T${block.end_time}`);
+      // Convert time strings to minutes for easier comparison
+      const [startHour, startMinute] = block.start_time.split(':').map(Number);
+      const [endHour, endMinute] = block.end_time.split(':').map(Number);
+      
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = endHour * 60 + endMinute;
       
       unavailableMap[block.worker_id].push({
-        start: startDate,
-        end: endDate
+        start: startMinutes,
+        end: endMinutes
       });
     });
     
@@ -243,7 +359,6 @@ export const getAvailableSlotsWithWorkers = async (
     // Process each time slot to find available workers
     const availableSlots = slots.map(time => {
       const [hour, minute] = time.split(':').map(Number);
-      const slotTime = new Date(`2000-01-01T${time}`);
       
       // Skip slots in the past for today
       if (isToday && (hour < currentHour || (hour === currentHour && minute <= currentMinute))) {
@@ -252,6 +367,10 @@ export const getAvailableSlotsWithWorkers = async (
           availableWorkers: []
         };
       }
+      
+      // Convert time to minutes for comparison
+      const slotMinutes = hour * 60 + minute;
+      const slotEndMinutes = slotMinutes + serviceDuration;
       
       // Find available workers for this time slot
       const availableWorkersForSlot = workers.filter(worker => {
@@ -263,9 +382,7 @@ export const getAvailableSlotsWithWorkers = async (
         // Check if worker has unavailability that overlaps with this time
         const workerUnavailability = unavailableMap[worker.id] || [];
         const isUnavailable = workerUnavailability.some(block => {
-          const slotEndTime = addMinutes(slotTime, serviceDuration);
-          return (slotTime >= block.start && slotTime < block.end) || 
-                 (slotEndTime > block.start && slotEndTime <= block.end);
+          return (slotMinutes < block.end && slotEndMinutes > block.start);
         });
         
         return !isUnavailable;
@@ -295,6 +412,170 @@ export const getAvailableSlotsWithWorkers = async (
   }
 };
 
+// Optimized function for getting slots within a specific time range
+export const getAvailableSlotsWithWorkersInRange = async (
+  merchantId: string,
+  date: string,
+  startHour: string,
+  endHour: string,
+  serviceDuration: number = 30,
+  interval: number = 30
+): Promise<Array<{
+  time: string; 
+  availableWorkers: Array<{
+    workerId: string;
+    name: string;
+    nextAvailableTime: string;
+    specialty?: string;
+  }>;
+}>> => {
+  // Create a cache key for this specific range request
+  const cacheKey = `range_${merchantId}_${date}_${startHour}_${endHour}_${serviceDuration}_${interval}`;
+  const cacheExpiry = 30 * 1000; // 30 seconds
+  
+  // Check cache first
+  const cached = availableSlotsCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < cacheExpiry)) {
+    return cached.slots;
+  }
+  
+  try {
+    // Get all active workers for this merchant
+    const { data: workers, error: workersError } = await supabase
+      .from('workers')
+      .select('id, name, specialty')
+      .eq('merchant_id', merchantId)
+      .eq('is_active', true);
+      
+    if (workersError) throw workersError;
+    
+    if (!workers || workers.length === 0) {
+      return [];
+    }
+    
+    // Create time slots at specified intervals
+    const startTimeDate = new Date(`${date}T${startHour}`);
+    const endTimeDate = new Date(`${date}T${endHour}`);
+    const currentTimeNow = new Date();
+    
+    // Generate all possible time slots first
+    const timeSlots: string[] = [];
+    for (
+      let slotTime = new Date(startTimeDate);
+      slotTime < endTimeDate;
+      slotTime = addMinutes(slotTime, interval)
+    ) {
+      const slotTimeStr = format(slotTime, 'HH:mm');
+      timeSlots.push(slotTimeStr);
+    }
+    
+    // Fetch all booked slots and unavailability for this date in parallel
+    const [bookedSlotsResult, unavailabilityResult] = await Promise.all([
+      supabase
+        .from('slots')
+        .select('start_time, worker_id')
+        .eq('merchant_id', merchantId)
+        .eq('date', date)
+        .eq('is_booked', true),
+      
+      supabase
+        .from('worker_unavailability')
+        .select('worker_id, start_time, end_time')
+        .eq('date', date)
+        .in('worker_id', workers.map(w => w.id))
+    ]);
+    
+    const { data: bookedSlots } = bookedSlotsResult;
+    const { data: unavailability } = unavailabilityResult;
+    
+    // Create lookup maps for quick checking
+    const bookedSlotMap: Record<string, Set<string>> = {};
+    (bookedSlots || []).forEach(slot => {
+      if (!bookedSlotMap[slot.worker_id]) {
+        bookedSlotMap[slot.worker_id] = new Set();
+      }
+      bookedSlotMap[slot.worker_id].add(slot.start_time);
+    });
+    
+    const unavailableMap: Record<string, Array<{start: number, end: number}>> = {};
+    (unavailability || []).forEach(block => {
+      if (!unavailableMap[block.worker_id]) {
+        unavailableMap[block.worker_id] = [];
+      }
+      
+      // Convert time strings to minutes for easier comparison
+      const [startHour, startMinute] = block.start_time.split(':').map(Number);
+      const [endHour, endMinute] = block.end_time.split(':').map(Number);
+      
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = endHour * 60 + endMinute;
+      
+      unavailableMap[block.worker_id].push({
+        start: startMinutes,
+        end: endMinutes
+      });
+    });
+    
+    // Process all time slots at once
+    const isToday = date === format(currentTimeNow, 'yyyy-MM-dd');
+    const currentHour = currentTimeNow.getHours();
+    const currentMinute = currentTimeNow.getMinutes();
+    
+    const availableSlots = timeSlots.map(timeStr => {
+      const [hour, minute] = timeStr.split(':').map(Number);
+      
+      // Skip slots in the past for today
+      if (isToday && (hour < currentHour || (hour === currentHour && minute <= currentMinute))) {
+        return {
+          time: timeStr,
+          availableWorkers: []
+        };
+      }
+      
+      // Convert slot time to minutes for comparison
+      const slotMinutes = hour * 60 + minute;
+      const slotEndMinutes = slotMinutes + serviceDuration;
+      
+      // Find available workers for this time slot
+      const availableWorkersForSlot = workers.filter(worker => {
+        // Check if worker is booked at this time
+        if (bookedSlotMap[worker.id]?.has(timeStr)) {
+          return false;
+        }
+        
+        // Check if worker has unavailability that overlaps with this time
+        const workerUnavailability = unavailableMap[worker.id] || [];
+        const isUnavailable = workerUnavailability.some(block => {
+          return (slotMinutes < block.end && slotEndMinutes > block.start);
+        });
+        
+        return !isUnavailable;
+      }).map(worker => ({
+        workerId: worker.id,
+        name: worker.name,
+        nextAvailableTime: timeStr,
+        specialty: worker.specialty
+      }));
+      
+      return {
+        time: timeStr,
+        availableWorkers: availableWorkersForSlot
+      };
+    }).filter(slot => slot.availableWorkers.length > 0);
+    
+    // Update cache
+    availableSlotsCache.set(cacheKey, {
+      timestamp: Date.now(),
+      slots: availableSlots
+    });
+    
+    return availableSlots;
+  } catch (error) {
+    console.error('Error getting available slots in range:', error);
+    return [];
+  }
+};
+
 // Function to clear the availability cache for a specific date and merchant
 // This should be called when a booking is made to ensure fresh data
 export const clearAvailabilityCache = (merchantId: string, date: string) => {
@@ -303,7 +584,8 @@ export const clearAvailabilityCache = (merchantId: string, date: string) => {
   
   // Find all cache keys related to this merchant and date
   availableSlotsCache.forEach((_, key) => {
-    if (key.includes(`slots_${merchantId}_${date}`)) {
+    if (key.includes(`slots_${merchantId}_${date}`) || 
+        key.includes(`range_${merchantId}_${date}`)) {
       keysToDelete.push(key);
     }
   });
