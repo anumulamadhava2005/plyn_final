@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, Clock, Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar, Clock, Calendar as CalendarIcon, UserCheck2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -20,6 +20,30 @@ import {
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/date-utils';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription 
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface WorkerScheduleProps {
   merchantId: string;
@@ -48,6 +72,11 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
   const [appointments, setAppointments] = useState<Record<string, Appointment[]>>({});
   const [activeWorker, setActiveWorker] = useState<string | null>(null);
   const [date, setDate] = useState<Date>(new Date());
+  const [isReallocateDialogOpen, setIsReallocateDialogOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [targetWorkerId, setTargetWorkerId] = useState<string | null>(null);
+  const [reallocateLoading, setReallocateLoading] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
   
   // Fetch workers
@@ -192,6 +221,157 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
         return <Badge className="bg-yellow-500">Pending</Badge>;
     }
   };
+
+  const handleReallocate = (appointment: Appointment) => {
+    setSelectedAppointment(appointment);
+    setIsReallocateDialogOpen(true);
+  };
+
+  const confirmReallocate = (workerId: string) => {
+    setTargetWorkerId(workerId);
+    setConfirmDialogOpen(true);
+  };
+  
+  const executeReallocate = async () => {
+    if (!selectedAppointment || !targetWorkerId || !activeWorker) return;
+    
+    try {
+      setReallocateLoading(true);
+      
+      // Get the slot to update
+      const { data: slotData, error: slotError } = await supabase
+        .from('slots')
+        .select('*')
+        .eq('id', selectedAppointment.id)
+        .single();
+      
+      if (slotError) throw slotError;
+      
+      // Update the slot with new worker
+      const { error: updateError } = await supabase
+        .from('slots')
+        .update({ worker_id: targetWorkerId })
+        .eq('id', selectedAppointment.id);
+        
+      if (updateError) throw updateError;
+      
+      toast({
+        title: 'Appointment reallocated',
+        description: 'The appointment has been successfully reassigned to another worker.',
+        variant: 'default',
+      });
+      
+      // Refresh appointments data for both workers
+      const formattedDate = format(date, 'yyyy-MM-dd');
+      
+      // Fetch updated appointments for current active worker
+      const { data: updatedApptsSource } = await supabase
+        .from('slots')
+        .select(`
+          id,
+          date,
+          start_time,
+          end_time,
+          service_name,
+          service_duration
+        `)
+        .eq('worker_id', activeWorker)
+        .eq('date', formattedDate)
+        .eq('is_booked', true);
+      
+      // Fetch updated appointments for target worker
+      const { data: updatedApptsTarget } = await supabase
+        .from('slots')
+        .select(`
+          id,
+          date,
+          start_time,
+          end_time,
+          service_name,
+          service_duration
+        `)
+        .eq('worker_id', targetWorkerId)
+        .eq('date', formattedDate)
+        .eq('is_booked', true);
+      
+      // Process updated data for display
+      const processAppointmentsData = async (slots: any[] | null, workerId: string) => {
+        const appointmentsData: Appointment[] = [];
+        
+        if (slots && slots.length > 0) {
+          for (const slot of slots) {
+            // Find associated booking for this slot
+            const { data: bookingData, error: bookingError } = await supabase
+              .from('bookings')
+              .select('id, user_id, customer_email, status')
+              .eq('slot_id', slot.id)
+              .maybeSingle();
+              
+            if (bookingError) {
+              console.error('Error fetching booking:', bookingError);
+              continue;
+            }
+            
+            let customerName = 'Customer';
+            if (bookingData) {
+              // Use customer_email if available, otherwise use a generic name
+              if (bookingData.customer_email) {
+                customerName = bookingData.customer_email.split('@')[0];
+              } else {
+                // Try to get username from profiles if user_id is available
+                if (bookingData.user_id) {
+                  const { data: userData, error: userError } = await supabase
+                    .from('profiles')
+                    .select('username')
+                    .eq('id', bookingData.user_id)
+                    .maybeSingle();
+                    
+                  if (!userError && userData && userData.username) {
+                    customerName = userData.username;
+                  }
+                }
+              }
+            }
+            
+            appointmentsData.push({
+              id: slot.id,
+              booking_date: slot.date,
+              time_slot: slot.start_time,
+              end_time: slot.end_time,
+              service_name: slot.service_name || 'Service',
+              service_duration: slot.service_duration || 30,
+              customer_name: customerName,
+              status: bookingData?.status || 'confirmed'
+            });
+          }
+        }
+        
+        return appointmentsData;
+      };
+      
+      const updatedAppointments = {
+        ...appointments,
+        [activeWorker]: await processAppointmentsData(updatedApptsSource, activeWorker),
+        [targetWorkerId]: await processAppointmentsData(updatedApptsTarget, targetWorkerId)
+      };
+      
+      setAppointments(updatedAppointments);
+      
+    } catch (error: any) {
+      console.error('Error reallocating slot:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reallocate appointment. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReallocateLoading(false);
+      setConfirmDialogOpen(false);
+      setIsReallocateDialogOpen(false);
+      setSelectedAppointment(null);
+      setTargetWorkerId(null);
+    }
+  };
   
   return (
     <Card className="bg-black/80 border-border/20">
@@ -265,6 +445,7 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
                             <TableHead>Service</TableHead>
                             <TableHead>Client</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -280,6 +461,17 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
                               <TableCell>{appointment.service_name}</TableCell>
                               <TableCell>{appointment.customer_name}</TableCell>
                               <TableCell>{getStatusBadge(appointment.status)}</TableCell>
+                              <TableCell>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="flex items-center gap-1"
+                                  onClick={() => handleReallocate(appointment)}
+                                >
+                                  <UserCheck2 className="h-3 w-3" /> 
+                                  Reallocate
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -302,9 +494,84 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
           )}
         </div>
       </CardContent>
+
+      {/* Reallocate Dialog */}
+      <Dialog open={isReallocateDialogOpen} onOpenChange={setIsReallocateDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reallocate Appointment</DialogTitle>
+            <DialogDescription>
+              Select a worker to reassign this appointment to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <h4 className="font-medium">Appointment Details:</h4>
+              {selectedAppointment && (
+                <div className="text-sm">
+                  <p><span className="font-medium">Time:</span> {selectedAppointment.time_slot} - {selectedAppointment.end_time}</p>
+                  <p><span className="font-medium">Service:</span> {selectedAppointment.service_name}</p>
+                  <p><span className="font-medium">Client:</span> {selectedAppointment.customer_name}</p>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-medium">Select a worker:</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {workers
+                  .filter(worker => worker.id !== activeWorker)
+                  .map(worker => (
+                    <Button 
+                      key={worker.id} 
+                      variant="outline" 
+                      onClick={() => confirmReallocate(worker.id)}
+                      className="justify-start"
+                    >
+                      {worker.name}
+                      {worker.specialty && (
+                        <span className="text-xs text-muted-foreground ml-2">({worker.specialty})</span>
+                      )}
+                    </Button>
+                  ))}
+              </div>
+              {workers.filter(w => w.id !== activeWorker).length === 0 && (
+                <p className="text-sm text-muted-foreground">No other workers available to reallocate to.</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => setIsReallocateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Reallocation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reassign this appointment? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={executeReallocate} 
+              disabled={reallocateLoading}
+            >
+              {reallocateLoading ? 'Reallocating...' : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 };
 
 export default WorkerSchedule;
-
