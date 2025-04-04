@@ -27,11 +27,7 @@ site_url = "http://localhost:3000"
 [analytics]
 enabled = false
 
-# Fix the experimental section - use correct casing for keys
 [experimental]
-# Remove invalid keys or use correct casing
-# trace = false
-# multiThreadLoading = false
 
 [functions.handle-payment]
 verify_jwt = true

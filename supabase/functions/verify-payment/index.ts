@@ -14,7 +14,10 @@ const RAZORPAY_SECRET_KEY = "ikGeYHuQG5Qxkpjo1wNKc5Wx";
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      headers: corsHeaders,
+      status: 200 
+    });
   }
 
   try {
