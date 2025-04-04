@@ -10,9 +10,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { getUserCoins } from '@/utils/userUtils';
 import { createBooking, bookSlot } from '@/utils/bookingUtils';
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
-import PaymentSimulator from '@/components/payment/PaymentSimulator';
 import { Button } from '@/components/ui/button';
 import { clearAvailabilityCache } from '@/utils/workerSchedulingUtils';
+import { usePayment } from '@/hooks/usePayment';
 
 interface PaymentState {
   salonId: string;
@@ -45,6 +45,7 @@ const Payment = () => {
     nameOnCard: ''
   });
   const [userCoins, setUserCoins] = useState<number>(0);
+  const { processPayment, isProcessing: paymentProcessing } = usePayment();
 
   const state = location.state as PaymentState;
   
@@ -169,6 +170,29 @@ const Payment = () => {
       } catch (bookError: any) {
         console.error("Error booking slot:", bookError);
         throw new Error(`Failed to book slot: ${bookError.message}`);
+      }
+      
+      if (paymentMethod === 'razorpay') {
+        const bookingData = {
+          id: '',
+          user_id: user.id,
+          merchant_id: state.salonId,
+          salonName: state.salonName,
+          services: state.services,
+          date: state.date,
+          timeSlot: state.timeSlot,
+          totalPrice: state.totalPrice,
+          totalDuration: state.totalDuration
+        };
+        
+        await processPayment({
+          paymentMethod: 'razorpay',
+          amount: state.totalPrice,
+          currency: 'INR',
+          booking: bookingData
+        });
+        
+        return;
       }
       
       if (coinsUsed > 0) {
@@ -321,10 +345,10 @@ const Payment = () => {
                     </Button>
                     <Button 
                       onClick={handleProcessPayment}
-                      disabled={isProcessing}
+                      disabled={isProcessing || paymentProcessing}
                       className="flex-1"
                     >
-                      {isProcessing ? 'Processing...' : 'Complete Payment'}
+                      {isProcessing || paymentProcessing ? 'Processing...' : 'Complete Payment'}
                     </Button>
                   </div>
                 </div>

@@ -1,3 +1,4 @@
+
 export interface TimeSlot {
   id: string;
   merchant_id: string;
@@ -121,4 +122,11 @@ export interface WorkerAvailability {
   name: string;
   nextAvailableTime: string;
   specialty?: string;
+}
+
+export interface PaymentDetails {
+  paymentMethod: string;
+  amount: number;
+  currency?: string;
+  booking?: any;
 }

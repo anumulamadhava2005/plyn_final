@@ -2,7 +2,7 @@
 import React from 'react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Coins, CreditCard } from 'lucide-react';
+import { Coins, CreditCard, IndianRupee } from 'lucide-react';
 
 interface PaymentMethodSelectorProps {
   selectedMethod: string;
@@ -49,8 +49,16 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     description: 'Pay securely with your credit card'
   };
   
+  // Razorpay payment method
+  const razorpayMethod = {
+    id: 'razorpay',
+    name: 'Razorpay',
+    icon: <IndianRupee className="h-5 w-5 text-primary" />,
+    description: 'Pay using Razorpay (UPI, Cards, Netbanking)'
+  };
+  
   // Set up payment methods based on what's enabled
-  let paymentMethods = [creditCardMethod];
+  let paymentMethods = [creditCardMethod, razorpayMethod];
   
   if (plyCoinsEnabled) {
     paymentMethods.unshift(plyCoinsMethod);
