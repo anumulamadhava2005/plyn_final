@@ -1,4 +1,3 @@
-
 export interface TimeSlot {
   id: string;
   merchant_id: string;
@@ -129,4 +128,7 @@ export interface PaymentDetails {
   amount: number;
   currency?: string;
   booking?: any;
+  orderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
 }

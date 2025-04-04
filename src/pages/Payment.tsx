@@ -182,7 +182,9 @@ const Payment = () => {
           date: state.date,
           timeSlot: state.timeSlot,
           totalPrice: state.totalPrice,
-          totalDuration: state.totalDuration
+          totalDuration: state.totalDuration,
+          email: state.email,
+          phone: state.phone
         };
         
         await processPayment({
@@ -329,7 +331,11 @@ const Payment = () => {
               <div className="space-y-6">
                 <div className="space-y-4">
                   <h2 className="text-lg font-semibold">Payment Details</h2>
-                  <p>Payment Method: {paymentMethod === 'plyn_coins' ? 'PLYN Coins' : 'Credit Card'}</p>
+                  <p>Payment Method: {
+                    paymentMethod === 'plyn_coins' ? 'PLYN Coins' : 
+                    paymentMethod === 'razorpay' ? 'Razorpay' : 
+                    'Credit Card'
+                  }</p>
                   {paymentMethod === 'plyn_coins' && (
                     <p>Using {calculateCoinsUsed()} coins ({userCoins} available)</p>
                   )}

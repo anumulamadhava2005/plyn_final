@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -6,6 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Add Razorpay test credentials
+const RAZORPAY_KEY_ID = "rzp_test_CABuOHaSHHGey2";
+const RAZORPAY_SECRET_KEY = "ikGeYHuQG5Qxkpjo1wNKc5Wx";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -15,7 +18,7 @@ serve(async (req) => {
 
   try {
     // Get request body
-    const { paymentId, provider, sessionId, orderId, razorpayPaymentId } = await req.json();
+    const { paymentId, provider, sessionId, orderId, razorpayPaymentId, razorpaySignature } = await req.json();
     
     // Create Supabase client
     const supabaseClient = createClient(
@@ -42,12 +45,8 @@ serve(async (req) => {
     
     if (provider === "razorpay" && (orderId || paymentId)) {
       // Verify Razorpay payment
-      const razorpayKeyId = Deno.env.get("RAZORPAY_KEY_ID");
-      const razorpaySecretKey = Deno.env.get("RAZORPAY_SECRET_KEY");
-      
-      if (!razorpayKeyId || !razorpaySecretKey) {
-        throw new Error("Razorpay credentials not configured");
-      }
+      const razorpayKeyId = RAZORPAY_KEY_ID;
+      const razorpaySecretKey = RAZORPAY_SECRET_KEY;
       
       // Check the payment status
       const orderIdToCheck = orderId || paymentId;

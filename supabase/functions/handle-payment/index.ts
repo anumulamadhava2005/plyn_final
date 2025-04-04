@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -6,6 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Add Razorpay test credentials
+const RAZORPAY_KEY_ID = "rzp_test_CABuOHaSHHGey2";
+const RAZORPAY_SECRET_KEY = "ikGeYHuQG5Qxkpjo1wNKc5Wx";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -41,17 +44,14 @@ serve(async (req) => {
     
     if (paymentMethod === "credit_card" || paymentMethod === "razorpay") {
       // Initialize Razorpay for credit card payments
-      const razorpayKeyId = Deno.env.get("RAZORPAY_KEY_ID");
-      if (!razorpayKeyId) {
-        throw new Error("Razorpay key ID not configured");
-      }
-
+      const razorpayKeyId = RAZORPAY_KEY_ID;
+      
       // Generate a random receipt ID
       const receiptId = `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
       
       // Create order in Razorpay
       const razorpayOrderUrl = "https://api.razorpay.com/v1/orders";
-      const razorpaySecretKey = Deno.env.get("RAZORPAY_SECRET_KEY") || "";
+      const razorpaySecretKey = RAZORPAY_SECRET_KEY;
       
       const orderResponse = await fetch(razorpayOrderUrl, {
         method: "POST",
