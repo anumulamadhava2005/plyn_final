@@ -32,6 +32,7 @@ export const loadRazorpayScript = async (): Promise<boolean> => {
 export const openRazorpayCheckout = (
   orderId: string, 
   amount: number, 
+  keyId: string,
   bookingDetails: any,
   onSuccess: (response: any) => void,
   onError: (error: any) => void,
@@ -42,8 +43,7 @@ export const openRazorpayCheckout = (
     return;
   }
 
-  // Test Key ID - We'll use the test key for now
-  const keyId = 'rzp_test_CABuOHaSHHGey2';
+  console.log(`Opening Razorpay checkout for order: ${orderId}, amount: ${amount}, keyId: ${keyId}`);
   
   const options = {
     key: keyId,
@@ -53,6 +53,7 @@ export const openRazorpayCheckout = (
     description: 'Payment for salon services',
     order_id: orderId,
     handler: function(response: any) {
+      console.log('Razorpay payment successful:', response);
       onSuccess(response);
     },
     prefill: {
@@ -65,6 +66,7 @@ export const openRazorpayCheckout = (
     },
     modal: {
       ondismiss: function() {
+        console.log('Razorpay checkout dismissed');
         onDismiss();
       }
     }
@@ -74,6 +76,7 @@ export const openRazorpayCheckout = (
     const razorpay = new window.Razorpay(options);
     razorpay.open();
   } catch (error) {
+    console.error('Error opening Razorpay checkout:', error);
     onError(error);
   }
 };
@@ -85,11 +88,18 @@ export const verifyRazorpayPayment = async (
   razorpaySignature: string
 ) => {
   try {
+    console.log(`Verifying Razorpay payment: ${orderId}`);
+    
+    const session = await supabase.auth.getSession();
+    if (!session.data.session) {
+      throw new Error('User not authenticated');
+    }
+    
     const verifyResponse = await fetch('https://nwisboqodsjdbnsiywax.supabase.co/functions/v1/verify-payment', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        'Authorization': `Bearer ${session.data.session.access_token}`
       },
       body: JSON.stringify({
         paymentId: orderId,
@@ -101,10 +111,13 @@ export const verifyRazorpayPayment = async (
     
     if (!verifyResponse.ok) {
       const errorData = await verifyResponse.json();
+      console.error('Payment verification failed:', errorData);
       throw new Error(errorData.error || 'Payment verification failed');
     }
     
-    return await verifyResponse.json();
+    const result = await verifyResponse.json();
+    console.log('Payment verification result:', result);
+    return result;
   } catch (error) {
     console.error('Payment verification error:', error);
     throw error;
@@ -118,11 +131,18 @@ export const createRazorpayOrder = async (
   booking: any
 ) => {
   try {
+    console.log(`Creating ${paymentMethod} order for amount: ${amount}`);
+    
+    const session = await supabase.auth.getSession();
+    if (!session.data.session) {
+      throw new Error('User not authenticated');
+    }
+    
     const response = await fetch('https://nwisboqodsjdbnsiywax.supabase.co/functions/v1/handle-payment', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        'Authorization': `Bearer ${session.data.session.access_token}`
       },
       body: JSON.stringify({
         paymentMethod,
@@ -133,10 +153,13 @@ export const createRazorpayOrder = async (
     
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('Payment initialization failed:', errorData);
       throw new Error(errorData.error || 'Failed to initialize payment');
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log('Payment initialization result:', result);
+    return result;
   } catch (error) {
     console.error('Payment initialization error:', error);
     throw error;
@@ -149,6 +172,8 @@ export const updateBookingAfterPayment = async (
   paymentId: string
 ) => {
   try {
+    console.log(`Updating booking ${bookingId} after payment ${paymentId}`);
+    
     const { error } = await supabase
       .from('bookings')
       .update({
@@ -162,6 +187,8 @@ export const updateBookingAfterPayment = async (
       console.error('Booking update error:', error);
       throw new Error('Failed to update booking status');
     }
+    
+    console.log(`Booking ${bookingId} updated successfully`);
   } catch (error) {
     console.error('Error updating booking:', error);
     throw error;

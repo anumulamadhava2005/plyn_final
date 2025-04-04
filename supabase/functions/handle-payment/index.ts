@@ -36,10 +36,14 @@ serve(async (req) => {
       throw new Error("Not authenticated");
     }
 
+    console.log(`Processing payment for method: ${paymentMethod}, amount: ${amount}`);
+
     // Handle different payment methods
     let paymentResponse;
     
     if (paymentMethod === "razorpay") {
+      console.log("Creating Razorpay order");
+      
       // Generate a random receipt ID
       const receiptId = `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
       
@@ -52,34 +56,20 @@ serve(async (req) => {
       
       // Create order in Razorpay
       const orderData = await createRazorpayOrder(amount, currency, receiptId, notes);
-      
-      // Set up checkout parameters
-      const origin = req.headers.get("origin") || "";
-      const checkoutParams = new URLSearchParams({
-        key: orderData.key_id || "",
-        order_id: orderData.id,
-        amount: String(Math.round(amount * 100)),
-        currency: currency,
-        name: booking.salonName || "Salon Booking",
-        description: "Payment for salon services",
-        customer_id: user.id,
-        prefill_email: booking.email || user.email || "",
-        prefill_contact: booking.phone || "",
-        callback_url: `${origin}/booking-confirmation?order_id=${orderData.id}&booking_id=${booking.id || ""}`,
-        cancel_url: `${origin}/payment?canceled=true`
-      });
-      
-      const checkoutUrl = `https://checkout.razorpay.com/v1/checkout.html?${checkoutParams.toString()}`;
+      console.log("Razorpay order created:", orderData);
       
       paymentResponse = { 
         paymentId: orderData.id,
-        url: checkoutUrl,
         provider: "razorpay",
         status: "pending",
-        orderId: orderData.id
+        orderId: orderData.id,
+        amount: amount,
+        keyId: orderData.key_id
       };
     } 
     else if (paymentMethod === "plyn_coins") {
+      console.log("Processing PLYN Coins payment");
+      
       // Process PLYN Coins payment
       const coinsPayment = await processPLYNCoinsPayment(supabaseClient, user.id, amount);
       
@@ -97,24 +87,34 @@ serve(async (req) => {
     }
     
     // Record payment in database
+    console.log("Recording payment in database:", paymentResponse);
+    
+    const paymentData = {
+      user_id: user.id,
+      payment_method: paymentMethod,
+      amount: amount,
+      payment_status: paymentResponse.status,
+      provider: paymentResponse.provider,
+      transaction_id: paymentResponse.paymentId,
+      coins_used: paymentResponse.coinsUsed || 0
+    };
+    
+    if (booking.id) {
+      paymentData.booking_id = booking.id;
+    }
+    
     const { data: paymentRecord, error: paymentError } = await supabaseClient
       .from("payments")
-      .insert({
-        user_id: user.id,
-        payment_method: paymentMethod,
-        amount: amount,
-        payment_status: paymentResponse.status,
-        provider: paymentResponse.provider,
-        payment_id: paymentResponse.paymentId,
-        coins_used: paymentResponse.coinsUsed || 0,
-        order_id: paymentResponse.orderId || null
-      })
-      .select("id")
+      .insert(paymentData)
+      .select()
       .single();
     
     if (paymentError) {
+      console.error("Error recording payment:", paymentError);
       throw new Error("Failed to record payment");
     }
+    
+    console.log("Payment recorded successfully:", paymentRecord.id);
     
     return new Response(
       JSON.stringify({ 

@@ -14,7 +14,9 @@ serve(async (req) => {
 
   try {
     // Get request body
-    const { paymentId, provider, sessionId, orderId, razorpayPaymentId, razorpaySignature } = await req.json();
+    const { paymentId, provider, razorpayPaymentId, razorpaySignature } = await req.json();
+    
+    console.log(`Verifying payment: ID=${paymentId}, Provider=${provider}`);
     
     // Create Supabase client
     const supabaseClient = createClient(
@@ -39,13 +41,20 @@ serve(async (req) => {
     let paymentStatus = "pending";
     let paymentDetails = {};
     
-    if (provider === "razorpay" && (orderId || paymentId)) {
+    if (provider === "razorpay" && paymentId) {
+      console.log(`Verifying Razorpay payment: ${paymentId}`);
+      
       // Verify Razorpay payment
-      const orderIdToCheck = orderId || paymentId;
-      const verification = await verifyRazorpayPayment(orderIdToCheck);
+      const verification = await verifyRazorpayPayment(
+        paymentId, 
+        razorpayPaymentId, 
+        razorpaySignature
+      );
       
       paymentStatus = verification.paymentStatus;
       paymentDetails = verification.paymentDetails;
+      
+      console.log(`Razorpay payment status: ${paymentStatus}`);
     } 
     else if (["phonepe", "paytm", "netbanking", "upi", "qr_code"].includes(provider)) {
       // For demo purposes, we'll simulate payment verification
@@ -64,6 +73,8 @@ serve(async (req) => {
     }
     
     // Update payment record in database
+    console.log(`Updating payment record: ID=${paymentId}, Status=${paymentStatus}`);
+    
     const { error: updateError } = await supabaseClient
       .from("payments")
       .update({
@@ -71,9 +82,10 @@ serve(async (req) => {
         payment_details: paymentDetails,
         updated_at: new Date().toISOString()
       })
-      .eq("payment_id", paymentId);
+      .eq("transaction_id", paymentId);
     
     if (updateError) {
+      console.error("Error updating payment record:", updateError);
       throw new Error("Failed to update payment record");
     }
     
@@ -81,11 +93,31 @@ serve(async (req) => {
     const { data: payment, error: paymentError } = await supabaseClient
       .from("payments")
       .select("*")
-      .eq("payment_id", paymentId)
+      .eq("transaction_id", paymentId)
       .single();
     
     if (paymentError) {
+      console.error("Error retrieving payment record:", paymentError);
       throw new Error("Failed to retrieve payment record");
+    }
+    
+    // If payment is completed and there's a booking ID, update the booking status
+    if (paymentStatus === "completed" && payment.booking_id) {
+      console.log(`Updating booking: ID=${payment.booking_id}`);
+      
+      const { error: bookingError } = await supabaseClient
+        .from("bookings")
+        .update({
+          payment_id: payment.id,
+          payment_status: "completed",
+          status: "confirmed"
+        })
+        .eq("id", payment.booking_id);
+        
+      if (bookingError) {
+        console.error("Error updating booking:", bookingError);
+        // Don't throw error here, just log it - payment was still successful
+      }
     }
     
     return new Response(

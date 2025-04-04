@@ -17,7 +17,7 @@ interface PaymentHookReturn {
   processPayment: (details: PaymentDetails) => Promise<void>;
   isProcessing: boolean;
   paymentError: string | null;
-  handleRazorpayPayment: (orderId: string, paymentDetails: any) => Promise<void>;
+  handleRazorpayPayment: (orderId: string, keyId: string, paymentDetails: any) => Promise<void>;
 }
 
 export const usePayment = (): PaymentHookReturn => {
@@ -32,11 +32,13 @@ export const usePayment = (): PaymentHookReturn => {
   }, []);
 
   // Handle Razorpay payment process
-  const handleRazorpayPayment = async (orderId: string, paymentDetails: any) => {
+  const handleRazorpayPayment = async (orderId: string, keyId: string, paymentDetails: any) => {
     setIsProcessing(true);
     setPaymentError(null);
     
     try {
+      console.log(`Processing Razorpay payment for order: ${orderId}`);
+      
       // Make sure Razorpay script is loaded
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
@@ -52,6 +54,7 @@ export const usePayment = (): PaymentHookReturn => {
       openRazorpayCheckout(
         orderId,
         paymentDetails.amount,
+        keyId,
         {
           customerName: paymentDetails.booking?.customerName,
           email: paymentDetails.booking?.email,
@@ -131,6 +134,7 @@ export const usePayment = (): PaymentHookReturn => {
         },
         // Modal close handler
         () => {
+          console.log('Razorpay modal closed');
           setIsProcessing(false);
         }
       );
@@ -162,12 +166,16 @@ export const usePayment = (): PaymentHookReturn => {
         // Create a Razorpay order
         const paymentData = await createRazorpayOrder('razorpay', amount, booking);
         
-        if (paymentData.success && paymentData.payment.orderId) {
+        if (paymentData.success && paymentData.payment.paymentId) {
           // Open Razorpay checkout
-          await handleRazorpayPayment(paymentData.payment.orderId, {
-            amount,
-            booking
-          });
+          await handleRazorpayPayment(
+            paymentData.payment.paymentId,
+            paymentData.payment.keyId || 'rzp_test_CABuOHaSHHGey2', // Use test key as fallback
+            {
+              amount,
+              booking
+            }
+          );
         } else {
           throw new Error('Failed to create Razorpay order');
         }
@@ -195,54 +203,19 @@ export const usePayment = (): PaymentHookReturn => {
           throw new Error(`Insufficient PLYN coins. You need ${coinsRequired} coins, but you have ${userCoins}.`);
         }
         
-        // Update user's coin balance
-        const updatedCoins = userCoins - coinsRequired;
-        const success = await updateUserCoins(userId, updatedCoins);
+        // Create payment via the edge function
+        const paymentData = await createRazorpayOrder('plyn_coins', amount, booking);
         
-        if (!success) {
-          throw new Error('Failed to update coin balance');
+        if (!paymentData.success) {
+          throw new Error('Failed to process PLYN coins payment');
         }
         
-        console.log(`Updated user coins from ${userCoins} to ${updatedCoins}`);
-        
-        // Create payment record
-        const transactionId = `coins_${Date.now()}`;
-        const { data: payment, error: paymentError } = await supabase
-          .from('payments')
-          .insert({
-            user_id: userId,
-            payment_method: 'plyn_coins',
-            amount: amount,
-            payment_status: 'completed',
-            coins_used: coinsRequired,
-            transaction_id: transactionId
-          })
-          .select()
-          .single();
-        
-        if (paymentError) {
-          console.error('Payment record creation error:', paymentError);
-          throw new Error('Failed to record payment');
-        }
-        
-        console.log('Created payment record:', payment.id);
-        
-        // Update booking if necessary
+        // If there's a booking ID, update the booking status
         if (booking?.id) {
-          console.log('Updating booking with payment info:', booking.id);
-          const { error: bookingError } = await supabase
-            .from('bookings')
-            .update({
-              payment_id: payment.id,
-              payment_status: 'completed',
-              status: 'confirmed'
-            })
-            .eq('id', booking.id);
-            
-          if (bookingError) {
-            console.error('Booking update error:', bookingError);
-            throw new Error('Failed to update booking status');
-          }
+          await updateBookingAfterPayment(
+            booking.id,
+            paymentData.payment.paymentId
+          );
         }
         
         // Navigate to confirmation
@@ -257,11 +230,17 @@ export const usePayment = (): PaymentHookReturn => {
             totalDuration: booking?.totalDuration || 0,
             paymentDetails: {
               paymentMethod: 'plyn_coins',
-              paymentId: transactionId
+              paymentId: paymentData.payment.paymentId
             },
             paymentStatus: 'completed',
             coinsUsed: coinsRequired
           }
+        });
+        
+        toast({
+          title: 'Payment Successful',
+          description: `Your payment using ${coinsRequired} PLYN coins was processed successfully.`,
+          variant: 'default',
         });
         
         return;
