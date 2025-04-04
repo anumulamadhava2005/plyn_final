@@ -20,14 +20,14 @@ const useWorkerScheduleData = ({ merchantId }: UseWorkerScheduleDataProps) => {
       try {
         const { data, error } = await supabase
           .from('workers')
-          .select('id, name, specialty')
+          .select('id, name, specialty, merchant_id, is_active')
           .eq('merchant_id', merchantId)
           .eq('is_active', true);
           
         if (error) throw error;
         
         if (data && data.length > 0) {
-          setWorkers(data);
+          setWorkers(data as Worker[]);
           setActiveWorker(data[0].id);
         }
       } catch (error: any) {

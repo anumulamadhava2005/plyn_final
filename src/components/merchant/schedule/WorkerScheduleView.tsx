@@ -1,26 +1,27 @@
+
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatDate } from '@/lib/date-utils';
-import WorkerDaySchedule from './WorkerDaySchedule';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 import { Worker } from '@/types/admin';
+import { useToast } from '@/hooks/use-toast';
+import WorkerDaySchedule from './WorkerDaySchedule';
 
 interface WorkerScheduleViewProps {
   merchantId: string;
 }
 
 const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) => {
-  const [date, setDate] = useState<Date>(new Date());
   const [workers, setWorkers] = useState<Worker[]>([]);
-  const [activeWorker, setActiveWorker] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeWorker, setActiveWorker] = useState<string | null>(null);
+  const [date, setDate] = useState<Date>(new Date());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -28,14 +29,14 @@ const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) =
       try {
         const { data, error } = await supabase
           .from('workers')
-          .select('id, name, specialty')
+          .select('id, name, specialty, merchant_id, is_active')
           .eq('merchant_id', merchantId)
           .eq('is_active', true);
           
         if (error) throw error;
         
         if (data && data.length > 0) {
-          setWorkers(data);
+          setWorkers(data as Worker[]);
           setActiveWorker(data[0].id);
         }
       } catch (error: any) {
@@ -52,14 +53,11 @@ const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) =
     
     fetchWorkers();
   }, [merchantId, toast]);
-  
+
   return (
-    <Card className="bg-black/80 border-border/20">
+    <Card>
       <CardHeader>
-        <CardTitle className="flex items-center">
-          <Calendar className="h-5 w-5 mr-2" />
-          Worker Schedule
-        </CardTitle>
+        <CardTitle>Worker Schedule</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -88,8 +86,8 @@ const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) =
           </div>
           
           {workers.length > 0 && (
-            <Tabs value={activeWorker || ''} onValueChange={setActiveWorker} className="w-full">
-              <TabsList className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 w-full">
+            <Tabs value={activeWorker || ''} onValueChange={setActiveWorker}>
+              <TabsList className="grid grid-cols-2 sm:grid-cols-4">
                 {workers.map((worker) => (
                   <TabsTrigger key={worker.id} value={worker.id}>
                     {worker.name}
@@ -98,16 +96,17 @@ const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) =
               </TabsList>
               
               {workers.map((worker) => (
-                <WorkerDaySchedule 
-                  key={worker.id} 
-                  workerId={worker.id}
-                  worker={worker}
-                  date={date}
-                  merchantId={merchantId}
-                  isActive={worker.id === activeWorker}
-                  loading={loading}
-                  allWorkers={workers}
-                />
+                <TabsContent key={worker.id} value={worker.id} className="mt-4">
+                  <WorkerDaySchedule
+                    workerId={worker.id}
+                    worker={worker}
+                    date={date}
+                    merchantId={merchantId}
+                    isActive={worker.id === activeWorker}
+                    loading={loading}
+                    allWorkers={workers}
+                  />
+                </TabsContent>
               ))}
             </Tabs>
           )}

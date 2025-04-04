@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { formatDate } from '@/lib/date-utils';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import WorkerDaySchedule from './schedule/WorkerDaySchedule';
 import useWorkerScheduleData from '@/hooks/useWorkerScheduleData';
@@ -17,47 +17,15 @@ interface WorkerScheduleProps {
 }
 
 const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
-  const [workers, setWorkers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeWorker, setActiveWorker] = useState<string | null>(null);
   const [date, setDate] = useState<Date>(new Date());
+  const { workers, loading, activeWorker, setActiveWorker } = useWorkerScheduleData({ merchantId });
   const { toast } = useToast();
-  
-  useEffect(() => {
-    const fetchWorkers = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('workers')
-          .select('id, name, specialty')
-          .eq('merchant_id', merchantId)
-          .eq('is_active', true);
-          
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          setWorkers(data);
-          setActiveWorker(data[0].id);
-        }
-      } catch (error: any) {
-        console.error('Error fetching workers:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load workers',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchWorkers();
-  }, [merchantId, toast]);
 
   return (
     <Card className="bg-black/80 border-border/20">
       <CardHeader>
         <CardTitle className="flex items-center">
-          <Calendar className="h-5 w-5 mr-2" />
+          <CalendarIcon className="h-5 w-5 mr-2" />
           Worker Schedule
         </CardTitle>
       </CardHeader>
