@@ -1,28 +1,33 @@
-
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { formatDate } from '@/lib/date-utils';
+import WorkerDaySchedule from './WorkerDaySchedule';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import WorkerDaySchedule from './schedule/WorkerDaySchedule';
 
-interface WorkerScheduleProps {
+interface WorkerScheduleViewProps {
   merchantId: string;
 }
 
-const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
-  const [workers, setWorkers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeWorker, setActiveWorker] = useState<string | null>(null);
+interface Worker {
+  id: string;
+  name: string;
+  specialty?: string;
+}
+
+const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) => {
   const [date, setDate] = useState<Date>(new Date());
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [activeWorker, setActiveWorker] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  
+
   // Fetch workers
   useEffect(() => {
     const fetchWorkers = async () => {
@@ -53,7 +58,7 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
     
     fetchWorkers();
   }, [merchantId, toast]);
-
+  
   return (
     <Card className="bg-black/80 border-border/20">
       <CardHeader>
@@ -101,17 +106,16 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
               </TabsList>
               
               {workers.map((worker) => (
-                <TabsContent key={worker.id} value={worker.id} className="pt-4">
-                  <WorkerDaySchedule
-                    workerId={worker.id}
-                    worker={worker}
-                    date={date}
-                    merchantId={merchantId}
-                    isActive={worker.id === activeWorker}
-                    loading={loading}
-                    allWorkers={workers}
-                  />
-                </TabsContent>
+                <WorkerDaySchedule 
+                  key={worker.id} 
+                  workerId={worker.id}
+                  worker={worker}
+                  date={date}
+                  merchantId={merchantId}
+                  isActive={worker.id === activeWorker}
+                  loading={loading}
+                  allWorkers={workers}
+                />
               ))}
             </Tabs>
           )}
@@ -127,4 +131,4 @@ const WorkerSchedule: React.FC<WorkerScheduleProps> = ({ merchantId }) => {
   );
 };
 
-export default WorkerSchedule;
+export default WorkerScheduleView;
