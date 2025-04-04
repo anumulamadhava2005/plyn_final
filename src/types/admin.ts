@@ -1,4 +1,3 @@
-
 export interface TimeSlot {
   id: string;
   merchant_id: string;
@@ -83,6 +82,17 @@ export interface Service {
   duration: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface Worker {
+  id: string;
+  merchant_id: string;
+  name: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  specialty?: string;
+  notes?: string;
 }
 
 export interface WorkerData {

@@ -5,20 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Calendar } from '@/components/ui/calendar';
 import { formatDate } from '@/lib/date-utils';
 import WorkerDaySchedule from './WorkerDaySchedule';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Worker } from '@/types/admin';
 
 interface WorkerScheduleViewProps {
   merchantId: string;
-}
-
-interface Worker {
-  id: string;
-  name: string;
-  specialty?: string;
 }
 
 const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) => {
@@ -28,7 +23,6 @@ const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) =
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Fetch workers
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
@@ -69,7 +63,6 @@ const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) =
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {/* Date Selector */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Popover>
@@ -83,7 +76,7 @@ const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) =
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
-                  <CalendarComponent
+                  <Calendar
                     mode="single"
                     selected={date}
                     onSelect={(date) => date && setDate(date)}
@@ -94,7 +87,6 @@ const WorkerScheduleView: React.FC<WorkerScheduleViewProps> = ({ merchantId }) =
             </div>
           </div>
           
-          {/* Worker Selector */}
           {workers.length > 0 && (
             <Tabs value={activeWorker || ''} onValueChange={setActiveWorker} className="w-full">
               <TabsList className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 w-full">
