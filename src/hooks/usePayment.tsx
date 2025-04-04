@@ -1,9 +1,17 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getUserCoins, updateUserCoins } from '@/utils/userUtils';
 import { PaymentDetails } from '@/types/admin';
+import { 
+  loadRazorpayScript, 
+  openRazorpayCheckout, 
+  verifyRazorpayPayment,
+  createRazorpayOrder,
+  updateBookingAfterPayment
+} from '@/utils/razorpayUtils';
 
 interface PaymentHookReturn {
   processPayment: (details: PaymentDetails) => Promise<void>;
@@ -12,140 +20,120 @@ interface PaymentHookReturn {
   handleRazorpayPayment: (orderId: string, paymentDetails: any) => Promise<void>;
 }
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
-
 export const usePayment = (): PaymentHookReturn => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  // Ensure Razorpay script is loaded
   useEffect(() => {
-    const loadRazorpayScript = async () => {
-      if (document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')) {
-        return;
-      }
-      
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.async = true;
-        script.onload = () => {
-          resolve(true);
-        };
-        document.body.appendChild(script);
-      });
-    };
-    
     loadRazorpayScript();
   }, []);
 
+  // Handle Razorpay payment process
   const handleRazorpayPayment = async (orderId: string, paymentDetails: any) => {
     setIsProcessing(true);
     setPaymentError(null);
     
     try {
-      if (!window.Razorpay) {
+      // Make sure Razorpay script is loaded
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
         throw new Error('Razorpay SDK failed to load');
       }
       
-      const options = {
-        key: 'rzp_test_CABuOHaSHHGey2',
-        amount: paymentDetails.amount * 100,
-        currency: paymentDetails.currency || 'INR',
-        name: 'Salon Booking',
-        description: 'Payment for salon services',
-        order_id: orderId,
-        handler: async function(response: any) {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        throw new Error('User not authenticated');
+      }
+      
+      // Open Razorpay checkout modal
+      openRazorpayCheckout(
+        orderId,
+        paymentDetails.amount,
+        {
+          customerName: paymentDetails.booking?.customerName,
+          email: paymentDetails.booking?.email,
+          phone: paymentDetails.booking?.phone,
+          currency: paymentDetails.currency || 'INR'
+        },
+        // Success handler
+        async (response) => {
           console.log('Payment successful:', response);
           
-          const { data: userData } = await supabase.auth.getUser();
-          if (!userData?.user) {
-            throw new Error('User not authenticated');
-          }
-          
-          const verifyResponse = await fetch('https://nwisboqodsjdbnsiywax.supabase.co/functions/v1/verify-payment', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-            },
-            body: JSON.stringify({
-              paymentId: orderId,
-              provider: 'razorpay',
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature
-            })
-          });
-          
-          const verifyResult = await verifyResponse.json();
-          if (!verifyResult.success || !verifyResult.verified) {
-            throw new Error('Payment verification failed');
-          }
-          
-          if (paymentDetails.booking?.id) {
-            console.log('Updating booking with payment info:', paymentDetails.booking.id);
-            const { error: bookingError } = await supabase
-              .from('bookings')
-              .update({
-                payment_id: orderId,
-                payment_status: 'completed',
-                status: 'confirmed'
-              })
-              .eq('id', paymentDetails.booking.id);
-              
-            if (bookingError) {
-              console.error('Booking update error:', bookingError);
-              throw new Error('Failed to update booking status');
+          try {
+            // Verify the payment with our backend
+            const verifyResult = await verifyRazorpayPayment(
+              orderId,
+              response.razorpay_payment_id,
+              response.razorpay_signature
+            );
+            
+            if (!verifyResult.success || !verifyResult.verified) {
+              throw new Error('Payment verification failed');
             }
-          }
-          
-          navigate('/booking-confirmation', {
-            state: {
-              bookingId: paymentDetails.booking?.id || '',
-              salonName: paymentDetails.booking?.salonName || '',
-              services: paymentDetails.booking?.services || [],
-              date: paymentDetails.booking?.date || '',
-              timeSlot: paymentDetails.booking?.timeSlot || '',
-              totalPrice: paymentDetails.amount || 0,
-              totalDuration: paymentDetails.booking?.totalDuration || 0,
-              paymentDetails: {
-                paymentMethod: 'razorpay',
-                paymentId: orderId,
-                razorpayPaymentId: response.razorpay_payment_id
-              },
-              paymentStatus: 'completed'
+            
+            // If there's a booking ID, update the booking status
+            if (paymentDetails.booking?.id) {
+              await updateBookingAfterPayment(
+                paymentDetails.booking.id,
+                orderId
+              );
             }
-          });
-          
-          toast({
-            title: 'Payment Successful',
-            description: 'Your payment was processed successfully.',
-            variant: 'default',
-          });
-        },
-        prefill: {
-          name: paymentDetails.booking?.customerName || '',
-          email: paymentDetails.booking?.email || '',
-          contact: paymentDetails.booking?.phone || ''
-        },
-        theme: {
-          color: '#3498db'
-        },
-        modal: {
-          ondismiss: function() {
+            
+            // Navigate to confirmation page
+            navigate('/booking-confirmation', {
+              state: {
+                bookingId: paymentDetails.booking?.id || '',
+                salonName: paymentDetails.booking?.salonName || '',
+                services: paymentDetails.booking?.services || [],
+                date: paymentDetails.booking?.date || '',
+                timeSlot: paymentDetails.booking?.timeSlot || '',
+                totalPrice: paymentDetails.amount || 0,
+                totalDuration: paymentDetails.booking?.totalDuration || 0,
+                paymentDetails: {
+                  paymentMethod: 'razorpay',
+                  paymentId: orderId,
+                  razorpayPaymentId: response.razorpay_payment_id
+                },
+                paymentStatus: 'completed'
+              }
+            });
+            
+            toast({
+              title: 'Payment Successful',
+              description: 'Your payment was processed successfully.',
+              variant: 'default',
+            });
+          } catch (error: any) {
+            console.error('Error after payment:', error);
+            setPaymentError(error.message || 'Error processing payment confirmation');
+            toast({
+              title: 'Payment Error',
+              description: error.message || 'There was an error confirming your payment',
+              variant: 'destructive',
+            });
+          } finally {
             setIsProcessing(false);
           }
+        },
+        // Error handler
+        (error) => {
+          console.error('Razorpay error:', error);
+          setPaymentError(error.message || 'Payment processing failed');
+          toast({
+            title: 'Payment Failed',
+            description: error.message || 'There was an error processing your payment',
+            variant: 'destructive',
+          });
+          setIsProcessing(false);
+        },
+        // Modal close handler
+        () => {
+          setIsProcessing(false);
         }
-      };
-      
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
-      
+      );
     } catch (error: any) {
       console.error('Razorpay payment error:', error);
       setPaymentError(error.message || 'Payment processing failed');
@@ -158,6 +146,7 @@ export const usePayment = (): PaymentHookReturn => {
     }
   };
   
+  // Main payment processing function
   const processPayment = async (details: PaymentDetails) => {
     setIsProcessing(true);
     setPaymentError(null);
@@ -168,27 +157,13 @@ export const usePayment = (): PaymentHookReturn => {
       console.log('Processing payment with method:', paymentMethod);
       console.log('Payment details:', details);
       
+      // Handle Razorpay payments
       if (paymentMethod === 'razorpay') {
-        const response = await fetch('https://nwisboqodsjdbnsiywax.supabase.co/functions/v1/handle-payment', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-          },
-          body: JSON.stringify({
-            paymentMethod: 'razorpay',
-            amount,
-            booking
-          })
-        });
+        // Create a Razorpay order
+        const paymentData = await createRazorpayOrder('razorpay', amount, booking);
         
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to initialize Razorpay payment');
-        }
-        
-        const paymentData = await response.json();
         if (paymentData.success && paymentData.payment.orderId) {
+          // Open Razorpay checkout
           await handleRazorpayPayment(paymentData.payment.orderId, {
             amount,
             booking
@@ -200,6 +175,7 @@ export const usePayment = (): PaymentHookReturn => {
         return;
       }
       
+      // Handle PLYN Coins payments
       if (paymentMethod === 'plyn_coins') {
         const { data: userData } = await supabase.auth.getUser();
         if (!userData?.user) {
@@ -209,6 +185,7 @@ export const usePayment = (): PaymentHookReturn => {
         const userId = userData.user.id;
         console.log('Processing PLYN coins payment for user:', userId);
         
+        // Get user's coin balance
         const userCoins = await getUserCoins(userId);
         const coinsRequired = amount * 2;
         
@@ -218,6 +195,7 @@ export const usePayment = (): PaymentHookReturn => {
           throw new Error(`Insufficient PLYN coins. You need ${coinsRequired} coins, but you have ${userCoins}.`);
         }
         
+        // Update user's coin balance
         const updatedCoins = userCoins - coinsRequired;
         const success = await updateUserCoins(userId, updatedCoins);
         
@@ -227,6 +205,7 @@ export const usePayment = (): PaymentHookReturn => {
         
         console.log(`Updated user coins from ${userCoins} to ${updatedCoins}`);
         
+        // Create payment record
         const transactionId = `coins_${Date.now()}`;
         const { data: payment, error: paymentError } = await supabase
           .from('payments')
@@ -248,6 +227,7 @@ export const usePayment = (): PaymentHookReturn => {
         
         console.log('Created payment record:', payment.id);
         
+        // Update booking if necessary
         if (booking?.id) {
           console.log('Updating booking with payment info:', booking.id);
           const { error: bookingError } = await supabase
@@ -265,6 +245,7 @@ export const usePayment = (): PaymentHookReturn => {
           }
         }
         
+        // Navigate to confirmation
         navigate('/booking-confirmation', {
           state: {
             bookingId: booking?.id || '',
@@ -282,9 +263,12 @@ export const usePayment = (): PaymentHookReturn => {
             coinsUsed: coinsRequired
           }
         });
-      } else {
-        throw new Error(`Payment method ${paymentMethod} is not fully implemented yet`);
+        
+        return;
       }
+      
+      // For any other payment methods
+      throw new Error(`Payment method ${paymentMethod} is not supported yet`);
     } catch (error: any) {
       console.error('Payment processing error:', error);
       setPaymentError(error.message || 'Payment processing failed');

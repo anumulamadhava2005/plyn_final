@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -13,6 +14,7 @@ import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
 import { Button } from '@/components/ui/button';
 import { clearAvailabilityCache } from '@/utils/workerSchedulingUtils';
 import { usePayment } from '@/hooks/usePayment';
+import { loadRazorpayScript } from '@/utils/razorpayUtils';
 
 interface PaymentState {
   salonId: string;
@@ -35,9 +37,9 @@ const Payment = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<string>('credit_card');
+  const [isBookingCreated, setIsBookingCreated] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>('razorpay'); // Default to Razorpay
   const [paymentInfo, setPaymentInfo] = useState({
     cardNumber: '',
     expiryDate: '',
@@ -49,12 +51,17 @@ const Payment = () => {
 
   const state = location.state as PaymentState;
   
-  if (!state?.salonId) {
-    navigate('/book');
-    return null;
-  }
-
+  // Redirect if no state is provided
   useEffect(() => {
+    if (!state?.salonId) {
+      navigate('/book');
+    }
+  }, [state, navigate]);
+
+  // Load Razorpay script and fetch user coins
+  useEffect(() => {
+    loadRazorpayScript();
+    
     const fetchUserCoins = async () => {
       if (user) {
         const coins = await getUserCoins(user.id);
@@ -95,44 +102,28 @@ const Payment = () => {
     return 0;
   };
 
-  const handleProcessPayment = async () => {
+  // Create booking record
+  const createBookingRecord = async () => {
     if (!user) {
       toast({
         title: "Error",
         description: "You must be logged in to complete a booking",
         variant: "destructive"
       });
-      return;
+      return null;
     }
-
-    setIsProcessing(true);
-
+    
+    if (!state.slotId || state.slotId === 'new') {
+      toast({
+        title: "Invalid Slot",
+        description: "No valid slot was selected. Please go back and select another time.",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
     try {
-      const coinsUsed = calculateCoinsUsed();
-      const remainingCoinsAfterBooking = userCoins - coinsUsed;
-      
-      if (paymentMethod === 'plyn_coins' && coinsUsed > userCoins) {
-        toast({
-          title: "Insufficient Coins",
-          description: `You need ${coinsUsed} coins but only have ${userCoins} available.`,
-          variant: "destructive"
-        });
-        setIsProcessing(false);
-        return;
-      }
-      
-      if (!state.slotId || state.slotId === 'new') {
-        toast({
-          title: "Invalid Slot",
-          description: "No valid slot was selected. Please go back and select another time.",
-          variant: "destructive"
-        });
-        setIsProcessing(false);
-        return;
-      }
-      
-      console.log(`Processing payment for slot ID: ${state.slotId}`);
-      
+      // Verify slot availability
       const { data: slot, error: slotError } = await supabase
         .from('slots')
         .select('is_booked, worker_id')
@@ -154,17 +145,14 @@ const Payment = () => {
         throw new Error('This time slot has already been booked. Please select another time.');
       }
       
-      console.log("Slot status:", slot);
-      
+      // Book the slot (mark as booked)
       try {
-        const bookingResult = await bookSlot(
+        await bookSlot(
           state.slotId,
           state.services.map((service: any) => service.name).join(", "),
           state.totalDuration,
           state.totalPrice
         );
-        
-        console.log("Booking result:", bookingResult);
         
         clearAvailabilityCache(state.salonId, state.date);
       } catch (bookError: any) {
@@ -172,40 +160,7 @@ const Payment = () => {
         throw new Error(`Failed to book slot: ${bookError.message}`);
       }
       
-      if (paymentMethod === 'razorpay') {
-        const bookingData = {
-          id: '',
-          user_id: user.id,
-          merchant_id: state.salonId,
-          salonName: state.salonName,
-          services: state.services,
-          date: state.date,
-          timeSlot: state.timeSlot,
-          totalPrice: state.totalPrice,
-          totalDuration: state.totalDuration,
-          email: state.email,
-          phone: state.phone
-        };
-        
-        await processPayment({
-          paymentMethod: 'razorpay',
-          amount: state.totalPrice,
-          currency: 'INR',
-          booking: bookingData
-        });
-        
-        return;
-      }
-      
-      if (coinsUsed > 0) {
-        await supabase
-          .from('profiles')
-          .update({ coins: remainingCoinsAfterBooking })
-          .eq('id', user.id);
-      }
-      
-      const transactionId = `payment_${Date.now()}`;
-      
+      // Create booking record, but status remains 'pending' until payment is confirmed
       const bookingData = {
         user_id: user.id,
         merchant_id: state.salonId,
@@ -218,52 +173,67 @@ const Payment = () => {
         customer_email: state.email,
         customer_phone: state.phone || '',
         additional_notes: state.notes || '',
-        status: 'pending',
+        status: 'pending', // Will be updated to 'confirmed' after payment
         slot_id: state.slotId,
-        worker_id: state.workerId || slot.worker_id || null,
-        coins_earned: 0,
-        coins_used: coinsUsed
+        worker_id: state.workerId || slot.worker_id || null
       };
       
       const bookingResponse = await createBooking(bookingData);
-      
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          user_id: user.id,
-          payment_method: paymentMethod,
-          amount: state.totalPrice,
-          payment_status: 'completed',
-          coins_used: coinsUsed,
-          transaction_id: transactionId
-        })
-        .select('id')
-        .single();
-      
-      if (paymentError) {
-        throw paymentError;
+      return bookingResponse;
+    } catch (error: any) {
+      console.error("Error creating booking:", error);
+      toast({
+        title: "Booking Error",
+        description: error.message || "Failed to create booking.",
+        variant: "destructive"
+      });
+      return null;
+    }
+  };
+
+  const handleProcessPayment = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to complete a booking",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Create booking if not already created
+      let currentBookingId = bookingId;
+      if (!isBookingCreated) {
+        const bookingResult = await createBookingRecord();
+        if (!bookingResult) {
+          return; // Error already handled in createBookingRecord
+        }
+        setIsBookingCreated(true);
+        setBookingId(bookingResult.id);
+        currentBookingId = bookingResult.id;
       }
       
-      await supabase
-        .from('bookings')
-        .update({
-          payment_id: paymentData.id,
-          payment_status: 'completed',
-          status: 'confirmed'
-        })
-        .eq('id', bookingResponse.id);
+      // Process payment based on selected method
+      const bookingDetails = {
+        id: currentBookingId,
+        user_id: user.id,
+        merchant_id: state.salonId,
+        salonName: state.salonName,
+        services: state.services,
+        date: state.date,
+        timeSlot: state.timeSlot,
+        totalPrice: state.totalPrice,
+        totalDuration: state.totalDuration,
+        email: state.email,
+        phone: state.phone
+      };
       
-      navigate('/booking-confirmation', { 
-        state: { 
-          booking: {
-            ...bookingData,
-            id: bookingResponse.id,
-            payment_id: paymentData.id,
-            payment_method: paymentMethod,
-            payment_status: 'completed',
-            transaction_id: transactionId
-          }
-        }
+      await processPayment({
+        paymentMethod,
+        amount: state.totalPrice,
+        currency: 'INR',
+        booking: bookingDetails
       });
       
     } catch (error: any) {
@@ -273,12 +243,14 @@ const Payment = () => {
         description: error.message || "There was an error processing your payment. Please try again.",
         variant: "destructive"
       });
-    } finally {
-      setIsProcessing(false);
     }
   };
 
-  const formattedDate = state?.date 
+  if (!state) {
+    return null; // Don't render anything if no state is provided
+  }
+
+  const formattedDate = state.date 
     ? format(new Date(state.date), "EEEE, MMMM d, yyyy")
     : "Unknown date";
 
@@ -351,10 +323,10 @@ const Payment = () => {
                     </Button>
                     <Button 
                       onClick={handleProcessPayment}
-                      disabled={isProcessing || paymentProcessing}
+                      disabled={paymentProcessing}
                       className="flex-1"
                     >
-                      {isProcessing || paymentProcessing ? 'Processing...' : 'Complete Payment'}
+                      {paymentProcessing ? 'Processing...' : 'Complete Payment'}
                     </Button>
                   </div>
                 </div>

@@ -1,24 +1,16 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-// Add Razorpay test credentials
-const RAZORPAY_KEY_ID = "rzp_test_CABuOHaSHHGey2";
-const RAZORPAY_SECRET_KEY = "ikGeYHuQG5Qxkpjo1wNKc5Wx";
+import { 
+  corsHeaders, 
+  handleCors,
+  verifyRazorpayPayment
+} from "../utils/payment-utils.ts";
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, { 
-      headers: corsHeaders,
-      status: 200 
-    });
-  }
+  // Handle CORS preflight
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
     // Get request body
@@ -49,44 +41,11 @@ serve(async (req) => {
     
     if (provider === "razorpay" && (orderId || paymentId)) {
       // Verify Razorpay payment
-      const razorpayKeyId = RAZORPAY_KEY_ID;
-      const razorpaySecretKey = RAZORPAY_SECRET_KEY;
-      
-      // Check the payment status
       const orderIdToCheck = orderId || paymentId;
-      const verifyUrl = `https://api.razorpay.com/v1/orders/${orderIdToCheck}/payments`;
+      const verification = await verifyRazorpayPayment(orderIdToCheck);
       
-      const response = await fetch(verifyUrl, {
-        headers: {
-          "Authorization": `Basic ${btoa(`${razorpayKeyId}:${razorpaySecretKey}`)}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to verify Razorpay payment");
-      }
-      
-      const data = await response.json();
-      
-      // Check payment status
-      if (data.items && data.items.length > 0) {
-        const payment = data.items[0];
-        
-        if (payment.status === "authorized" || payment.status === "captured") {
-          paymentStatus = "completed";
-        } else if (payment.status === "created" || payment.status === "attempted") {
-          paymentStatus = "pending";
-        } else {
-          paymentStatus = "failed";
-        }
-        
-        paymentDetails = {
-          razorpayPaymentId: payment.id,
-          amountPaid: payment.amount / 100, // Convert from paise to INR
-          currency: payment.currency,
-          method: payment.method
-        };
-      }
+      paymentStatus = verification.paymentStatus;
+      paymentDetails = verification.paymentDetails;
     } 
     else if (["phonepe", "paytm", "netbanking", "upi", "qr_code"].includes(provider)) {
       // For demo purposes, we'll simulate payment verification
