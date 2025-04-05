@@ -114,29 +114,20 @@ export const verifyRazorpayPayment = async (
       })
     });
     
-    const responseText = await verifyResponse.text();
-    console.log(`Verification response status: ${verifyResponse.status}`);
-    console.log(`Verification response: ${responseText}`);
-    
     if (!verifyResponse.ok) {
+      let errorText = await verifyResponse.text();
       let errorData;
       try {
-        errorData = JSON.parse(responseText);
+        errorData = JSON.parse(errorText);
       } catch (e) {
-        throw new Error(`Payment verification failed: ${responseText}`);
+        throw new Error(`Payment verification failed: ${errorText}`);
       }
       
       console.error('Payment verification failed:', errorData);
       throw new Error(errorData.error || 'Payment verification failed');
     }
     
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error(`Invalid JSON in verification response: ${responseText}`);
-    }
-    
+    const result = await verifyResponse.json();
     console.log('Payment verification result:', result);
     return result;
   } catch (error) {
@@ -174,27 +165,20 @@ export const createRazorpayOrder = async (
       })
     });
     
-    const responseText = await response.text();
     console.log(`Order creation response status: ${response.status}`);
+    const responseText = await response.text();
     console.log(`Order creation response: ${responseText}`);
-    
-    if (!response.ok) {
-      let errorData;
-      try {
-        errorData = JSON.parse(responseText);
-      } catch (e) {
-        throw new Error(`Payment initialization failed: ${responseText}`);
-      }
-      
-      console.error('Payment initialization failed:', errorData);
-      throw new Error(errorData.error || 'Failed to initialize payment');
-    }
     
     let result;
     try {
       result = JSON.parse(responseText);
     } catch (e) {
       throw new Error(`Invalid JSON in order creation response: ${responseText}`);
+    }
+    
+    if (!result.success) {
+      console.error('Payment initialization failed:', result);
+      throw new Error(result.error || 'Failed to initialize payment');
     }
     
     console.log('Payment initialization result:', result);

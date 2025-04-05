@@ -70,7 +70,6 @@ serve(async (req) => {
       
       paymentResponse = { 
         paymentId: orderData.id,
-        provider: "razorpay",
         status: "pending",
         orderId: orderData.id,
         amount: amount,
@@ -87,7 +86,6 @@ serve(async (req) => {
       paymentResponse = {
         paymentId: coinsPayment.paymentId,
         status: coinsPayment.status,
-        provider: "plyn_coins",
         amount: amount,
         coinsUsed: coinsPayment.coinsUsed
       };
@@ -104,7 +102,6 @@ serve(async (req) => {
       payment_method: paymentMethod,
       amount: amount,
       payment_status: paymentResponse.status,
-      provider: paymentResponse.provider,
       transaction_id: paymentResponse.paymentId,
       coins_used: paymentResponse.coinsUsed || 0
     };
