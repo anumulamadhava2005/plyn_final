@@ -25,7 +25,7 @@ export const RAZORPAY_LIVE_KEY_ID = "rzp_live_pcOKGFEhj2J7EA";
 export const RAZORPAY_LIVE_SECRET_KEY = "o1K4gTXbhjXKndBAGaROkKzm";
 
 // Function to get the appropriate Razorpay keys based on environment
-export const getRazorpayKeys = (isProduction = false) => {
+export const getRazorpayKeys = (isProduction = true) => {
   return {
     keyId: isProduction ? RAZORPAY_LIVE_KEY_ID : RAZORPAY_TEST_KEY_ID,
     secretKey: isProduction ? RAZORPAY_LIVE_SECRET_KEY : RAZORPAY_TEST_SECRET_KEY
