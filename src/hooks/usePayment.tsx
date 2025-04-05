@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getUserCoins, updateUserCoins } from '@/utils/userUtils';
+import { getUserCoins } from '@/utils/userUtils';
 import { PaymentDetails } from '@/types/admin';
 import { 
   loadRazorpayScript, 
@@ -28,7 +28,9 @@ export const usePayment = (): PaymentHookReturn => {
   
   // Ensure Razorpay script is loaded
   useEffect(() => {
-    loadRazorpayScript();
+    loadRazorpayScript().then(loaded => {
+      console.log(`Razorpay script loaded: ${loaded}`);
+    });
   }, []);
 
   // Handle Razorpay payment process
@@ -37,7 +39,7 @@ export const usePayment = (): PaymentHookReturn => {
     setPaymentError(null);
     
     try {
-      console.log(`Processing Razorpay payment for order: ${orderId}`);
+      console.log(`Processing Razorpay payment for order: ${orderId}, key: ${keyId}`);
       
       // Make sure Razorpay script is loaded
       const scriptLoaded = await loadRazorpayScript();

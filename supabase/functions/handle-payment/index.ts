@@ -14,8 +14,14 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
+    console.log("Handle payment request received");
+    
     // Get request body
-    const { paymentMethod, amount, currency = "INR", booking = {} } = await req.json();
+    const requestBody = await req.json();
+    const { paymentMethod, amount, currency = "INR", booking = {} } = requestBody;
+    
+    console.log(`Payment details: method=${paymentMethod}, amount=${amount}, currency=${currency}`);
+    console.log("Booking details:", JSON.stringify(booking));
     
     // Create Supabase client
     const supabaseClient = createClient(
@@ -33,9 +39,11 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
     
     if (authError || !user) {
+      console.error("Authentication error:", authError);
       throw new Error("Not authenticated");
     }
 
+    console.log(`Authenticated user: ${user.id}`);
     console.log(`Processing payment for method: ${paymentMethod}, amount: ${amount}`);
 
     // Handle different payment methods
@@ -54,9 +62,11 @@ serve(async (req) => {
         salon_name: booking.salonName || "Salon Booking"
       };
       
+      console.log("Creating Razorpay order with notes:", JSON.stringify(notes));
+      
       // Create order in Razorpay
       const orderData = await createRazorpayOrder(amount, currency, receiptId, notes);
-      console.log("Razorpay order created:", orderData);
+      console.log("Razorpay order created:", JSON.stringify(orderData));
       
       paymentResponse = { 
         paymentId: orderData.id,
@@ -87,7 +97,7 @@ serve(async (req) => {
     }
     
     // Record payment in database
-    console.log("Recording payment in database:", paymentResponse);
+    console.log("Recording payment in database:", JSON.stringify(paymentResponse));
     
     const paymentData = {
       user_id: user.id,
@@ -103,32 +113,37 @@ serve(async (req) => {
       paymentData.booking_id = booking.id;
     }
     
-    const { data: paymentRecord, error: paymentError } = await supabaseClient
-      .from("payments")
-      .insert(paymentData)
-      .select()
-      .single();
-    
-    if (paymentError) {
-      console.error("Error recording payment:", paymentError);
-      throw new Error("Failed to record payment");
-    }
-    
-    console.log("Payment recorded successfully:", paymentRecord.id);
-    
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        payment: {
-          ...paymentResponse,
-          dbId: paymentRecord.id
-        }
-      }),
-      { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200 
+    try {
+      const { data: paymentRecord, error: paymentError } = await supabaseClient
+        .from("payments")
+        .insert(paymentData)
+        .select()
+        .single();
+      
+      if (paymentError) {
+        console.error("Error recording payment:", paymentError);
+        throw new Error(`Failed to record payment: ${paymentError.message}`);
       }
-    );
+      
+      console.log("Payment recorded successfully:", paymentRecord.id);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          payment: {
+            ...paymentResponse,
+            dbId: paymentRecord.id
+          }
+        }),
+        { 
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200 
+        }
+      );
+    } catch (dbError) {
+      console.error("Database error:", dbError);
+      throw new Error(`Database error: ${dbError.message}`);
+    }
   } catch (error) {
     console.error("Payment processing error:", error);
     

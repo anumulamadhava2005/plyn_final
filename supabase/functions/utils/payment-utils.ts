@@ -1,3 +1,4 @@
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -36,30 +37,46 @@ export async function createRazorpayOrder(amount: number, currency: string, rece
   const { keyId, secretKey } = getRazorpayKeys(false); // Use test credentials for now
   const razorpayOrderUrl = "https://api.razorpay.com/v1/orders";
   
-  console.log(`Creating Razorpay order for amount: ${amount} ${currency}`);
+  console.log(`Creating Razorpay order for amount: ${amount} ${currency}, receipt: ${receipt}`);
+  console.log(`Order notes: ${JSON.stringify(notes)}`);
   
   try {
+    const bodyData = {
+      amount: Math.round(amount * 100), // Razorpay uses paise (100 paise = 1 INR)
+      currency: currency,
+      receipt: receipt,
+      notes: notes
+    };
+    
+    console.log(`Request body: ${JSON.stringify(bodyData)}`);
+    console.log(`Using key ID: ${keyId}`);
+    
     const orderResponse = await fetch(razorpayOrderUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Basic ${btoa(`${keyId}:${secretKey}`)}`,
       },
-      body: JSON.stringify({
-        amount: Math.round(amount * 100), // Razorpay uses paise (100 paise = 1 INR)
-        currency: currency,
-        receipt: receipt,
-        notes: notes
-      }),
+      body: JSON.stringify(bodyData),
     });
     
+    const responseText = await orderResponse.text();
+    console.log(`Razorpay API response status: ${orderResponse.status}`);
+    console.log(`Razorpay API response body: ${responseText}`);
+    
     if (!orderResponse.ok) {
-      const errorData = await orderResponse.json();
-      console.error("Razorpay order creation failed:", errorData);
-      throw new Error(`Razorpay order creation failed: ${errorData.error?.description || "Unknown error"}`);
+      let errorMessage = `Razorpay API error: ${orderResponse.status}`;
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = `Razorpay order creation failed: ${errorData.error?.description || "Unknown error"}`;
+      } catch (e) {
+        // If JSON parsing fails, use the raw response text
+        errorMessage = `Razorpay error: ${responseText}`;
+      }
+      throw new Error(errorMessage);
     }
     
-    const orderData = await orderResponse.json();
+    const orderData = JSON.parse(responseText);
     console.log("Razorpay order created successfully:", orderData.id);
     
     // Add key_id to the response for frontend use
@@ -77,9 +94,13 @@ export async function verifyRazorpayPayment(orderId: string, razorpayPaymentId?:
   const { keyId, secretKey } = getRazorpayKeys(false); // Use test credentials for now
   
   try {
+    console.log(`Verifying Razorpay payment. OrderID: ${orderId}, PaymentID: ${razorpayPaymentId}, Signature: ${razorpaySignature ? "provided" : "not provided"}`);
+    
     // If we have a payment ID and signature, we can verify directly
     if (razorpayPaymentId && razorpaySignature) {
       // TODO: Implement signature verification if needed
+      // For now, we'll trust the payment ID and signature
+      console.log("Payment ID and signature provided, considering payment verified");
       return { 
         paymentStatus: "completed", 
         paymentDetails: {
@@ -91,7 +112,7 @@ export async function verifyRazorpayPayment(orderId: string, razorpayPaymentId?:
     
     // Otherwise, check order status
     const verifyUrl = `https://api.razorpay.com/v1/orders/${orderId}/payments`;
-    console.log(`Verifying Razorpay payment for order: ${orderId}`);
+    console.log(`Checking payment status via orders API: ${verifyUrl}`);
     
     const response = await fetch(verifyUrl, {
       headers: {
@@ -99,16 +120,27 @@ export async function verifyRazorpayPayment(orderId: string, razorpayPaymentId?:
       }
     });
     
+    const responseText = await response.text();
+    console.log(`Razorpay verification API response status: ${response.status}`);
+    console.log(`Razorpay verification API response: ${responseText}`);
+    
     if (!response.ok) {
-      throw new Error("Failed to verify Razorpay payment");
+      throw new Error(`Failed to verify Razorpay payment: ${response.status} ${responseText}`);
     }
     
-    const data = await response.json();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error(`Invalid JSON in Razorpay response: ${responseText}`);
+    }
+    
     let paymentStatus = "pending";
     let paymentDetails = {};
     
     if (data.items && data.items.length > 0) {
       const payment = data.items[0];
+      console.log(`Payment found with status: ${payment.status}`);
       
       if (payment.status === "authorized" || payment.status === "captured") {
         paymentStatus = "completed";
@@ -124,9 +156,11 @@ export async function verifyRazorpayPayment(orderId: string, razorpayPaymentId?:
         currency: payment.currency,
         method: payment.method
       };
+    } else {
+      console.log("No payments found for this order yet");
     }
     
-    console.log(`Payment status for order ${orderId}: ${paymentStatus}`);
+    console.log(`Payment status determined as: ${paymentStatus}`);
     return { paymentStatus, paymentDetails };
   } catch (error) {
     console.error("Error verifying Razorpay payment:", error);
@@ -152,12 +186,18 @@ export async function processPLYNCoinsPayment(
     
     if (profileError) {
       console.error("Error retrieving user profile:", profileError);
-      throw new Error("Could not retrieve user profile");
+      throw new Error(`Could not retrieve user profile: ${profileError.message}`);
     }
     
     const coinsRequired = amount * 2; // 2 coins per dollar
     
-    if (!profile || profile.coins < coinsRequired) {
+    if (!profile) {
+      throw new Error(`User profile not found for ID: ${userId}`);
+    }
+    
+    console.log(`User has ${profile.coins || 0} coins, requires ${coinsRequired}`);
+    
+    if (profile.coins < coinsRequired) {
       throw new Error(`Insufficient PLYN coins. You need ${coinsRequired} coins, but you have ${profile?.coins || 0}.`);
     }
     
@@ -169,7 +209,7 @@ export async function processPLYNCoinsPayment(
     
     if (updateError) {
       console.error("Error updating coin balance:", updateError);
-      throw new Error("Failed to update coin balance");
+      throw new Error(`Failed to update coin balance: ${updateError.message}`);
     }
     
     console.log(`Successfully deducted ${coinsRequired} coins from user ${userId}`);
@@ -177,7 +217,7 @@ export async function processPLYNCoinsPayment(
     return {
       status: "completed",
       coinsUsed: coinsRequired,
-      paymentId: `coins_${Date.now()}`
+      paymentId: `coins_${Date.now()}_${userId.substring(0, 8)}`
     };
   } catch (error) {
     console.error("Error processing PLYN coins payment:", error);

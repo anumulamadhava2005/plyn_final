@@ -18,6 +18,7 @@ export const loadRazorpayScript = async (): Promise<boolean> => {
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
     script.onload = () => {
+      console.log('Razorpay script loaded successfully');
       resolve(true);
     };
     script.onerror = () => {
@@ -39,11 +40,13 @@ export const openRazorpayCheckout = (
   onDismiss: () => void
 ) => {
   if (!window.Razorpay) {
+    console.error('Razorpay SDK not available');
     onError(new Error('Razorpay SDK failed to load'));
     return;
   }
 
   console.log(`Opening Razorpay checkout for order: ${orderId}, amount: ${amount}, keyId: ${keyId}`);
+  console.log('Booking details:', bookingDetails);
   
   const options = {
     key: keyId,
@@ -73,6 +76,7 @@ export const openRazorpayCheckout = (
   };
   
   try {
+    console.log('Creating Razorpay instance with options:', options);
     const razorpay = new window.Razorpay(options);
     razorpay.open();
   } catch (error) {
@@ -88,13 +92,14 @@ export const verifyRazorpayPayment = async (
   razorpaySignature: string
 ) => {
   try {
-    console.log(`Verifying Razorpay payment: ${orderId}`);
+    console.log(`Verifying Razorpay payment: OrderID=${orderId}, PaymentID=${razorpayPaymentId}`);
     
     const session = await supabase.auth.getSession();
     if (!session.data.session) {
       throw new Error('User not authenticated');
     }
     
+    console.log('Sending verification request to edge function');
     const verifyResponse = await fetch('https://nwisboqodsjdbnsiywax.supabase.co/functions/v1/verify-payment', {
       method: 'POST',
       headers: {
@@ -109,13 +114,29 @@ export const verifyRazorpayPayment = async (
       })
     });
     
+    const responseText = await verifyResponse.text();
+    console.log(`Verification response status: ${verifyResponse.status}`);
+    console.log(`Verification response: ${responseText}`);
+    
     if (!verifyResponse.ok) {
-      const errorData = await verifyResponse.json();
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Payment verification failed: ${responseText}`);
+      }
+      
       console.error('Payment verification failed:', errorData);
       throw new Error(errorData.error || 'Payment verification failed');
     }
     
-    const result = await verifyResponse.json();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error(`Invalid JSON in verification response: ${responseText}`);
+    }
+    
     console.log('Payment verification result:', result);
     return result;
   } catch (error) {
@@ -132,12 +153,14 @@ export const createRazorpayOrder = async (
 ) => {
   try {
     console.log(`Creating ${paymentMethod} order for amount: ${amount}`);
+    console.log('Booking details:', booking);
     
     const session = await supabase.auth.getSession();
     if (!session.data.session) {
       throw new Error('User not authenticated');
     }
     
+    console.log('Sending order creation request to edge function');
     const response = await fetch('https://nwisboqodsjdbnsiywax.supabase.co/functions/v1/handle-payment', {
       method: 'POST',
       headers: {
@@ -151,13 +174,29 @@ export const createRazorpayOrder = async (
       })
     });
     
+    const responseText = await response.text();
+    console.log(`Order creation response status: ${response.status}`);
+    console.log(`Order creation response: ${responseText}`);
+    
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Payment initialization failed: ${responseText}`);
+      }
+      
       console.error('Payment initialization failed:', errorData);
       throw new Error(errorData.error || 'Failed to initialize payment');
     }
     
-    const result = await response.json();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error(`Invalid JSON in order creation response: ${responseText}`);
+    }
+    
     console.log('Payment initialization result:', result);
     return result;
   } catch (error) {
@@ -185,7 +224,7 @@ export const updateBookingAfterPayment = async (
       
     if (error) {
       console.error('Booking update error:', error);
-      throw new Error('Failed to update booking status');
+      throw new Error(`Failed to update booking status: ${error.message}`);
     }
     
     console.log(`Booking ${bookingId} updated successfully`);
