@@ -115,7 +115,7 @@ export const verifyRazorpayPayment = async (
     });
     
     if (!verifyResponse.ok) {
-      let errorText = await verifyResponse.text();
+      const errorText = await verifyResponse.text();
       let errorData;
       try {
         errorData = JSON.parse(errorText);
