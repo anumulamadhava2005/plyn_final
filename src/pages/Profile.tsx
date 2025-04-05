@@ -1,148 +1,205 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client'; // Added this import
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CalendarIcon, CreditCard, HelpCircle, LogOut, Settings, Store } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { getUserCoins, getUserProfile } from '@/utils/userUtils';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
+import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight, Store, Coins } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { getUserCoins } from '@/utils/bookingUtils';
 
 const Profile = () => {
-  const { user, signOut } = useAuth();
+  const { user, userProfile, signOut, isMerchant } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [coins, setCoins] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [profile, setProfile] = useState<any>(null);
-  const [isMerchant, setIsMerchant] = useState(false);
-  
+  const [userCoins, setUserCoins] = useState(0);
+
   useEffect(() => {
-    const fetchProfileData = async () => {
+    // Redirect to auth page if not logged in
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    // Fetch user coins
+    const fetchCoins = async () => {
       if (user) {
-        setIsLoading(true);
         try {
-          const userCoins = await getUserCoins(user.id);
-          setCoins(userCoins);
-          
-          const userProfile = await getUserProfile(user.id);
-          setProfile(userProfile);
-          
-          // Check if user is a merchant
-          const { data, error } = await supabase
-            .from('merchants')
-            .select('id')
-            .eq('id', user.id)
-            .single();
-          
-          if (data && !error) {
-            setIsMerchant(true);
-          }
-        } catch (error: any) {
-          console.error("Error fetching user data:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load profile data.",
-            variant: "destructive",
-          });
-        } finally {
-          setIsLoading(false);
+          const coins = await getUserCoins(user.id);
+          setUserCoins(coins);
+        } catch (error) {
+          console.error('Error fetching user coins:', error);
         }
       }
     };
     
-    fetchProfileData();
-  }, [user, toast]);
-  
-  const handleLogout = async () => {
+    fetchCoins();
+  }, [user]);
+
+  const handleSignOut = async () => {
     try {
       await signOut();
-      navigate('/auth');
-    } catch (error: any) {
-      console.error("Logout failed:", error);
+      // Force clear any lingering session data
+      window.localStorage.removeItem('supabase.auth.token');
+      // Force navigate to auth page after signout
+      navigate('/auth', { replace: true });
+    } catch (error) {
+      console.error('Error signing out:', error);
       toast({
-        title: "Logout Failed",
-        description: error.message || "Failed to logout. Please try again.",
+        title: "Sign out failed",
+        description: "There was an error signing you out. Please try again.",
         variant: "destructive",
       });
     }
   };
-  
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full mx-auto mb-4"></div>
-          <p>Loading profile...</p>
-        </div>
-      </div>
-    );
+
+  if (!user || !userProfile) {
+    return null; // Will redirect via useEffect
   }
-  
+
   return (
     <PageTransition>
-      <div className="container mx-auto py-12">
-        <Card className="shadow-md rounded-md">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-2xl font-bold">Profile</CardTitle>
-            <Button variant="destructive" size="sm" onClick={handleLogout}>
-              Logout
-              <LogOut className="ml-2 h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={profile?.avatar_url} />
-                  <AvatarFallback>{profile?.full_name?.substring(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <CardTitle>{profile?.full_name || 'User'}</CardTitle>
-                  <CardDescription>{user?.email}</CardDescription>
-                </div>
-              </div>
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        
+        <main className="flex-grow pt-24 pb-12 px-4">
+          <div className="container mx-auto max-w-4xl">
+            <h1 className="text-3xl md:text-4xl font-bold mb-8 gradient-heading">Your Profile</h1>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="col-span-1">
+                <CardHeader className="text-center">
+                  <div className="w-24 h-24 bg-gradient-to-r from-salon-men to-salon-women rounded-full flex items-center justify-center text-white text-4xl font-bold mx-auto mb-2">
+                    {userProfile.username.charAt(0).toUpperCase()}
+                  </div>
+                  <CardTitle className="text-xl">{userProfile.username}</CardTitle>
+                  <CardDescription>{user.email}</CardDescription>
+                  {isMerchant && (
+                    <span className="inline-block px-3 py-1 mt-2 text-xs font-medium rounded-full bg-salon-women/10 text-salon-women dark:bg-salon-women-light/10 dark:text-salon-women-light">
+                      Merchant Account
+                    </span>
+                  )}
+                </CardHeader>
+                <CardContent className="flex flex-col items-center space-y-4">
+                  {/* PLYN Coins Balance */}
+                  <div className="w-full bg-primary/10 rounded-lg p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Coins className="h-5 w-5 text-primary" />
+                      <span className="font-medium">PLYN Coins</span>
+                    </div>
+                    <span className="text-lg font-bold">{userCoins}</span>
+                  </div>
+                  
+                  {isMerchant && (
+                    <Link to="/merchant-dashboard" className="w-full">
+                      <AnimatedButton 
+                        variant="default" 
+                        className="w-full"
+                        icon={<Briefcase className="w-4 h-4" />}
+                      >
+                        Merchant Dashboard
+                      </AnimatedButton>
+                    </Link>
+                  )}
+                  <AnimatedButton 
+                    variant="destructive" 
+                    className="w-full"
+                    icon={<LogOut className="w-4 h-4" />}
+                    onClick={handleSignOut}
+                  >
+                    Sign Out
+                  </AnimatedButton>
+                </CardContent>
+              </Card>
               
-              <div className="grid gap-2">
-                <p className="text-lg font-semibold">Account Balance</p>
-                <div className="flex items-center space-x-2">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <span>{coins} Coins</span>
-                </div>
-              </div>
-              
-              <div className="grid gap-2">
-                <p className="text-lg font-semibold">Settings</p>
-                <Button variant="ghost" className="justify-start">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Edit Profile
-                </Button>
-                <Button variant="ghost" className="justify-start" onClick={() => navigate('/my-bookings')}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  My Bookings
-                </Button>
-                {isMerchant ? (
-                  <Button variant="ghost" className="justify-start" onClick={() => navigate('/merchant-dashboard')}>
-                    <Store className="mr-2 h-4 w-4" />
-                    Merchant Dashboard
-                  </Button>
-                ) : (
-                  <Button variant="ghost" className="justify-start" onClick={() => navigate('/merchant-signup')}>
-                    <Store className="mr-2 h-4 w-4" />
-                    Become a Merchant
-                  </Button>
+              <Card className="col-span-1 md:col-span-2">
+                <CardHeader>
+                  <CardTitle>Personal Information</CardTitle>
+                  <CardDescription>Your account details and preferences</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <UserCircle className="w-5 h-5 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Username</p>
+                      <p className="text-muted-foreground">{userProfile.username}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <Mail className="w-5 h-5 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Email</p>
+                      <p className="text-muted-foreground">{user.email}</p>
+                    </div>
+                  </div>
+                  
+                  {userProfile.phoneNumber && (
+                    <div className="flex items-start gap-3">
+                      <Phone className="w-5 h-5 mt-0.5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Phone Number</p>
+                        <p className="text-muted-foreground">{userProfile.phoneNumber}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {userProfile.age && (
+                    <div className="flex items-start gap-3">
+                      <Calendar className="w-5 h-5 mt-0.5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Age</p>
+                        <p className="text-muted-foreground">{userProfile.age}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {userProfile.gender && (
+                    <div className="flex items-start gap-3">
+                      <Users className="w-5 h-5 mt-0.5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Gender</p>
+                        <p className="text-muted-foreground">
+                          {userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+                
+                {!isMerchant && (
+                  <CardFooter className="flex flex-col items-stretch space-y-4">
+                    <div className="bg-gradient-to-r from-salon-men/10 to-salon-women/10 p-4 rounded-lg">
+                      <h3 className="font-medium text-lg mb-2 flex items-center">
+                        <Store className="w-5 h-5 mr-2 text-salon-women" />
+                        Become a Merchant
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        As a merchant, you can list your services, manage bookings, and grow your business on our platform.
+                      </p>
+                      <Link to="/merchant-signup">
+                        <AnimatedButton 
+                          variant="gradient" 
+                          size="sm"
+                          className="w-full"
+                          icon={<ArrowUpRight className="w-4 h-4" />}
+                        >
+                          Register as a Merchant
+                        </AnimatedButton>
+                      </Link>
+                    </div>
+                  </CardFooter>
                 )}
-                <Button variant="ghost" className="justify-start">
-                  <HelpCircle className="mr-2 h-4 w-4" />
-                  Help & Support
-                </Button>
-              </div>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </main>
+        
+        <Footer />
       </div>
     </PageTransition>
   );

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -38,7 +39,7 @@ const MerchantDashboard = () => {
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [merchantData, setMerchantData] = useState<MerchantData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  
+
   const activeTab = searchParams.get('tab') || 'dashboard';
 
   useEffect(() => {
@@ -159,6 +160,7 @@ const MerchantDashboard = () => {
       });
     }
   };
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value });
@@ -179,7 +181,7 @@ const MerchantDashboard = () => {
               <h1 className="text-3xl font-bold">Merchant Dashboard</h1>
             </div>
           </div>
-          
+
           {loading ? (
             <div className="flex justify-center items-center h-[80vh]">
               <p>Loading merchant dashboard...</p>
@@ -214,38 +216,43 @@ const MerchantDashboard = () => {
                     <TabsTrigger value="workers">Workers</TabsTrigger>
                     <TabsTrigger value="settings">Settings</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="dashboard" className="pt-6">
                     <div className="space-y-6">
                       <DashboardMetrics merchantId={merchantId} />
+                      <AppointmentsList merchantId={merchantId} />
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="appointments" className="pt-6">
                     <div className="space-y-6">
                       <AppointmentsList merchantId={merchantId} />
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="slots" className="pt-6">
                     <div className="space-y-6">
-                      <SlotManager merchantId={merchantId} />
+                      <SlotManager
+                        merchantId={user?.id || ''}
+                        selectedDate={selectedDate}
+                        onDateChange={setSelectedDate}
+                      />
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="services" className="pt-6">
                     <div className="space-y-6">
                       <MerchantServices merchantId={merchantId} />
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="workers" className="pt-6">
                     <div className="space-y-6">
                       <WorkerSchedule merchantId={merchantId} />
                       <WorkerManager merchantId={merchantId} />
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="settings" className="pt-6">
                     <div className="space-y-6">
                       <MerchantSettingsManager merchantId={merchantId} />
