@@ -197,11 +197,31 @@ export const updateBookingAfterPayment = async (
   try {
     console.log(`Updating booking ${bookingId} after payment ${paymentId}`);
     
+    // First, we need to get the payment record from the database to get its UUID
+    const { data: paymentRecord, error: paymentError } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('transaction_id', paymentId)
+      .maybeSingle();
+      
+    if (paymentError) {
+      console.error('Error retrieving payment record:', paymentError);
+      throw new Error(`Failed to retrieve payment record: ${paymentError.message}`);
+    }
+    
+    if (!paymentRecord) {
+      console.error('Payment record not found for transaction ID:', paymentId);
+      throw new Error(`Payment record not found for transaction ID: ${paymentId}`);
+    }
+    
+    console.log(`Found payment record with ID: ${paymentRecord.id} for transaction: ${paymentId}`);
+    
+    // Now update the booking with the payment's UUID
     const { error } = await supabase
       .from('bookings')
       .update({
-        payment_id: paymentId,
-        status: 'confirmed'  // Use 'status' instead of 'payment_status'
+        payment_id: paymentRecord.id, // Use the payment record's UUID instead of the transaction ID
+        status: 'confirmed'
       })
       .eq('id', bookingId);
       

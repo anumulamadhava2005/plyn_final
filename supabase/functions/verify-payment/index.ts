@@ -120,8 +120,8 @@ serve(async (req) => {
         const { error: bookingError } = await supabaseClient
           .from("bookings")
           .update({
-            payment_id: payment.id,
-            status: "confirmed"  // Use 'status' instead of 'payment_status'
+            payment_id: payment.id,  // Use the payment record's UUID
+            status: "confirmed"
           })
           .eq("id", payment.booking_id);
           
