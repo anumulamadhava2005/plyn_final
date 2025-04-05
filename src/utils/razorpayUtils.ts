@@ -201,8 +201,7 @@ export const updateBookingAfterPayment = async (
       .from('bookings')
       .update({
         payment_id: paymentId,
-        payment_status: 'completed',
-        status: 'confirmed'
+        status: 'confirmed'  // Use 'status' instead of 'payment_status'
       })
       .eq('id', bookingId);
       
