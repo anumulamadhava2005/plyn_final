@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -29,6 +30,7 @@ interface PaymentState {
   totalDuration: number;
   slotId: string;
   workerId: string;
+  merchantRazorpayId: string;
 }
 
 const Payment = () => {
@@ -226,7 +228,8 @@ const Payment = () => {
         totalPrice: state.totalPrice,
         totalDuration: state.totalDuration,
         email: state.email,
-        phone: state.phone
+        phone: state.phone,
+        merchantRazorpayId: state.merchantRazorpayId,
       };
       
       await processPayment({
@@ -311,7 +314,7 @@ const Payment = () => {
                   {paymentMethod === 'plyn_coins' && (
                     <p>Using {calculateCoinsUsed()} coins ({userCoins} available)</p>
                   )}
-                  <p>Total Amount: ${state.totalPrice}</p>
+                  <p>Total Amount: ₹{state.totalPrice}</p>
                   
                   <div className="flex gap-4 pt-4">
                     <Button 

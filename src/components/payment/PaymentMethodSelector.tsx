@@ -37,7 +37,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     name: 'PLYN Coins',
     icon: <Coins className="h-5 w-5 text-primary" />,
     description: userCoins > 0 
-      ? `Pay using your PLYN Coins (${userCoins} available - worth $${(userCoins/2).toFixed(2)})`
+      ? `Pay using your PLYN Coins (${userCoins} available - worth ₹${(userCoins/2).toFixed(2)})`
       : 'Pay using your PLYN Coins (2 coins = $1)'
   };
   

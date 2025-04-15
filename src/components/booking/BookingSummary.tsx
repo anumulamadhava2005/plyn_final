@@ -67,7 +67,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
           {services.map((service, index) => (
             <div key={index} className="flex justify-between">
               <span>{service.name} ({service.duration} min)</span>
-              <span>${service.price.toFixed(2)}</span>
+              <span>₹{service.price.toFixed(2)}</span>
             </div>
           ))}
         </div>

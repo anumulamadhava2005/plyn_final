@@ -18,9 +18,9 @@ serve(async (req) => {
     
     // Get request body
     const requestBody = await req.json();
-    const { paymentMethod, amount, currency = "INR", booking = {} } = requestBody;
+    const { paymentMethod, amount, currency = "INR", booking = {}, isLiveMode = true, transfers } = requestBody;
     
-    console.log(`Payment details: method=${paymentMethod}, amount=${amount}, currency=${currency}`);
+    console.log(`Payment details: method=${paymentMethod}, amount=${amount}, currency=${currency}, mode=${isLiveMode ? 'LIVE' : 'TEST'}`);
     console.log("Booking details:", JSON.stringify(booking));
     
     // Create Supabase client
@@ -50,22 +50,30 @@ serve(async (req) => {
     let paymentResponse;
     
     if (paymentMethod === "razorpay") {
-      console.log("Creating Razorpay order");
+      console.log(`Creating Razorpay order in ${isLiveMode ? 'LIVE' : 'TEST'} mode`);
       
-      // Generate a random receipt ID
       const receiptId = `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-      
-      // Set up notes for the order
+    
       const notes = {
         booking_id: booking.id || "",
         user_id: user.id,
-        salon_name: booking.salonName || "Salon Booking"
+        salon_name: booking.salonName || "Salon Booking",
+        mode: isLiveMode ? "live" : "test"
       };
-      
-      console.log("Creating Razorpay order with notes:", JSON.stringify(notes));
-      
-      // Create order in Razorpay
-      const orderData = await createRazorpayOrder(amount, currency, receiptId, notes);
+    
+      // Transfer config (99% merchant, 1% admin)
+      const totalAmountPaise = amount * 100;
+      const adminShare = Math.floor(totalAmountPaise * 0.01);
+      const merchantShare = totalAmountPaise - adminShare;
+    
+      const merchantRazorpayId = booking.merchantRazorpayId; // This must come from the frontend
+    
+      if (!merchantRazorpayId) {
+        throw new Error("Missing merchant Razorpay ID for split payment");
+      }
+    
+      const orderData = await createRazorpayOrder(totalAmountPaise, currency, receiptId, notes, merchantRazorpayId);
+    
       console.log("Razorpay order created:", JSON.stringify(orderData));
       
       paymentResponse = { 
@@ -73,9 +81,10 @@ serve(async (req) => {
         status: "pending",
         orderId: orderData.id,
         amount: amount,
-        keyId: orderData.key_id
+        keyId: orderData.key_id,
+        isLiveMode: isLiveMode
       };
-    } 
+    }    
     else if (paymentMethod === "plyn_coins") {
       console.log("Processing PLYN Coins payment");
       

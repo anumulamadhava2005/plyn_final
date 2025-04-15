@@ -34,13 +34,13 @@ export const showBookingSuccessNotification = (booking: BookingDetails) => {
             {booking.services.map((service, index) => (
               <div key={index} className="flex justify-between text-sm">
                 <span>{service.name}</span>
-                <span>${service.price}</span>
+                <span>₹{service.price}</span>
               </div>
             ))}
             {booking.totalPrice && (
               <div className="flex justify-between font-medium text-sm mt-1 pt-1 border-t">
                 <span>Total:</span>
-                <span>${booking.totalPrice}</span>
+                <span>₹{booking.totalPrice}</span>
               </div>
             )}
           </div>

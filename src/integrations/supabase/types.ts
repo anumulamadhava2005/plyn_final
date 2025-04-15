@@ -172,6 +172,7 @@ export type Database = {
           service_category: string
           status: string
           updated_at: string
+          razorpay_id: string | null  // 👈 New field
         }
         Insert: {
           business_address: string
@@ -183,6 +184,7 @@ export type Database = {
           service_category: string
           status?: string
           updated_at?: string
+          razorpay_id?: string | null  // 👈 New field
         }
         Update: {
           business_address?: string
@@ -194,9 +196,11 @@ export type Database = {
           service_category?: string
           status?: string
           updated_at?: string
+          razorpay_id?: string | null  // 👈 New field
         }
         Relationships: []
       }
+      
       payments: {
         Row: {
           amount: number

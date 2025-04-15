@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -186,7 +187,7 @@ const SalonDetails = () => {
                                 <CardDescription className="mt-1">{service.description}</CardDescription>
                               </div>
                               <div className="text-right">
-                                <span className="text-lg font-bold">${service.price}</span>
+                                <span className="text-lg font-bold">₹{service.price}</span>
                                 <p className="text-sm text-muted-foreground">{service.duration} min</p>
                               </div>
                             </div>
@@ -220,12 +221,12 @@ const SalonDetails = () => {
                             {selectedServices.map(service => (
                               <li key={service.id} className="flex justify-between">
                                 <span>{service.name}</span>
-                                <span>${service.price}</span>
+                                <span>₹{service.price}</span>
                               </li>
                             ))}
                             <li className="flex justify-between font-bold border-t pt-2 mt-2">
                               <span>Total</span>
-                              <span>${totalPrice}</span>
+                              <span>₹{totalPrice}</span>
                             </li>
                             <li className="flex justify-between text-sm text-muted-foreground">
                               <span>Estimated Duration</span>
@@ -251,6 +252,7 @@ const SalonDetails = () => {
                       selectedServices={selectedServices}
                       totalPrice={totalPrice}
                       totalDuration={totalDuration}
+                      merchantRazorpayId={salon.razorpay_id}
                     />
                   )}
                 </TabsContent>

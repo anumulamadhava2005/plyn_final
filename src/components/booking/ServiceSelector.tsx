@@ -88,7 +88,7 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
               <div className="flex justify-between items-start">
                 <h4 className="font-medium">{service.name}</h4>
                 <div className="text-right">
-                  <span className="font-semibold">${service.price}</span>
+                  <span className="font-semibold">₹{service.price}</span>
                   <p className="text-xs text-muted-foreground">{service.duration} min</p>
                 </div>
               </div>

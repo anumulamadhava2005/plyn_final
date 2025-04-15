@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface TimeSlot {
   id: string;
   merchant_id: string;
@@ -114,7 +115,36 @@ export interface MerchantSettings {
   break_start?: string;
   break_end?: string;
   worker_assignment_strategy: string;
+  razorpay_id: string;
+
+  // Razorpay onboarding fields
+  legal_business_name: string;
+  contact_name: string;
+  business_type: string; // e.g. individual, partnership, etc.
+  business_email: string;
+  business_phone: string;
+  pan: string;
+  gst?: string;
+
+  // Registered business address
+  registered_address: {
+    street1: string;
+    street2: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country: string;
+  };
+
+  // Bank details
+  ifsc_code: string;
+  bank_name: string;
+  branch: string;
+  account_number: string;
+  confirm_account_number: string;
+  account_holder_name: string;
 }
+
 
 export interface WorkerAvailability {
   workerId: string;
@@ -131,4 +161,5 @@ export interface PaymentDetails {
   orderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  account_id?: string;
 }

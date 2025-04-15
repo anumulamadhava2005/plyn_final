@@ -145,7 +145,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                 <p className="text-sm text-center text-muted-foreground">
                   {userCoins >= totalPrice * 2 ? 
                     `You have enough coins to cover this payment completely!` : 
-                    `Your coins can cover $${(userCoins / 2).toFixed(2)} of this payment.`}
+                    `Your coins can cover ₹${(userCoins / 2).toFixed(2)} of this payment.`}
                 </p>
               </div>
             )}
@@ -160,7 +160,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   />
                 </div>
                 <p className="text-sm text-center text-muted-foreground">
-                  Scan this QR code with your UPI app to pay ${totalPrice}
+                  Scan this QR code with your UPI app to pay ₹{totalPrice}
                 </p>
               </div>
             )}
@@ -345,7 +345,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                 Processing...
               </>
             ) : (
-              <>{paymentMethod === 'plyn_coins' ? 'Pay with PLYN Coins' : `Pay $${totalPrice}`}</>
+              <>{paymentMethod === 'plyn_coins' ? 'Pay with PLYN Coins' : `Pay ₹${totalPrice}`}</>
             )}
           </AnimatedButton>
         </div>

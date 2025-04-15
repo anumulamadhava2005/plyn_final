@@ -108,7 +108,7 @@ const PaymentSimulator = () => {
             <>
               <Loader2 className="h-16 w-16 text-primary animate-spin mb-4" />
               <p className="text-center text-muted-foreground">
-                Processing your payment of ${amount} via {getMethodName(method)}...
+                Processing your payment of ₹{amount} via {getMethodName(method)}...
               </p>
             </>
           )}
@@ -117,7 +117,7 @@ const PaymentSimulator = () => {
             <>
               <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
               <p className="text-center mb-2">
-                Payment of ${amount} completed successfully!
+                Payment of ₹{amount} completed successfully!
               </p>
               <p className="text-center text-muted-foreground">
                 Redirecting in {countdown} seconds...

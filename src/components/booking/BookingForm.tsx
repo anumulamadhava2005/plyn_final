@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ interface BookingFormProps {
   selectedServices: any[];
   totalPrice: number;
   totalDuration: number;
+  merchantRazorpayId: string;
 }
 
 const BookingForm: React.FC<BookingFormProps> = ({
@@ -25,7 +27,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
   salonName,
   selectedServices,
   totalPrice,
-  totalDuration
+  totalDuration,
+  merchantRazorpayId
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -209,7 +212,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
           totalDuration,
           slotId: slotIdToUse,
           workerId: workerIdToUse,
-          workerName: workerNameToUse
+          workerName: workerNameToUse,
+          merchantRazorpayId: merchantRazorpayId,
         }
       });
     } catch (error: any) {

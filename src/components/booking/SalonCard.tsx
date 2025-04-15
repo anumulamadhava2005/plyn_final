@@ -106,7 +106,7 @@ const SalonCard: React.FC<SalonCardProps> = ({
             <div key={index} className="flex justify-between text-sm">
               <span>{service.name}</span>
               <div className="flex items-center">
-                <span className="font-medium">${service.price}</span>
+                <span className="font-medium">₹{service.price}</span>
                 <span className="text-xs ml-2 text-muted-foreground">{service.duration} min</span>
               </div>
             </div>

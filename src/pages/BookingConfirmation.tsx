@@ -208,7 +208,7 @@ const BookingConfirmation = () => {
                             <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
                             <span>{service.name}</span>
                           </div>
-                          <span className="font-medium">${service.price}</span>
+                          <span className="font-medium">₹{service.price}</span>
                         </li>
                       ))}
                       {!bookingData.services && bookingData.serviceName && (
@@ -217,7 +217,7 @@ const BookingConfirmation = () => {
                             <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
                             <span>{bookingData.serviceName}</span>
                           </div>
-                          <span className="font-medium">${bookingData.servicePrice || 0}</span>
+                          <span className="font-medium">₹{bookingData.servicePrice || 0}</span>
                         </li>
                       )}
                     </ul>
@@ -237,7 +237,7 @@ const BookingConfirmation = () => {
                           {bookingData.coinsUsed > 0 && (
                             <div className="flex justify-between text-sm">
                               <span>Coins Used:</span>
-                              <span className="font-medium text-green-600">-{bookingData.coinsUsed} coins (${(bookingData.coinsUsed / 2).toFixed(2)})</span>
+                              <span className="font-medium text-green-600">-{bookingData.coinsUsed} coins (₹{(bookingData.coinsUsed / 2).toFixed(2)})</span>
                             </div>
                           )}
                           
@@ -266,7 +266,7 @@ const BookingConfirmation = () => {
                       </p>
                     </div>
                     <div className="text-xl font-bold">
-                      ${bookingData.finalPrice !== undefined ? bookingData.finalPrice.toFixed(2) : bookingData.totalPrice ? bookingData.totalPrice.toFixed(2) : '0.00'}
+                    ₹{bookingData.finalPrice !== undefined ? bookingData.finalPrice.toFixed(2) : bookingData.totalPrice ? bookingData.totalPrice.toFixed(2) : '0.00'}
                     </div>
                   </div>
                 </div>

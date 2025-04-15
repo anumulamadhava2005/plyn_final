@@ -91,7 +91,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
                   <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
                   <span>{service.name}</span>
                 </div>
-                <span className="font-medium">${service.price}</span>
+                <span className="font-medium">₹{service.price}</span>
               </li>
             ))}
           </ul>
@@ -106,7 +106,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
               Including all services
             </p>
           </div>
-          <div className="text-2xl font-bold">${totalPrice}</div>
+          <div className="text-2xl font-bold">₹{totalPrice}</div>
         </div>
       </div>
     </div>

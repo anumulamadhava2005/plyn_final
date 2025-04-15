@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { supabase } from '@/integrations/supabase/client';
 
@@ -236,3 +237,64 @@ export const updateBookingAfterPayment = async (
     throw error;
   }
 };
+
+
+export const connectRazorpayLinkedAccount = async (merchant: {
+  id: string;
+  business_name: string;
+  business_email: string;
+  business_phone: string;
+  business_address: any;
+  contact_name: string;
+  business_type: string;
+  pan: string;
+  gst?: string;
+  ifsc_code: string;
+  account_number: string;
+  reentered_account_number: string;
+  beneficiary_name: string;
+  bank_name: string;
+  branch_name: string;
+}) => {
+  const session = await supabase.auth.getSession();
+  if (!session.data.session) {
+    throw new Error('User not authenticated');
+  }
+
+  const response = await fetch(
+    'https://nwisboqodsjdbnsiywax.supabase.co/functions/v1/create-linked-account',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.data.session.access_token}`,
+      },
+      body: JSON.stringify({
+        business_name: merchant.business_name,
+        business_email: merchant.business_email,
+        business_phone: merchant.business_phone,
+        business_address: merchant.business_address,
+        contact_name: merchant.contact_name,
+        business_type: merchant.business_type,
+        pan: merchant.pan,
+        gst: merchant.gst || null,
+        bank_account: {
+          ifsc_code: merchant.ifsc_code,
+          account_number: merchant.account_number,
+          reentered_account_number: merchant.reentered_account_number,
+          beneficiary_name: merchant.beneficiary_name,
+          bank_name: merchant.bank_name,
+          branch_name: merchant.branch_name,
+        },
+      }),
+    }
+  );
+
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to create linked account');
+  }
+
+  return result.account_id as string;
+};
+
