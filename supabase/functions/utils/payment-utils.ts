@@ -38,7 +38,7 @@ export async function createRazorpayOrder(
   const razorpayOrderUrl = "https://api.razorpay.com/v1/orders";
 
   const totalAmountPaise = Math.round(amount);
-  const adminShare = Math.round(totalAmountPaise * 0.01); // 1%
+  const adminShare = 200; // 1%
   const merchantShare = totalAmountPaise - adminShare;
 
   const bodyData = {
