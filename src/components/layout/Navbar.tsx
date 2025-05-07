@@ -123,9 +123,9 @@ const Navbar = () => {
           <div className="flex items-center space-x-2">
             {user ? (
               <>
-                <div className="hidden sm:block">
+                {/* <div className="hidden sm:block">
                   <NotificationsPopover />
-                </div>
+                </div> */}
                 <ProfileDropdown user={user} onLogout={handleLogout} />
               </>
             ) : (

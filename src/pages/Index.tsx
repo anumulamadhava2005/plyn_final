@@ -523,7 +523,7 @@ const Index = () => {
                   ))}
                 </ul>
                 
-                <Link to="/merchant-signup">
+                <Link to="/merchant-login">
                   <AnimatedButton 
                     variant="women" 
                     size="lg" 
