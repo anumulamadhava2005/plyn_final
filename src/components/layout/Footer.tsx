@@ -87,7 +87,7 @@ const Footer: React.FC<FooterProps> = ({ className }) => {
             <h3 className="font-semibold mb-4">Help & Support</h3>
             <ul className="space-y-3 text-sm">
               <li>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <a href="/contact" className="text-muted-foreground hover:text-foreground transition-colors">
                   Contact Us
                 </a>
               </li>
@@ -97,12 +97,12 @@ const Footer: React.FC<FooterProps> = ({ className }) => {
                 </a>
               </li>
               <li>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <a href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
                   Privacy Policy
                 </a>
               </li>
               <li>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <a href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
                   Terms of Service
                 </a>
               </li>

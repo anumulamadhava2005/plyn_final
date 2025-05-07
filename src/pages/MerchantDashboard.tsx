@@ -39,6 +39,30 @@ const MerchantDashboard = () => {
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [merchantData, setMerchantData] = useState<MerchantData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [totalEarnings, setTotalEarnings] = useState<number>(0);
+
+  const fetchTotalEarnings = async (merchantId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('service_price')
+        .eq('merchant_id', merchantId)
+        .eq('status', 'completed');
+
+      if (error) throw error;
+
+      const earnings = data.reduce((sum: number, item: any) => sum + (item.service_price-2 || 0), 0);
+      setTotalEarnings(earnings);
+    } catch (error: any) {
+      console.error("Error fetching earnings:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load total earnings",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const activeTab = searchParams.get('tab') || 'dashboard';
 
@@ -65,6 +89,7 @@ const MerchantDashboard = () => {
 
       if (profile && profile.is_merchant) {
         setMerchantId(user?.id || null);
+        fetchTotalEarnings(user?.id);
 
         const { data: merchant, error: merchantError } = await supabase
           .from('merchants')
@@ -220,6 +245,12 @@ const MerchantDashboard = () => {
                   <TabsContent value="dashboard" className="pt-6">
                     <div className="space-y-6">
                       <DashboardMetrics merchantId={merchantId} />
+                      <Card className="w-full">
+                        <CardContent className="py-4">
+                          <h2 className="text-xl font-semibold mb-2">Total Earnings</h2>
+                          <p className="text-2xl font-bold text-green-600">₹ {totalEarnings.toLocaleString()}</p>
+                        </CardContent>
+                      </Card>
                       <AppointmentsList merchantId={merchantId} />
                     </div>
                   </TabsContent>

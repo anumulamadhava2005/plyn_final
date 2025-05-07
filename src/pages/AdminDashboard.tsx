@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ type EmptyRPCParams = Record<string, never>;
 
 interface DebugInfo {
   method?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   error?: any;
   message?: string;
   data?: any;

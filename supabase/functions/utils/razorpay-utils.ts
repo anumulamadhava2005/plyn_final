@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Razorpay test credentials
 export const RAZORPAY_TEST_KEY_ID = "rzp_test_CABuOHaSHHGey2";
 export const RAZORPAY_TEST_SECRET_KEY = "ikGeYHuQG5Qxkpjo1wNKc5Wx";
