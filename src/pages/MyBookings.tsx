@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -9,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, ChevronLeft, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PageTransition from '@/components/transitions/PageTransition';
+import UserSlotExtender from '@/components/booking/userSlotExtender';
 
 const MyBookings = () => {
   const navigate = useNavigate();
@@ -49,14 +51,14 @@ const MyBookings = () => {
 
   const handleCancelBooking = async (bookingId: string) => {
     if (!user) return;
-    
+
     try {
       await cancelBookingAndRefund(bookingId);
       toast({
         title: 'Booking Cancelled',
         description: 'Your booking has been cancelled successfully and any used PLYN coins have been refunded.',
       });
-      
+
       // Refresh bookings
       const updatedBookings = await fetchUserBookings(user.id);
       setBookings(updatedBookings);
@@ -67,6 +69,24 @@ const MyBookings = () => {
         description: 'Failed to cancel your booking. Please try again.',
         variant: 'destructive',
       });
+    }
+  };
+
+  // Handle booking extension completion
+  const handleExtensionComplete = async () => {
+    if (!user) return;
+
+    try {
+      // Refresh bookings to show updated information
+      const updatedBookings = await fetchUserBookings(user.id);
+      setBookings(updatedBookings);
+
+      toast({
+        title: 'Booking Extended',
+        description: 'Your booking has been successfully extended.',
+      });
+    } catch (error: any) {
+      console.error('Error refreshing bookings:', error);
     }
   };
 
@@ -140,7 +160,7 @@ const MyBookings = () => {
                             {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                           </Badge>
                         </div>
-                        
+
                         <div className="flex flex-col md:flex-row justify-between">
                           <div className="flex items-center mb-4 md:mb-0">
                             <Calendar className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -149,7 +169,7 @@ const MyBookings = () => {
                               <p className="text-sm text-muted-foreground">{booking.time_slot}</p>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center">
                             <div className="text-right">
                               <p className="text-sm text-muted-foreground">Price</p>
@@ -157,10 +177,15 @@ const MyBookings = () => {
                             </div>
                           </div>
                         </div>
-                        
+
                         {(['pending', 'confirmed'].includes(booking.status)) && (
-                          <div className="mt-4 flex justify-end">
-                            <Button
+                          <div className="mt-4 flex justify-end gap-2">
+                            <UserSlotExtender
+                              bookingId={booking.id}
+                              currentEndTime={booking.end_time || "18:00"} // Fallback if end time not available
+                              date={booking.booking_date}
+                              onExtensionComplete={handleExtensionComplete}
+                            />                            <Button
                               variant="outline"
                               size="sm"
                               className="text-destructive hover:text-destructive"

@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { getTimeSlotsForDate, deleteSlot, createSlot } from '@/utils/slotUtils';
 import { Loader2 } from 'lucide-react';
+import SlotExtender from './SlotExtender';
 
 interface SlotManagerProps {
   merchantId: string;
@@ -128,6 +129,16 @@ const SlotManager: React.FC<SlotManagerProps> = ({
     }
   };
 
+  // Handle slot extension
+  const handleSlotExtended = () => {
+    fetchSlots();
+    onSlotsUpdated();
+    toast({
+      title: "Success",
+      description: "Slot extended successfully",
+    });
+  };
+
   // Generate time slots for quick add
   const generateTimeSlots = () => {
     const slots = [];
@@ -182,8 +193,8 @@ const SlotManager: React.FC<SlotManagerProps> = ({
                 ) : slots.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                     {slots.map((slot) => (
+                      <div key={slot.id} className="flex flex-col space-y-1">
                       <Badge 
-                        key={slot.id} 
                         variant={slot.is_booked ? "secondary" : "outline"}
                         className="flex justify-between items-center px-3 py-1.5"
                       >
@@ -199,6 +210,20 @@ const SlotManager: React.FC<SlotManagerProps> = ({
                           </Button>
                         )}
                       </Badge>
+                      
+                      {slot.is_booked && (
+                        <div className="flex justify-end">
+                          <SlotExtender
+                            slotId={slot.id}
+                            merchantId={merchantId}
+                            date={format(internalSelectedDate, 'yyyy-MM-dd')}
+                            currentEndTime={slot.end_time}
+                            workerId={slot.worker_id}
+                            onExtensionComplete={handleSlotExtended}
+                          />
+                        </div>
+                      )}
+                    </div>
                     ))}
                   </div>
                 ) : (

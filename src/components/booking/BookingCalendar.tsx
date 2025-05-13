@@ -190,7 +190,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           
           // Determine the slot ID to use - either an existing one or empty string
           // We'll create a new slot on backend if empty
-          let slotId = slotInfo ? slotInfo.id : '';
+          const slotId = slotInfo ? slotInfo.id : '';
           
           // Use the first available worker for this slot
           const firstWorker = availableWorkers[0];
