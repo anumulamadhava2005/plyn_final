@@ -7,15 +7,18 @@ import Footer from '@/components/layout/Footer';
 import PageTransition from '@/components/transitions/PageTransition';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight, Store, Coins } from 'lucide-react';
+import { UserCircle, Mail, Phone, Calendar, Users, LogOut, Briefcase, ArrowUpRight, Store, Coins, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { getUserCoins } from '@/utils/bookingUtils';
+import DeleteAccountDialog from '@/components/auth/DeleteAccountDialog';
+import { Button } from '@/components/ui/button';
 
 const Profile = () => {
   const { user, userProfile, signOut, isMerchant } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [userCoins, setUserCoins] = useState(0);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     // Redirect to auth page if not logged in
@@ -195,12 +198,30 @@ const Profile = () => {
                   </CardFooter>
                 )}
               </Card>
+                              
+                {/* Danger Zone */}
+                <div className="border-t pt-4 mt-4">
+                  <p className="text-lg font-semibold text-destructive mb-2">Danger Zone</p>
+                  <Button
+                    variant="outline" 
+                    className="justify-start border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => navigate('/delete-account')}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Account
+                  </Button>
+                </div>
             </div>
           </div>
         </main>
         
         <Footer />
       </div>
+
+      <DeleteAccountDialog 
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+      />
     </PageTransition>
   );
 };

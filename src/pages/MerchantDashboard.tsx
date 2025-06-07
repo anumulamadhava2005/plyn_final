@@ -36,6 +36,7 @@ const MerchantDashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [merchantData, setMerchantData] = useState<MerchantData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -185,7 +186,6 @@ const MerchantDashboard = () => {
       });
     }
   };
-  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value });

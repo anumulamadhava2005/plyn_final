@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -36,9 +37,60 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Service } from '@/types/admin';
 
+const staticServices = [
+  {
+    name: "Hair & styling",
+    gender: "unisex",
+  },
+  {
+    name: "Nails",
+    gender: "female",
+  },
+  {
+    name: "Eyebrows & eyelashes",
+    gender: "female",
+  },
+  {
+    name: "Massage",
+    gender: "unisex",
+  },
+  {
+    name: "Barbering",
+    gender: "male",
+  },
+  {
+    name: "Hair removal",
+    gender: "female",
+  },
+  {
+    name: "Facials & skincare",
+    gender: "unisex",
+  },
+  {
+    name: "Injectables & fillers",
+    gender: "unisex",
+  },
+  {
+    name: "Body",
+    gender: "unisex",
+  },
+  {
+    name: "Tattoo & piercing",
+    gender: "unisex",
+  },
+  {
+    name: "Makeup",
+    gender: "female",
+  },
+  {
+    name: "Medical & dental",
+    gender: "unisex",
+  },
+];
+
 const serviceFormSchema = z.object({
-  name: z.string().min(2, {
-    message: "Service name must be at least 2 characters.",
+  name: z.string().min(1, {
+    message: "Please select a service.",
   }),
   description: z.string().min(5, {
     message: "Description must be at least 5 characters.",
@@ -230,10 +282,21 @@ const MerchantServices: React.FC<MerchantServicesProps> = ({ merchantId }) => {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Service Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Haircut" {...field} />
-                      </FormControl>
+                      <FormLabel>Service Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a service type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {staticServices.map((service) => (
+                            <SelectItem key={service.name} value={service.name}>
+                              {service.name} ({service.gender})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

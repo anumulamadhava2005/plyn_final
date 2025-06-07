@@ -116,6 +116,8 @@ export interface MerchantSettings {
   break_end?: string;
   worker_assignment_strategy: string;
   razorpay_id: string;
+  location_lat?: string;
+  location_lng?: string;
 
   // Razorpay onboarding fields
   legal_business_name: string;
